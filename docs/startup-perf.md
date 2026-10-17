@@ -16,7 +16,8 @@ Every number is ms since the page started.
 - **Stages:** `script`, `wp-start`, `frame`, `wallpaper`, `wp-blur-set` / `wp-bg-set` (each blurred copy applied), `apps-parsed <n>`,
   `apps-colours`, `apps`, `grid-start` / `grid` (the app grid drawn, 3.5 s after launch), `live-cache <channels> <logos> <ms>`,
   `live-drawn`, `live-read`.
-- **Details:** `iconcache <KB> <ms>` (the saved app icons parsed), `sample <app id>` (an icon colour worked out again).
+- **Details:** `iconcache <KB> <ms>` (the saved app icons parsed), `sample <app id>` (an icon colour worked out again), `sampled` and
+  `wp-loaded` / `wp-decoded` (see below).
 - **Root calls:** `<method> start-end`, for example `listLaunchPoints 1459-1658` or `getChannelList 7441-7911`. `base64` is the
   logos or the icons, `curl` is Immich.
 - **Frozen stretches:** `long start+duration`, every main-thread task over 50 ms. Timers and the screen wait behind these.
@@ -57,20 +58,35 @@ What that says:
 - **The app grid drawn all at once** at 3.5 s, decoding every icon.
 - **Live TV's cache read** (`cachedLogos` parses about 700 KB of logos as one JSON value). `live-cache` will show its time.
 
-## Next step: three timed runs on 1.0.9086 (commit bbf1335)
+## Runs on 1.0.9086 (commit bbf1335)
 
-After updating, open and close Lumen once, then for each run: close Lumen, open it, wait 20 s. Then paste the last three lines.
-1. Sam's normal setup, Immich wallpaper.
-2. Bundled wallpaper, Settings > Options > Live TV row **off**.
-3. Bundled wallpaper, Live TV row back on, Settings > Options > Live blur **off**.
+Live TV and live blur are both cleared. The big freeze stays when either is off:
+- Immich, Live TV on, live blur on (20:19): `listLaunchPoints 3072-3508`, six `sample` marks 3516-3562, **long 3643+3871**, `wallpaper 8140`,
+  `grid-start 8527`, `live-cache 164ch 152logos 85ms`.
+- Bundled, Live TV off, live blur on (20:21): six `sample` marks 2233-2243, **long 2269+2079**, `wallpaper 4960`, `grid 5263`.
+- Bundled, live blur off (20:22, Live TV row still off): six `sample` marks 2693-2709, **long 2816+2921**, `wallpaper 6246`, `grid 6440`.
 
-Compare each with the bundled 1.0.9085 run above.
+What that says:
+1. In every run the freeze starts 30-110 ms after the app list comes back and icon sampling starts. It ends before the wallpaper is shown,
+   before any blurred copy is applied, and before the grid is drawn. So the blurred copies, the grid and the logo cache are not it.
+2. The same six icons are sampled on every launch (`com.limelight.webos` and five `com.webos.app.*`): they never give a colour, so are never
+   cached.
+3. Left: the icon sampling, or the wallpaper decoded on the main thread (`img.decode()` may not run off-thread on the TV's Chromium).
+
+## Next step: one run on the next dev build
+
+That build caches "no colour" (`none`) for an icon that can't be sampled, and adds marks:
+- `sampled <id> <ok|clear|taint|error|nocanvas> <width>px <ms>`: one icon done, its size, and the time spent drawing and reading it.
+- `wp-loaded <width>px` and `wp-decoded`: the wallpaper image loaded, then its decode finished.
+
+Open Lumen twice after updating. The first launch samples the six icons one last time (with `sampled` marks); the second should have no
+`sample` marks. If the freeze is gone on the second launch, sampling was it. If it stays, look at where `wp-loaded` and `wp-decoded` fall
+against it.
 
 ## Fixes ready to make once the logs point at them
 
 - **Logos:** store each logo under its own localStorage key (or keep the row's logos with the Live TV cache), so drawing the row never
   parses the whole logo cache. Also remember logo paths that failed to read, so they are not asked for on every launch.
-- **Icon colours:** cache "no colour" for an icon that can't be sampled, so it is never tried twice.
 - **Wallpaper:** apply the two blurred copies in one style change, after the first frame settles; or skip the fade/blur work when the
   picture is the one index.html already painted.
 - **Grid:** draw the grid rows one at a time over a few frames instead of all at 3.5 s.

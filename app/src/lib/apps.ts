@@ -209,16 +209,22 @@ function readColorCache (): Record<string, string> {
 	try { return JSON.parse(localStorage.getItem(COLOR_CACHE_KEY) || '{}') as Record<string, string>; } catch { return {}; }
 }
 
-function sampleColor (url: string): Promise<string | undefined> {
+/** what one icon cost (boot timeline): how it ended, its size, and the time spent drawing and reading it */
+function sampled (id: string, img: HTMLImageElement, outcome: string, t: number): void {
+	bootMark('sampled', `${id} ${outcome} ${img.naturalWidth}px ${Math.round(performance.now() - t)}ms`);
+}
+
+function sampleColor (url: string, id: string): Promise<string | undefined> {
 	return new Promise((resolve) => {
 		const img = new Image();
 		img.onload = () => {
+			const t = performance.now();
 			try {
 				// a 16 x 16 copy: reading back a handful of pixels from a small canvas is cheap, from a full-size icon it freezes the TV
 				const c = document.createElement('canvas');
 				c.width = 16; c.height = 16;
 				const g = c.getContext('2d');
-				if (!g) { resolve(undefined); return; }
+				if (!g) { sampled(id, img, 'nocanvas', t); resolve(undefined); return; }
 				g.drawImage(img, 0, 0, 16, 16);
 				// the four corners and the middle of each edge; the colour most of the opaque ones share is the icon's background. One spot
 				// alone can land on the logo (YouTube's red play button sits at the left edge of a white icon).
@@ -233,27 +239,29 @@ function sampleColor (url: string): Promise<string | undefined> {
 					v.n++;
 					if (!best || v.n > best.n) best = v;
 				}
+				sampled(id, img, best ? 'ok' : 'clear', t);
 				resolve(best && best.rgb);
-			} catch { resolve(undefined); }
+			} catch { sampled(id, img, 'taint', t); resolve(undefined); }
 		};
-		img.onerror = () => resolve(undefined);
+		img.onerror = () => { sampled(id, img, 'error', performance.now()); resolve(undefined); };
 		img.src = url;
 	});
 }
+
+/** stored for an icon that gave no colour, so it is not tried again on every launch */
+const NO_COLOR = 'none';
 
 /** colours already found are kept by app id and icon size, so launching again does no image work at all */
 function withIconColor (entry: AppEntry): Promise<AppEntry> {
 	if (!entry.plain || !entry.iconUrl) return Promise.resolve(entry);
 	const key = `${entry.id}:${entry.iconUrl.length}`;
 	const cache = readColorCache();
-	if (cache[key]) return Promise.resolve({...entry, color: cache[key]});
+	if (cache[key]) return Promise.resolve(cache[key] === NO_COLOR ? entry : {...entry, color: cache[key]});
 	bootMark('sample', entry.id);
-	return sampleColor(entry.iconUrl).then((color) => {
-		if (color) {
-			const next = readColorCache();
-			next[key] = color;
-			try { localStorage.setItem(COLOR_CACHE_KEY, JSON.stringify(next)); } catch { /* full: sampled again next time */ }
-		}
+	return sampleColor(entry.iconUrl, entry.id).then((color) => {
+		const next = readColorCache();
+		next[key] = color || NO_COLOR;
+		try { localStorage.setItem(COLOR_CACHE_KEY, JSON.stringify(next)); } catch { /* full: sampled again next time */ }
 		return {...entry, color: color || entry.color};
 	});
 }

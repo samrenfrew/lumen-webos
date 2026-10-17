@@ -263,8 +263,9 @@ export function setWallpaper (sel: string): void {
 			if (!pic) { fallback(); return; }
 			const img = new Image();
 			img.onload = () => {
+				bootMark('wp-loaded', `${img.naturalWidth}px`);
 				const ready = typeof img.decode === 'function' ? img.decode().catch(() => undefined) : Promise.resolve();
-				ready.then(() => { if (mine !== token) return; useLocal(pic); show({src: pic.full, id: pic.id}, img, pic.full); });
+				ready.then(() => { bootMark('wp-decoded'); if (mine !== token) return; useLocal(pic); show({src: pic.full, id: pic.id}, img, pic.full); });
 			};
 			img.onerror = fallback;
 			img.src = pic.full;
@@ -283,9 +284,10 @@ export function setWallpaper (sel: string): void {
 			const src = local ? local.full : c.src;
 			const img = new Image();
 			img.onload = () => {
+				bootMark('wp-loaded', `${img.naturalWidth}px`);
 				// decode off the main thread before the swap, so the first frame with the new picture does not stall on decoding it
 				const ready = typeof img.decode === 'function' ? img.decode().catch(() => undefined) : Promise.resolve();
-				ready.then(() => { if (mine === token) show(c, img, src); });
+				ready.then(() => { bootMark('wp-decoded'); if (mine === token) show(c, img, src); });
 			};
 			img.onerror = () => { useLocal(null); tryAt(i + 1); };
 			img.src = src;
