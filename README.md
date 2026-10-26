@@ -120,6 +120,8 @@ Lumen also runs on a TV with only LG's Developer Mode app. It starts as an app t
 | `sh tools/devmode.sh revert` | Installs that release again and puts back the settings from before the first deploy. |
 | `sh tools/devmode.sh backup` / `restore <file>` | Saves the settings into `backup/`, or puts a saved copy back. |
 | `sh tools/devmode.sh find-apps` | Lists the apps the TV has. Developer Mode refuses `listLaunchPoints`, so it tries each id in `tools/devmode/candidates.txt`. |
+| `sh tools/devmode.sh home` | Puts the apps and folders from `tools/devmode/home.json` on the home rows. |
+| `node tools/devmode/icons.mjs` | Draws one matching tile for each app in `tools/devmode/apps.mjs` into `app/private/iconpack/`, and writes the catalogue (`catalog.local.ts`) and `home.json` to go with it. Brand logos come from `tools/logos/raw/` when you have them there; without them each tile gets a wordmark or icon. `LUMEN_TILE_SCALE=0.45` saves smaller tiles for a TV short on memory. |
 
 The DevTools port (9998) needs no root. `tools/tv/perf/keyfps.mjs` and `keytrace.mjs` measure frames and main-thread work per key over the same tunnel.
 

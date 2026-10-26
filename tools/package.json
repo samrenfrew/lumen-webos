@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "ffmpeg-static": "^5.3.0",
+    "lucide-static": "^0.460.0",
     "simple-icons": "^16.34.0"
   }
 }

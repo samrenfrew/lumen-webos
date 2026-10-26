@@ -13,3 +13,5 @@ build/
 app/private/
 # Dev Mode backups: the original .ipk and saved settings (tools/devmode.sh)
 backup/
+# made by tools/devmode/icons.mjs (the home rows for tools/devmode.sh home)
+tools/devmode/home.json
