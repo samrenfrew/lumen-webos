@@ -106,6 +106,23 @@ This command type checks, builds Lumen as `com.samrenfrew.lumen` with the dev to
 
 After each start, a dev build writes a "boot" line to `/var/lib/homehook/lumen.log` on the TV. [docs/startup-perf.md](docs/startup-perf.md) tells you how to read it.
 
+### A TV in Developer Mode (not rooted)
+
+Lumen also runs on a TV with only LG's Developer Mode app. It starts as an app there: the Home button still opens LG's home, and the root features (the live app list, Live TV, the Control Center's TV settings) are off. `tools/devmode.sh` installs and reverts builds on such a TV. It logs in as `prisoner` on port 9922 and works without `scp`.
+
+1. In the Developer Mode app, turn on Dev Mode Status and Key Server. Download the key from `http://<tv-ip>:9991/webos_rsa`.
+2. Make a copy of the key without the passphrase the app shows: `cp webos_rsa webos_rsa_nopass && chmod 600 webos_rsa_nopass && ssh-keygen -p -m PEM -f webos_rsa_nopass`.
+3. Set `LUMEN_TV_IP` and `LUMEN_TV_KEY` in `.env`.
+
+| Command | What it does |
+|---|---|
+| `sh tools/devmode.sh deploy` | Saves Lumen's settings from the TV, builds, installs and starts the build. The first time, it also downloads the release the TV had. |
+| `sh tools/devmode.sh revert` | Installs that release again and puts back the settings from before the first deploy. |
+| `sh tools/devmode.sh backup` / `restore <file>` | Saves the settings into `backup/`, or puts a saved copy back. |
+| `sh tools/devmode.sh find-apps` | Lists the apps the TV has. Developer Mode refuses `listLaunchPoints`, so it tries each id in `tools/devmode/candidates.txt`. |
+
+The DevTools port (9998) needs no root. `tools/tv/perf/keyfps.mjs` and `keytrace.mjs` measure frames and main-thread work per key over the same tunnel.
+
 ### Other build commands
 
 | Command | What it does |

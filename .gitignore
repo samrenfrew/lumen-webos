@@ -11,3 +11,5 @@ release/
 build/
 # personal assets (other people's logos and photos, the private SF font): see app/vite.config.ts
 app/private/
+# Dev Mode backups: the original .ipk and saved settings (tools/devmode.sh)
+backup/
