@@ -35,11 +35,19 @@ let timed: ((tag: string, start: number, end: number) => void) | null = null;
 /** lib/log.ts's boot timeline: told when each command started and ended. */
 export function setRootTimer (fn: (tag: string, start: number, end: number) => void): void { timed = fn; }
 
+/** Set once the Homebrew Channel's service turns out to be missing (a TV in Developer Mode, not rooted): every later command fails at once
+ *  instead of going over the bus, so the start-up burst and the Live TV row's minute-by-minute refresh cost nothing. Reset by a relaunch. */
+let noService = false;
+/** the bus's answer when the Homebrew Channel itself is missing; a command's own error naming another service must not match */
+const NO_SERVICE = /Service does not exist: org\.webosbrew\.hbchannel\.service\b/;
+
 /** The one place a command is sent. Not exported: callers use the fixed commands below. */
 function run (command: string, timeoutMs = 6000): Promise<string> {
 	if (!isWebOS()) return Promise.reject(new Error('not on a TV'));
+	if (noService) return Promise.reject(new Error('Homebrew Channel service not installed'));
 	const start = performance.now();
-	const call = lunaCall<{stdoutString?: string}>(LUNA.homebrewExec, {command}, timeoutMs).then((r) => r.stdoutString || '');
+	const call = lunaCall<{stdoutString?: string}>(LUNA.homebrewExec, {command}, timeoutMs)
+		.then((r) => r.stdoutString || '', (e: Error) => { if (NO_SERVICE.test(e && e.message)) noService = true; throw e; });
 	if (timed) {
 		// a Luna method's name ("getChannelList"), else the command's first word ("base64", "curl")
 		const m = /luna:\/\/[\w.]+\/(?:[\w]+\/)*(\w+)/.exec(command);
