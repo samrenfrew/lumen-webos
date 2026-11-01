@@ -75,8 +75,7 @@ The Channel installs only the app. Some features also need the scripts in [tools
 
 - Lumen opens again after the TV wakes.
 - The Recent row.
-- Settings > Screensaver > My photos replaces LG's screensaver.
-- Settings > Screensaver > Off ends LG's screensaver.
+- Settings > Screensaver > Enabled replaces LG's screensaver with this app's. It shows your wallpaper pictures, or your Immich photos when Immich is connected.
 
 To install the scripts, run these commands from a copy of this repository. Replace `<tv-ip>` with your TV's address.
 

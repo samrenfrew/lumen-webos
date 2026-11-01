@@ -140,8 +140,26 @@ Most useful first:
    `isAllowed: false` for the three, and none of them ran in the first 5 minutes after boot. Netflix is also `false`: it has a preload
    entry but is not installed, so the entry only matters if it comes back. LG Home (CRIU), Live TV, HDMI 1, HDMI 3, Live Menu and Voice
    are still allowed; LG Home stays because the power button opens it before `watch.sh` swaps in Lumen. This also stops YouTube getting a running dot before anyone opens it.
+   Undone on the TV, seen 2026-10-31: the file was rewritten 2026-10-26 19:08 with `youtube.leanback.v4` and `netflix` back to `true`
+   (AirPlay and LG Channels still `false`). Nothing in the repo or the session notes did it. The preload manager writes this file itself
+   when its policy changes ("Save configuration"), so something called `setPreloadPolicy` that evening (unknown what: an LG setting, an
+   app update, or LG's own services). Set back to `false` in the file 2026-10-31 (backup `/var/lib/homehook/preload-conf.backup-2026-10-31.json`);
+   it takes effect at the next reboot. `setPreloadPolicy` with `"isAllowed":false` returns true but changes nothing live. Untried: have
+   `watch.sh` check the file at boot and set them back if they flip again.
+   Found 2026-10-31: switching off with the remote (power state `Active Standby`) closes every app but Live TV, Lumen included, with no
+   close line in `/var/log/messages`. `KeepAlive` does not protect it. So the first Home press after a switch-on was a cold start (Home
+   pressed 5 s after switch-on, Lumen up 6 to 9 s later). About 40 s into standby the TV suspends (`Suspend`, reason `quickStart`). The
+   watcher now starts Lumen hidden 10 s into each standby. Lumen loads fully there (its boot line is written) and is still open after the
+   suspend: one switch-on later it came up 1 s after LG Home. Not yet measured: a Home press in the first seconds after switching on into
+   Live TV. In the one test so far, Sam switched on only 6 s after the preload started; Home then took 9 s, so the TV may also be slow to
+   answer while it starts Live TV.
 5. Preload our own apps. Adding them to the config did not work, and `setPreloadPolicy` answers "Cannot find" for an app it does not know.
-   Untried: `allowedApps` in `/var/preferences/webos-preload-manager-conf.json`, and the preload manager's own stored list.
+   Read from the binary 2026-10-31 (`/usr/bin/webos-preload-manager`): its candidates come from the config key
+   `com.webos.service.preloadmanager.supportAppList` (each app also needs `true` in `allowedApps`), ranked by launch counts in the db8 kind
+   `com.webos.statisticsManager.appLaunchHistory:1`, capped by `com.webos.service.preloadmanager.maxPreloadApp`. The conf file also has an
+   `applications` key (untried). So Lumen in `supportAppList` was probably not enough on its own: it also needs an `allowedApps` entry, and
+   enough launches to rank. Separately, the TV preloads the last input at boot with `/etc/palm/preload-last-input.sh`
+   (`preload: partial`, hidden). Lumen is a TV input now, so when it is the last input, the TV already preloads it with no help from us.
 6. Keep the iPlayer patch after an iPlayer update: reapply it at boot when the flag is back. Unknown whether the app manager reads the
    change without a reboot.
 7. The Recents button: still off on the remote. Now that apps stay open, it is worth turning on again.

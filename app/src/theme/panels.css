@@ -79,15 +79,12 @@
 
 .cc__caption { height: 30px; line-height: 30px; text-align: center; font-size: 22px; font-weight: 600; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
 
-/* ---------- a tile's list of choices (Sound, Picture, Theme, Clock): ControlCenter.tsx animates the layers, and these classes hold the states between ---------- */
+/* ---------- a tile's list of choices (Sound, Picture, Theme, Clock): ControlCenter.tsx animates the layers, and its fades also hold the grid hidden behind an open list ---------- */
 
 /* the fade sits on each control, never the grid or the list: a parent below full opacity cuts its children's live blur off from the wallpaper */
+/* no class here may set opacity or pointer-events on the controls: changing either by class repaints every control (docs/frame-rate.md) */
 
-.cc__grid--leaving { pointer-events: none; }
-.cc__grid--leaving .cc__mod, .cc__grid--leaving .cc__caption, .cc__mod--gone { opacity: 0; }
 .cc__list { position: absolute; left: 0; top: 0; width: 100%; transform-origin: 0 0; }
-.cc__list:not(.cc__list--shown) { pointer-events: none; }
-.cc__list:not(.cc__list--shown) .cc__opt { opacity: 0; }
 /* height and gap match OPT_H and OPT_GAP in ControlCenter.tsx */
 .panel--cc .cc__opt { width: 100%; height: 72px; margin-bottom: 12px; border-radius: 36px; }
 .panel--cc .cc__opt.cc__mod--focused { transform: scale(var(--lift-press)); }

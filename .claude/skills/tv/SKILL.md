@@ -46,6 +46,8 @@ Quirks:
 - A key press wakes the screensaver. Some screens save state: for example, opening the Full guide makes the Guide open there next time. Put things back as they were (Back to home, the same guide mode) after a key-driven screenshot.
 - The page id changes at every relaunch. `cdp.mjs` looks it up each time.
 - Anything set over DevTools is gone after a relaunch or an install. Interacting with the page can also undo an injected effect.
+- The TV is wired only (192.168.0.20 on eth0). Sam switched its Wi-Fi off on 2026-10-31 after a day when both were up on the same subnet and the TV's TLS connections to the PC hung. If `ip -4 addr` shows wlan0 again, that is the first suspect for odd network results.
+- Keep file searches on the TV narrow (`-maxdepth`, a few directories). A `find /` on 2026-10-31 ran for minutes and the TV rebooted during it.
 
 ## Live development with Sam
 

@@ -1,5 +1,5 @@
 // Your own photos from an Immich server on the home network, as a wallpaper source. The server's address and a read-only API key live in
-// /var/lib/homehook/immich.json on the TV: typed in Settings > Photos, or written over ssh (see docs/immich.md).
+// /var/lib/homehook/immich.json on the TV: typed in Settings > Immich, or written over ssh (see docs/immich.md).
 //
 // Immich sends no CORS headers outside its dev mode, so every API call goes through curl on the TV (lib/root.ts). The picture itself is an
 // ordinary <img>/background URL with the key as a query parameter, which needs no CORS. The blurred copies the glass and the lower rows show
@@ -11,16 +11,16 @@ import {loadConfig} from './storage';
 
 export interface ImmichServer { url: string; key: string }
 
-/** The choices offered in Settings > Wallpaper > Choose wallpaper > Photos. */
+/** The choices offered in Settings > Wallpaper > Choose wallpaper > Immich, and Settings > Screensaver > Immich photos. */
 export const IMMICH_SOURCES: {key: string; title: string}[] = [
 	{key: 'immich:recent', title: 'Recent'},
 	{key: 'immich:recent-people', title: 'Recent, with people'},
 	{key: 'immich:memories', title: 'On this day'},
 	{key: 'immich:favorites', title: 'Favourites'},
-	{key: 'immich:all', title: 'All my photos'}
+	{key: 'immich:all', title: 'All photos'}
 ];
 
-/** The start of the Recent window (Settings > Photos > Recent photos from). */
+/** The start of the Recent window (Settings > Immich > Recent photos from). */
 function recentSince (): string { return new Date(Date.now() - loadConfig().immichRecentDays * 864e5).toISOString(); }
 
 const SERVER_KEY = 'lumen-immich-server-v1';
@@ -48,7 +48,7 @@ function tidyUrl (url: string): string {
 	return u && !/^https?:\/\//.test(u) ? 'http://' + u : u;
 }
 
-/** Settings > Photos > Test connection: the server answers, then the key opens its albums. The tidied server and its albums, or what went wrong. */
+/** Settings > Immich > Test connection: the server answers, then the key opens its albums. The tidied server and its albums, or what went wrong. */
 export function testServer (typed: ImmichServer): Promise<{server: ImmichServer; albums: {id: string; title: string}[]} | string> {
 	const server = {url: tidyUrl(typed.url), key: typed.key.trim()};
 	const ok = immichServerOk(server.url, server.key);

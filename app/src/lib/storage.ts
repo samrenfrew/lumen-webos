@@ -85,10 +85,10 @@ export interface UserConfig {
 	liquidDock: boolean;
 	/** the Immich sources the ambient screen shows, joined with | (immich:recent|immich:album:<id>, ...) */
 	ambient: string;
-	/** your photos replace LG's screensaver (Screensaver in Control Center shows them either way) */
+	/** Lumen's screensaver replaces LG's (Screensaver in Control Center shows Lumen's either way) */
 	ambientOn: boolean;
-	/** no screensaver at all: watch.sh ends LG's as soon as it starts, and Lumen starts none of its own */
-	saverOff: boolean;
+	/** what Lumen's screensaver shows: wallpaper (the pictures picked in Choose wallpaper) | immich (the ambient sources) */
+	saverShow: string;
 	/** seconds each photo stays on the ambient screen */
 	ambientSeconds: number;
 	/** how far the screensaver lowers the TV's backlight while it shows: tv (not at all) | dim | low */
@@ -157,7 +157,7 @@ export const DEFAULT_CONFIG: UserConfig = {
 	liquidDock: false,
 	ambient: 'immich:recent',
 	ambientOn: false,
-	saverOff: false,
+	saverShow: 'wallpaper',
 	ambientSeconds: 30,
 	ambientBrightness: 'dim',
 	ambientPrint: false,
@@ -235,7 +235,8 @@ export function parseConfig (raw: string): UserConfig {
 		ambient: typeof parsed.ambient === 'string' && parsed.ambient.indexOf('immich:') === 0 ? parsed.ambient : 'immich:recent',
 		// before ambientOn, an empty source meant LG's screensaver
 		ambientOn: typeof parsed.ambientOn === 'boolean' ? parsed.ambientOn : typeof parsed.ambient === 'string' && parsed.ambient.indexOf('immich:') === 0,
-		saverOff: parsed.saverOff === true,
+		// before saverShow, Lumen's screensaver could only show Immich
+		saverShow: parsed.saverShow === 'wallpaper' || parsed.saverShow === 'immich' ? parsed.saverShow : parsed.ambientOn === true ? 'immich' : 'wallpaper',
 		focusStrength: parsed.focusStrength === 'subtle' || parsed.focusStrength === 'strong' ? parsed.focusStrength : 'normal',
 		firstRow: parsed.firstRow === 5 || parsed.firstRow === 7 ? parsed.firstRow : 6,
 		videoHours: parsed.videoHours === 'day' || parsed.videoHours === 'evening' || parsed.videoHours === 'night' ? parsed.videoHours : 'always',

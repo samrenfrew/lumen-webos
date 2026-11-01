@@ -2,6 +2,7 @@ import {useEffect, useLayoutEffect, useRef, useState} from 'preact/hooks';
 import {Status} from './Status';
 import {Forecast} from './Forecast';
 import {cachedServer, loadServer, nextAsset, picturePosition, previewUrls, type ImmichServer} from '../lib/immich';
+import {nextPicture} from '../lib/wallpaper';
 import {setAmbientShowing} from '../lib/system';
 import {readCache, writeCache} from '../lib/boot';
 import {dimForScreensaver, restoreBacklight} from '../lib/tvcontrols';
@@ -26,12 +27,13 @@ function toHomeClock (clock: HTMLElement | null): string {
 	return `translate(${a.left - b.left}px, ${a.top - b.top}px) scale(${b.width ? a.width / b.width : 1})`;
 }
 
-/** Screensaver with your own photos (Immich). Opened by watch.sh with {"view":"ambient"} when the TV's screensaver starts, instead of LG's.
+/** Lumen's screensaver: the wallpaper pictures picked in Choose wallpaper, or your Immich photos (`show`; with no Immich server it falls back to the pictures).
+ *  Opened by watch.sh with {"view":"ambient"} when the TV's screensaver starts, instead of LG's.
  *  Two full-screen layers: the next photo is loaded and decoded on the hidden one, then they swap with a crossfade (opacity only) every `seconds` (Settings > Screensaver > Time on each photo, 30 by default); each photo
  *  stays still. The clock sits bottom left, the weather and date bottom right, and the weather widget (when on) between them; a large widget takes the right side instead, with the date under the clock. Any key or a click goes back to the home screen.
  *  Started from the home screen (Control Center, or the idle timer), it opens on the wallpaper already there (`opening`): the home screen fades away, the clock
  *  slides from its place top left to bottom left, and the first new photo loads only after that, so nothing heavy runs while the screen changes. */
-export function Ambient ({source, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, print, opening, onExit}: {source: string; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; print?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void}) {
+export function Ambient ({show, source, pictures, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, print, opening, onExit}: {show: string; source: string; pictures: string[]; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; print?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void}) {
 	// each layer holds one photo's URL, or two for a portrait pair shown side by side, and where they sit (placed on their faces)
 	const [last] = useState(() => (opening ? null : readCache<{id: string; urls: string[]}>(LAST_KEY)));
 	const first = opening || last;
@@ -73,26 +75,30 @@ export function Ambient ({source, seconds = 30, backlight, weather, weatherLine,
 		s.alive = true;
 		setAmbientShowing(true);
 		let server: ImmichServer | null = cachedServer();
+		const next = (): Promise<{id: string; urls: string[]; pos: string} | null> => {
+			const pic = () => { const p = nextPicture(pictures, s.shown); return p ? {...p, pos: ''} : null; };
+			if (show !== 'immich') return Promise.resolve(pic());
+			return (server ? Promise.resolve(server) : loadServer())
+				.then((srv) => { server = srv; return srv ? nextAsset(srv, source, s.shown) : null; })
+				.then((id) => (!server ? pic() : id ? {id, urls: previewUrls(server, id), pos: picturePosition(id)} : null));
+		};
 		const advance = () => {
 			if (!s.alive) return;
-			const ready = server ? Promise.resolve(server) : loadServer();
-			ready
-				.then((srv) => { server = srv; return srv ? nextAsset(srv, source, s.shown) : null; })
-				.then((id) => {
-					if (!id || !server || !s.alive) return null;
-					const urls = previewUrls(server, id);
-					return Promise.all(urls.map((url) => {
+			next()
+				.then((pic) => {
+					if (!pic || !s.alive) return null;
+					return Promise.all(pic.urls.map((url) => {
 						const img = new Image();
 						img.src = url;
 						return typeof img.decode === 'function' ? img.decode() : Promise.resolve();
-					})).then(() => ({id, urls}));
+					})).then(() => pic);
 				})
 				.then((pic) => {
 					if (!pic || !s.alive) return;
 					s.shown = pic.id;
-					writeCache(LAST_KEY, pic);
+					writeCache(LAST_KEY, {id: pic.id, urls: pic.urls});
 					const back = 1 - s.front;
-					setLayers((l) => { const n: [Layer, Layer] = [l[0], l[1]]; n[back] = {urls: pic.urls, pos: picturePosition(pic.id)}; return n; });
+					setLayers((l) => { const n: [Layer, Layer] = [l[0], l[1]]; n[back] = {urls: pic.urls, pos: pic.pos}; return n; });
 					// two frames so the hidden layer has its picture before it becomes the visible one
 					window.requestAnimationFrame(() => window.requestAnimationFrame(() => { s.front = back; setFront(back); }));
 				})
@@ -127,7 +133,7 @@ export function Ambient ({source, seconds = 30, backlight, weather, weatherLine,
 			window.removeEventListener('mousedown', exit, true);
 			setAmbientShowing(false);
 		};
-	}, [source, seconds]);
+	}, [show, source, pictures, seconds]);
 
 	return (
 		<div ref={root} class={`ambient${warm ? ' ambient--warm' : ''}${forecast === 'large' && weather ? ' ambient--castlarge' : ''}`}>

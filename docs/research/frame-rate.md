@@ -74,6 +74,12 @@ The panel opened on default values (backlight 100, Eye Comfort off) and redrew w
 
 Opening a list is still the heaviest step: about 65 ms of JS in the key handler and 200 ms of raster for the new options and the pill.
 
+### Lists again (2026-10-26)
+
+After the design cleanup, lists felt laggy again: list close drew 215 ms of raster in 4 frames, and list open 274 ms in 3 frames. The live blur was not the cause: only 2 or 3 controls blur during a list open. `LayerTree.layerPainted` showed that each list open and close repainted all ten controls and all seven choices twice. Tests in the live page found two triggers. A class that sets `opacity` on a control repaints it, even when the value does not change and the control has its own layer. A change of `pointer-events` on a parent repaints all its children too. An opacity animation on the same control repaints nothing. The grid and the list were hidden by such classes (`cc__grid--leaving`, `cc__list--shown`).
+
+The classes are gone. The fades that hide the grid now keep running at their end value while the list is open, and the opened tile is hidden by an animation too. Mouse handlers check the phase instead of `pointer-events`. With the change live: list close 11 ms of raster in 8 frames (worst gap 180 ms to 57 ms), list open 218 ms in 5 frames (worst gap 195 ms to 105 ms).
+
 ## Settings rows (2026-10-26)
 
 Up and Down in a Settings list ran at about 16 to 18 fps. The rows shared one layer with the whole list, so each focus move rastered the full list (about 1000 by 840 px) for one row's zoom and shadow. Each row now has its own layer (`will-change: transform` on `.slist__row`), as the Guide rows do. In `walk.mjs settings`, raster time fell from about 1.1 s to 0.27 s and dropped frames by more than half. Sam: much smoother on the TV.

@@ -7,7 +7,7 @@ Settings > Wallpaper can show your own photos from an Immich server on the home 
 1. In Immich: Account Settings > API Keys > New API Key. Give it only these permissions: `album.read`, `asset.read`, `asset.view`,
    `memory.read`, `face.read`, `stack.read`. It can then read photos and nothing else. Without `face.read` everything still works, but photos are
    not placed on their faces (see below). Without `stack.read`, every photo in a stack can show, not only its cover.
-2. On the TV: Settings > Photos. Type the Server address (as you would open it in a browser on the home network: scheme, host and port,
+2. On the TV: Settings > Immich. Type the Server address (as you would open it in a browser on the home network: scheme, host and port,
    no path; `http://` is added when left out) and the API key. OK on a row opens a text field and the TV's keyboard. OK saves, Back
    cancels.
 3. Choose Test connection. Lumen asks the server for its version, then for its albums with the key. When both answer, it writes
@@ -28,7 +28,7 @@ Settings > Wallpaper > Wallpaper type > Immich photos then picks the photos for 
 
 A stack shows as its cover photo only. Lumen reads the list of stacks from Immich every 6 hours and leaves the other photos in each stack out.
 
-- **Recent**: random photos taken in the last 6 months. Settings > Photos > Recent photos from changes this to the last month, 3 months or year.
+- **Recent**: random photos taken in the last 6 months. Settings > Immich > Recent photos from changes this to the last month, 3 months or year.
 - **On this day**: Immich's memories for today (photos from this date in past years); Recent when there are none.
 - **Favourites**: random from the photos marked as favourites.
 - **All my photos**: random from everything.
@@ -65,7 +65,7 @@ to sit high. A 9:16 phone portrait in a pair loses about 300 px top and bottom t
 
 ## Screensaver
 
-Settings > Screensaver: set Screensaver to My photos, and tick one or more sources under Photos. With several ticked, each batch of photos comes from one of them at random. When the TV's screensaver starts, `watch.sh` opens Lumen on
+Settings > Screensaver: set Screensaver to Enabled and Show to Immich photos, and tick one or more sources under Immich photos. With several ticked, each batch of photos comes from one of them at random. When the TV's screensaver starts, `watch.sh` opens Lumen on
 its ambient screen instead: your photos full-screen, a 1.6 s crossfade every 30 seconds (Settings > Screensaver > Time on each photo: 10 s to 5 min), each photo zooming in very slowly, and the clock,
 date and weather bottom left. Any key returns to the home screen.
 

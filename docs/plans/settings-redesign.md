@@ -13,7 +13,7 @@ the screen it changes, and anything two screens share (the weather location, the
 | Apps, Sources, Channels | grid pages, unchanged. Channels shows only with the Live TV row on |
 | Home Screen | Live TV row, Apps per row, Hide app names, Show recents indicator, Hide the dock, Dim when the dock is hidden, Date and weather, Weather widget |
 | Wallpaper | Wallpaper type, Choose wallpaper, then only the rows the type uses (Change automatically and New picture on startup for pictures and photos, Video wallpaper hours for video), Dim the wallpaper |
-| Screensaver | Screensaver (LG's, My photos or Off), Start on the home screen after, then with Immich set up: Photos, Time on each photo, Brightness, Print look, Weather widget. Off hides the rest |
+| Screensaver | Screensaver (Enabled or Disabled), then only when Enabled: Start on the home screen after, Show (Wallpaper pictures or Immich photos, only with Immich connected), Immich photos (only when Show is Immich photos), Time on each picture, Brightness, Print look, Weather widget |
 | Appearance | Appearance, Focus highlight, Reduce motion, Dock blur |
 | Photos | Server address, API key, Test connection, Recent photos from |
 | Language and Region | Language, Clock, AM/PM on the clock (not with a 24-hour clock), Weather country, Weather city |
@@ -22,8 +22,10 @@ the screen it changes, and anything two screens share (the weather location, the
 | System | TV scripts, Show system apps, Restore settings from the TV; dev builds add the frame-rate counter and Liquid glass dock |
 
 What changed from the first grouping:
-- The Screensaver page starts with one choice, LG's screensaver, My photos or Off, in place of the Use my photos switch. Off sets
-  `/var/lib/homehook/no-screensaver`, and `watch.sh` ends LG's screensaver as soon as it starts, in every app. Lumen starts none of its own.
+- The Screensaver page starts with Enabled or Disabled. Disabled runs LG's default screensaver and hides the rest of the page. Enabled shows the wallpaper pictures picked in
+  Choose wallpaper, or Immich photos. There is no Off: turning the TV's screensaver off belongs to the service menu, with its burn-in
+  warnings (2026-10-27). Each launch removes the `/var/lib/homehook/no-screensaver` flag that the old Off set.
+- Immich choices show only once Immich is connected. The Photos page is now called Immich.
 - Each Weather widget is one choice, Off, Small or Large, instead of a switch and a size row. The stored fields are unchanged.
 - The Weather page is gone. Date and weather moved to Home Screen, and the location to Language and Region.
 - Photos is new: the Immich server is typed and tested there (`docs/immich.md`), and Recent photos from moved there, as it changes the

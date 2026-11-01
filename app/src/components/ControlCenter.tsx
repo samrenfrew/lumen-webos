@@ -92,19 +92,19 @@ type Phase = 'grid' | 'opening' | 'list' | 'closing';
 interface Morph {kind: 'open' | 'close'; cell: MenuCell; geo: {x: number; y: number; w: number; h: number; fw: number; fh: number; tile: End; list: End}}
 
 /** Grows a top-bar panel in from the button that opened it (the top-bar pill with data-top={key}): a short scale and fade, as tvOS does. */
-export function growFrom (panel: HTMLElement | null, key: string): void {
+export function growFrom (panel: HTMLElement | null, key: string, ms = 260): void {
 	const button = document.querySelector(`.topbar [data-top="${key}"]`);
 	if (!panel || !button || !panel.animate || document.documentElement.classList.contains('reduce-motion')) return;
 	const b = button.getBoundingClientRect();
 	const p = panel.getBoundingClientRect();
 	panel.style.transformOrigin = `${b.left + b.width / 2 - p.left}px ${b.top + b.height / 2 - p.top}px`;
-	const opts = {duration: 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'};
+	const opts = {duration: ms, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)'};
 	panel.animate([{transform: 'scale(0.6)'}, {transform: 'none'}], opts);
 	// each control fades on its own: fading the panel would cut their live blur off from the wallpaper
 	Array.from(panel.querySelectorAll<HTMLElement>('.cc__mod, .cc__caption')).forEach((el) => el.animate([{opacity: 0}, {opacity: 1}], opts));
 }
 
-/** Control Center (opened from the round button top right): sound, picture mode, appearance, clock, the screensaver (your photos), LG Home, screen off,
+/** Control Center (opened from the round button top right): sound, picture mode, appearance, clock, the screensaver (Lumen's), LG Home, screen off,
  *  restart, backlight and Eye Comfort. Volume is left to the remote's own buttons. Arrows move between controls, OK presses one, Left/Right on
  *  the backlight bar change it, Back closes, and Down twice on the bottom row closes and goes to the glass bar. */
 export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMode, clockFormat, onDarkMode, onClockFormat}: Props) {
@@ -131,7 +131,8 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 	const still = () => document.documentElement.classList.contains('reduce-motion');
 	const after = (ms: number, fn: () => void) => { timers.current.push(window.setTimeout(fn, still() ? 0 : ms)); };
 
-	useLayoutEffect(() => growFrom(panel.current, 'controls'), []);
+	// longer than Inputs: the first frame lands late, so a 260 ms grow showed only half its frames (Sam chose 460 on the TV)
+	useLayoutEffect(() => growFrom(panel.current, 'controls', 460), []);
 
 	// read the TV's values a moment after the panel is on screen, so opening it is never held up by the TV answering
 	useEffect(() => {
@@ -286,18 +287,24 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 		const k = timeline(morph);
 		const ms = still() ? 0 : Math.round((morph.kind === 'open' ? OPEN_MS : CLOSE_MS) * (options(morph.cell).length > LONG_LIST ? LONG_STRETCH : 1));
 		const opts: KeyframeAnimationOptions = {duration: ms, easing: 'linear', fill: 'both'};
+		const open = morph.kind === 'open';
+		const tile = tiles.current[morph.cell];
 		const each = (root: HTMLElement | null, sel: string, frames: Keyframe[]) => (root ? Array.from(root.querySelectorAll<HTMLElement>(sel)) : []).map((el): [HTMLElement, Keyframe[]] => [el, frames]);
-		const pairs: [HTMLElement | null, Keyframe[]][] = [[pillEl.current, k.pill], [glassEl.current, k.glass], [rimEl.current, k.rim], [textEl.current, k.text], [listEl.current, k.list], [gridEl.current, k.grid],
-			...each(listEl.current, '.cc__opt', k.listFade), ...each(gridEl.current, '.cc__mod:not(.cc__mod--gone), .cc__caption', k.gridFade)];
-		running.current = pairs.filter(([el]) => el && el.animate).map(([el, frames]) => (el as HTMLElement).animate(frames, opts));
+		const go = (pairs: [HTMLElement | null | undefined, Keyframe[]][]) => pairs.filter(([el]) => el && el.animate).map(([el, frames]) => (el as HTMLElement).animate(frames, opts));
+		const moving = go([[pillEl.current, k.pill], [glassEl.current, k.glass], [rimEl.current, k.rim], [textEl.current, k.text], [listEl.current, k.list], [gridEl.current, k.grid]]);
+		// opening, the tile is hidden from the first frame, as the pill stands in for it
+		const fading = go([...each(listEl.current, '.cc__opt', k.listFade), ...each(gridEl.current, '.cc__mod, .cc__caption', k.gridFade).filter(([el]) => !(open && el === tile)),
+			...(open ? [[tile, [{opacity: 0}, {opacity: 0}]] as [HTMLElement | undefined, Keyframe[]]] : [])]);
+		running.current = moving.concat(fading);
 		const grid = gridEl.current;
 		if (grid) grid.style.transformOrigin = `${morph.geo.x + morph.geo.w / 2}px ${morph.geo.y + morph.geo.h / 2}px`;
 		after(ms + 20, () => {
-			if (morph.kind === 'open') { setPhase('list'); setMorph(null); }
+			if (open) { setPhase('list'); setMorph(null); }
 			else { setMorph(null); setMenu(null); setPhase('grid'); }
-			// the classes now hold each layer's end state
-			running.current.forEach((a) => a.cancel());
-			running.current = [];
+			// the fades keep holding the grid hidden behind the open list: hiding it by class repaints every control (docs/frame-rate.md)
+			moving.forEach((a) => a.cancel());
+			if (!open) fading.forEach((a) => a.cancel());
+			running.current = open ? fading : [];
 		});
 	}, [morph]);
 
@@ -352,6 +359,8 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 
 	const current = cellAt(pos.row, pos.x).cell;
 	const focus = (cell: CellId) => () => {
+		// the pointer can still reach the grid behind an open list, which is hidden by its fades, not pointer-events
+		if (state.current.phase !== 'grid') return;
 		for (let r = 0; r < GRID.length; r++) { const i = GRID[r].map((c) => c.id).indexOf(cell); if (i >= 0) { setPos({row: r, x: startOf(r, i)}); return; } }
 	};
 
@@ -371,7 +380,7 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 			<div
 				key={cell}
 				ref={(el) => { tiles.current[cell] = el; }}
-				class={`cc__mod cc__tile${current === cell ? ' cc__mod--focused' : ''}${morph && morph.kind === 'open' && morph.cell === cell ? ' cc__mod--gone' : ''}${i.on ? ' cc__mod--on' : ''}`}
+				class={`cc__mod cc__tile${current === cell ? ' cc__mod--focused' : ''}${i.on ? ' cc__mod--on' : ''}`}
 				onMouseEnter={focus(cell)}
 				onClick={() => press(cell)}
 			>
@@ -398,7 +407,7 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 		<>
 			<div class="panel-backdrop panel-backdrop--clear" onClick={onClose} />
 			<div class="panel panel--cc" ref={panel}>
-				<div ref={gridEl} class={`cc__grid${phase === 'grid' || phase === 'closing' ? '' : ' cc__grid--leaving'}`}>
+				<div ref={gridEl} class="cc__grid">
 				<div class="cc__row">
 					{wide('sound')}
 					{wide('picture')}
@@ -412,7 +421,7 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 					<div
 						class={`cc__mod cc__slider${current === 'backlight' ? ' cc__mod--focused' : ''}`}
 						onMouseEnter={focus('backlight')}
-						onClick={(e: MouseEvent) => { const box = (e.currentTarget as HTMLElement).getBoundingClientRect(); backlight(Math.round(((e.clientX - box.left) / box.width) * 100)); }}
+						onClick={(e: MouseEvent) => { if (state.current.phase !== 'grid') return; const box = (e.currentTarget as HTMLElement).getBoundingClientRect(); backlight(Math.round(((e.clientX - box.left) / box.width) * 100)); }}
 					>
 						{sliderText}
 						<div class="cc__fill" style={`width:${values.backlight}%`}>{sliderText}</div>
@@ -433,12 +442,12 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 					];
 				})()}
 				{menu && (
-					<div ref={listEl} class={`cc__list${phase === 'closing' || phase === 'grid' ? '' : ' cc__list--shown'}`}>
+					<div ref={listEl} class="cc__list">
 						{options(menu.cell).map((o, i) => (
 							<div
 								key={o.value}
 								class={`cc__mod cc__tile cc__opt${menu.idx === i ? ' cc__mod--focused' : ''}${o.value === chosen(menu.cell) ? ' cc__mod--on' : ''}`}
-								onMouseEnter={() => setMenu({cell: menu.cell, idx: i})}
+								onMouseEnter={() => { if (state.current.phase === 'list') setMenu({cell: menu.cell, idx: i}); }}
 								onClick={() => closeMenu(true, i)}
 							>
 								<div class="cc__icon"><Glyph name={MENU_GLYPH[menu.cell]} /></div>

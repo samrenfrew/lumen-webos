@@ -9,16 +9,16 @@ export function setVideoFlag (on: boolean): void {
 	root.setVideoFlag(on).catch(() => undefined);
 }
 
-/** Settings > Screensaver: watch.sh opens Lumen's ambient screen instead of LG's screensaver. */
+/** Settings > Screensaver > Lumen: watch.sh opens Lumen's ambient screen instead of LG's screensaver. */
 export function setAmbientFlag (on: boolean): void {
 	if (!isWebOS()) return;
 	root.setAmbientFlag(on).catch(() => undefined);
 }
 
-/** Settings > Screensaver > Off: watch.sh ends LG's screensaver as soon as it starts. */
-export function setSaverOffFlag (on: boolean): void {
+/** An older Settings > Screensaver > Off may have left its flag on the TV; nothing in Settings could undo it now. */
+export function clearSaverOffFlag (): void {
 	if (!isWebOS()) return;
-	root.setSaverOffFlag(on).catch(() => undefined);
+	root.clearSaverOffFlag().catch(() => undefined);
 }
 
 export function setAmbientShowing (on: boolean): void {
