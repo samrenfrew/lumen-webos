@@ -36,6 +36,10 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       id `MVPD_IP-com.samrenfrew.lumen`, done over SSH), picked once as the last input; the next restart drew at 8.3 s (one sample). Next:
       more samples, check that Live TV no longer shows first, and why `/tmp/homehook.log` was missing after that boot. Removing the input
       is `eim/deleteDevice` with the same appId (untested).
+      Idea from Hearth 2.0 (`docs/research/prior-art.md`, "Opening an app when the TV is switched on"): a copy of
+      `/etc/palm/bootd.json` at `/var/luna/preferences/bootd.json` with `remoteKey`, `localKey` and `micomPower` set to Lumen makes
+      the TV open Lumen first, behind LG's start-up cover. Check first, read-only: does `/usr/sbin/bootd` name that path, and what is in
+      this TV's `firstAppByPowerOnReason` table.
 - [ ] Keep apps alive (`docs/keep-alive.md`): Lumen, iPlayer, YouTube, Plex, Channel 4 and Channel 5 stay open in the background. Lumen's
       home screen lags for a moment on return. Next and untried: "Not tried yet" in that doc. Check Plex and iPlayer go quiet in the
       background and carry on from the same point.
@@ -68,6 +72,9 @@ From `docs/research/prior-art.md` and upstream (ammar027/lumen-webos). Build wit
 - [ ] Native Home: `appCategory: ["home"]` is in appinfo.json (built). Next is the TV step, `setDefaultApp` (upstream
       `docs/native-home.md`), so LG's own Home routes open Lumen, not only the remote's Home key that Input Hook rebinds. Restore LG Home
       before removing Lumen.
+      More reports since (2026-11-01, `docs/research/prior-art.md`): Hearth's `general.defaultApps.home` worked on a G5 on webOS 11.2,
+      with Back out of an app going to Hearth. If it does not cover Exit here, the fallback is the webOS 10 Home takeover (mount over
+      `com.webos.app.home`, then `blockSystemApp` and `releaseBlockSystemApp`) that Glasshouse and lg-luma use.
 - [ ] Free memory by stopping LG services. Read on the TV 2026-10-24: eight services cleanyourtv-WebOS stops (`remotelogger`,
       `service-logger`, `contentminer`, `nudge`, `admanager`, `sportsalarm`, `adoverlay-service`, `uploadd`) run here, about 10 MB
       together. Small but worth doing. `ss.apiadapter.pub` (23 MB) is unknown; find out what it is before touching it. Method: that repo's

@@ -66,3 +66,85 @@ Reddit could not be read: every route was blocked. X posts could not be opened, 
 
 - Reddit was not searched, and X replies were not read.
 - Free My TV's LG build may have fewer features than its README lists.
+
+## Hearth 2.0 (read 2026-11-01)
+
+Hearth 2.0.0 and 2.0.1 came out on 2026-11-01. Read from the source at commit `ef81da3`, not tried on a TV. Hearth's reference TV is webOS 7.6; nothing below was tested by its authors on webOS 25 unless it says so.
+
+### Home button without Input Hook
+
+Hearth 2.0 does not have a new way to catch the Home key. It ships Input Hook's own files inside the app (`public/homehook/ezinject` and `libinputhookpp.so`, GPL-3.0, credited) and starts them itself from a boot link (`/var/lib/webosbrew/init.d/49-launcher-homekey` running `src/homehook/homehook.sh`). It injects the same library into the same processes (`lginput2`, `micomservice`, `tvservice` and others), uses the same marker (`/tmp/inputhook`) and the same key file (`/home/root/.config/lginputhook/keybinds.json`). If the Input Hook app has already injected in this boot, Hearth does nothing. *Map home button* listens for the Home key code (773, 774 or 125) and writes the mapping.
+
+What it does better than the Input Hook app: at boot it polls for the input processes every 0.25 s for the first 10 s and injects each one as soon as it appears, with one retry if its log does not say `InputHook initialized` within 10 s. If Hearth is uninstalled, the boot link takes Hearth's entry out of `keybinds.json`, so Home never points at an app that is gone.
+
+For Lumen: Sam already has Input Hook, and the hook is the same code, so bundling it gains nothing on this TV. It would only help someone installing Lumen fresh, and it puts a GPL-3.0 binary in an MIT release. The early-inject loop is the only part worth a look, and only if Home is found to do nothing for a while after a boot.
+
+### Opening an app when the TV is switched on
+
+This is the useful one. When webOS powers on, `bootd` picks the first app from `firstAppByPowerOnReason` in `/etc/palm/bootd.json`. That table is how the Netflix button switches the TV on into Netflix. For the power button (`remoteKey`), the TV's own button (`localKey`) and a cold start (`micomPower`) it has no app, so the TV opens the last input. `bootd` reads `/var/luna/preferences/bootd.json` instead of its own file when that exists. Hearth writes a copy of LG's file there with those three reasons set to Hearth (optionally also `wakeOnWiFi` and `wakeOnLan`). Code: `src/lib/poweroncmd.ts`, `src/poweron/guard.sh`, `src/poweron/README.md`.
+
+- The app opens behind LG's start-up cover (`coverUI`), as Netflix does, so Live TV is not drawn first. Claimed in the README; the PR was tested on a webOS 4.5 TV.
+- Nothing runs in the background. It takes effect after one full restart, since `bootd` reads the file only when it starts.
+- Hearth checks support before offering it: `grep -q /var/luna/preferences/bootd.json /usr/sbin/bootd` and `grep -q firstAppByPowerOnReason /etc/palm/bootd.json`.
+- A boot check (`45-launcher-poweron`) removes the copy if the app is uninstalled, or if a firmware update changed LG's file, so an old copy never hides a new one. The write is done aside, read back, then moved into place after `sync`.
+- Undo: `rm -f /var/luna/preferences/bootd.json` and reboot.
+- Hearth dropped *Add the launcher as a TV input* (`eim/addDevice`) in favour of this, and removes the old input once.
+
+For Lumen: this goes after the "Cold start after a reboot" item in `PLAN.md`. Lumen is a TV input today and `watch.sh` opens Lumen after a wake, but both act after the TV has already picked Live TV, which is why Live TV showed for 10 to 15 s. If `bootd` on webOS 25 honours the copy, Lumen would be the first app the TV opens, and the input and the wake launch could go. Two checks on the TV first, both read-only: the two greps above, and `cat /etc/palm/bootd.json` to see which reasons this TV's table has. Also unknown: whether waking from standby (not a cold boot) goes through `bootd` at all on this TV. If it does not, the `watch.sh` wake launch stays for that case.
+
+### Hearth as the TV's Home app
+
+*Set Hearth as the TV's Home app* writes Hearth's id to the system setting `general.defaultApps.home` through the root shell (an app's own call is refused). Hearth's notes say it worked on webOS 4.5 and not on 7.6, but its compatibility table has an LG G5 on webOS 26 (11.2) where it worked, and Back out of an app went to Hearth. Upstream reported the same method working on a 65UT8000 on webOS 25. A boot check (`46-launcher-homeapp`) puts LG Home back if the app is uninstalled. Code: `src/homeapp/`, `src/lib/homeappcmd.ts`.
+
+For Lumen: this is the Native Home item in `PLAN.md`, now with two more reports that it works on new firmware, and the G5 report says it covers Back out of an app. That is the Exit and app-close problem in "Open on the TV". Worth doing next. The uninstall guard is worth copying.
+
+### Reassigning remote buttons without Input Hook
+
+webOS runs every remote key through a chain of JavaScript key filters inside `surface-manager`, set in configd as `com.webos.surfacemanager.keyFilters`. LG's Netflix and Prime Video buttons are handled there. Hearth puts its own filter (`src/remap/keyfilter.js`) at the front of the chain with `setConfigs` and `"volatile": true`, so it lives in memory only and a restart undoes it. The filter reads its map from a configd key it subscribes to, so a change applies at once. It never takes Home, arrows, OK, Back, Exit, power, volume, channels or numbers. Tested on webOS 4.5 only. Code: `src/remap/`.
+
+For Lumen: Input Hook can already map any key, so this is not needed for Sam. It does have a "press a button" capture mode that tells the launcher which key name a button sends, which would answer the colour-button spike quickly.
+
+### Smaller things
+
+- Keep Hearth ready: bind-mounts a changed copy of memchute's keep list and restarts `memchute`. Lumen already does this through configd (`docs/keep-alive.md`), which survives a reboot without a mount.
+- LG preloads: uses configd `supportAppList` plus `setPreloadPolicy` at each boot. Lumen found `supportAppList` ignored on this TV and edits `allowedApps` in the preload manager's file instead.
+- Screen saver: bind-mounts its own QML over the screen saver app's QML file. On webOS 10 and later the stock saver is a Flutter app, so it mounts a whole changed app folder and uses `blockSystemApp` and `releaseBlockSystemApp`; untested there. Lumen's watcher approach is fine for now.
+- Favourites row (hold OK, *Add to favourites*), order by last opened, and the home row looping from the last app to the first.
+- Every root script has an uninstall guard: at boot, if the app is gone, it undoes its own change and deletes its boot link. Lumen's `watch.sh` goes quiet when no Lumen build is installed, but `60-homehook` and the watcher stay.
+- A compatibility report issue form that fills a tested-TVs table.
+
+## Other projects since 2026-10-24 (read 2026-11-01)
+
+Read from each repo's source by an agent; "claim" means it is only in a README or doc. Star counts are from 2026-11-01. Nothing here was tried on this TV.
+
+No change: gprot42/webos-launch-home, zzeppieri/webos-custom-home, OmkarK97/webos-vibehack, NaveenDA/lg-webos-custom-home, and upstream ammar027/lumen-webos (last commit Release 1.1.4 on 2026-10-24: a wake tool and clearing LG's update banner).
+
+### The webOS 10 Home takeover
+
+Three rooted projects now replace LG Home on webOS 10 (webOS 25) the same way, and say Home, Back out of the last app and wake all open the launcher with no Input Hook:
+
+1. Bind-mount a staged app over `/usr/palm/applications/com.webos.app.home`, with `appCategory: ["home"]` in its manifest. Glasshouse's code says that without `appCategory` the Home key does nothing on webOS 10 (G5, 10.3.1).
+2. Make the app manager read it again with `applicationManager/blockSystemApp` then `releaseBlockSystemApp` (webOS 11 needs `forceBlockSystemApp`). No restart of the app manager.
+3. Stop LG's own Home process (`flutter-client -i com.webos.app.home`).
+
+- [rorygallagher2024/glasshouse](https://github.com/rorygallagher2024/glasshouse) (1,579 stars, MIT). New to us, and the source Hearth borrows from. Code: `server/lib/home-takeover.js`, `server/lib/samrescan.js`, boot hook `server/50-tvweb.sh` (sends `releaseBlockSystemApp` first at every boot, so a block cut short never leaves Home blocked). Its tested-TVs list has a **50UT81006LA on 10.2.1 (33.22.56)**, a sibling of this TV, marked "Partial: blocking works; some settings reported not to apply".
+- [ecklf/lg-luma](https://github.com/ecklf/lg-luma) (276 stars): the same sequence in `tv/home.sh`, boot hook `64-luma-home`. Claim: confirmed on a B5, C2, C4, NANO77 and UT8050 on webOS 25. Its issue #145/#146: the app manager may not relaunch a Home app that is already in front, so the launcher handles Home itself in that state.
+- [rawinek/webos-homebar](https://github.com/rawinek/webos-homebar) (42 stars): the same, with a QML app (claim, tested on a B4, 10.3).
+- [lasharor/cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) (373 stars, v1.6.0 to v1.6.12): mounts over LG Home where it is a Flutter or web app (webOS 24 and newer), but restarts the app manager instead of block and release. Claims webOS 25 on an OLED65G26LA (10.2.2), a 43UT7590PUA and a 65UT7000PUA (10.3.2). One user's C3 still showed LG Home for a few seconds after a full restart.
+
+For Lumen: this is a third way to make Home open Lumen, beside Input Hook and `setDefaultApp`. It covers Exit and Back out of an app, which Input Hook does not. It is also the most invasive (a mount over a system app, redone at every boot). Try `setDefaultApp` first, since it is one setting and easy to undo; use the mount only if that does not cover Exit on this TV.
+
+### Wake and power-on
+
+- Glasshouse (`server/lib/home.js`) sets LG's `homeAutoLaunch` setting off (keeping the old value), and after a wake waits 4.5 s for the TV to bring back its last input before opening Home, then opens it once more if the input comes back. Lumen's `watch.sh` retries every 0.5 s for 30 s instead.
+- Glasshouse re-sends `setPreloadPolicy` at every switch-on, because on a C5 (10.3) the preload manager turned every app back on at each switch-on.
+- [chiotas/lightkeeper](https://github.com/chiotas/lightkeeper) (79 stars) adds the launcher as a TV input with `eim/addDevice`, as Lumen does. Tested on webOS 6.5 only.
+
+### Other ideas worth a look
+
+- Live preview of the focused input or channel (Glasshouse #1104): HDMI plays as `ext://hdmi:N`, a channel through `service/webos-broadcast-preview` without changing the last channel. Tested on a G3.
+- Fall back to LG Home when a wake or boot open shows nothing (Glasshouse #1044).
+- Glasshouse #966: LG Input Hook stops surface-manager key filters from working. Matters if Lumen ever uses a key filter beside Input Hook.
+- cleanyourtv-WebOS: Back on Home lists running apps with Close all; a full power off button.
+- lg-luma #91: let LG's screen saver start; #119: files written while running as root Home keep the app's owner.
+- free-my-tv (5,639 stars, no root on LG): a light mode on TVs with under 1 to 2 GB, from `navigator.deviceMemory`.
