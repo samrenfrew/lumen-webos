@@ -82,7 +82,7 @@ To install the scripts, run these commands from a copy of this repository. Repla
 
 ```sh
 ssh root@<tv-ip> 'mkdir -p /var/lib/homehook /var/lib/webosbrew/init.d'
-scp tools/tv/watch.sh tools/tv/stadia.sh root@<tv-ip>:/var/lib/homehook/
+scp tools/tv/watch.sh tools/tv/stadia.sh tools/tv/home-setup.sh root@<tv-ip>:/var/lib/homehook/
 scp tools/tv/60-homehook root@<tv-ip>:/var/lib/webosbrew/init.d/
 ssh root@<tv-ip> 'chmod +x /var/lib/homehook/*.sh /var/lib/webosbrew/init.d/60-homehook && /var/lib/webosbrew/init.d/60-homehook'
 ```
@@ -94,6 +94,8 @@ To remove the scripts, run `rm /var/lib/webosbrew/init.d/60-homehook` on the TV,
 ### Open Lumen with the Home button
 
 Use LG Input Hook to map the Home button to the app `com.samrenfrew.lumen`.
+
+To have LG's own Home routes (Exit, Back out of an app) open Lumen too, and the TV start on Lumen when it is switched on, see [docs/home-and-power-on.md](docs/home-and-power-on.md). Both are untested on the TV above so far.
 
 If you do not use Input Hook, `watch.sh` can do this instead. Create the file `/var/lib/homehook/home-takeover` on the TV. When LG Home opens, the script then opens Lumen. This is slower than Input Hook, because LG Home shows for a moment first.
 

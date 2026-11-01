@@ -1,5 +1,6 @@
 #!/bin/sh
-# webosbrew boot hook: start the Home-button watcher (see /var/lib/homehook/watch.sh) and the Stadia watcher (stadia.sh). Never blocks boot.
+# webosbrew boot hook: start the Home-button watcher (see /var/lib/homehook/watch.sh) and the Stadia watcher (stadia.sh), and run the
+# Home and power-on guard (home-setup.sh guard: undoes both if Lumen is uninstalled). Never blocks boot.
 # Uninstall: rm /var/lib/webosbrew/init.d/60-homehook; kill the watchers (killall watch.sh stadia.sh).
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 start() {
@@ -12,4 +13,5 @@ start() {
 }
 start /var/lib/homehook/watch.sh
 start /var/lib/homehook/stadia.sh
+[ -f /var/lib/homehook/home-setup.sh ] && { setsid nohup sh /var/lib/homehook/home-setup.sh guard </dev/null >/dev/null 2>&1 & }
 exit 0

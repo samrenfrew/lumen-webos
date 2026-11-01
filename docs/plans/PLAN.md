@@ -28,6 +28,16 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Native Home and the power-on app (branch `ccr-dba88192-ygl4fc`, `docs/home-and-power-on.md`). Copy `tools/tv/home-setup.sh` and
+      `60-homehook` to the TV, then:
+      1. `home-setup.sh check` (read only). Note what it says for both methods and LG's power-on table.
+      2. `ssh -t <tv> 'sh /var/lib/homehook/home-setup.sh native-home on'`. Check: Home opens Lumen; Exit in an app opens Lumen; Back out of
+         an app opens Lumen; Lumen's LG Home button still opens LG Home.
+      3. If check said yes: `power-on on`, then `reboot`. Check: Lumen is the first thing drawn after the restart, with no Live TV first.
+         Then power off with the remote and on again: does Lumen come up, and how fast. Then the same with Wake-on-LAN (should open the
+         last input, then `watch.sh` swaps in Lumen as now).
+      4. `native-home off` and `power-on off` both put things back.
+
 ---
 
 ## Open on the TV
