@@ -144,8 +144,12 @@ Most useful first:
    (AirPlay and LG Channels still `false`). Nothing in the repo or the session notes did it. The preload manager writes this file itself
    when its policy changes ("Save configuration"), so something called `setPreloadPolicy` that evening (unknown what: an LG setting, an
    app update, or LG's own services). Set back to `false` in the file 2026-10-31 (backup `/var/lib/homehook/preload-conf.backup-2026-10-31.json`);
-   it takes effect at the next reboot. `setPreloadPolicy` with `"isAllowed":false` returns true but changes nothing live. Untried: have
-   `watch.sh` check the file at boot and set them back if they flip again.
+   it takes effect at the next reboot. `setPreloadPolicy` with `"isAllowed":false` returns true but changes nothing live.
+   Undone again, seen 2026-11-01: rewritten 18:58 (TV clock) with YouTube back to `true`, during the Home takeover tests. Since then
+   `watch.sh` sets the apps in its `NO_PRELOAD` list (Netflix, AirPlay, LG Channels) back to `false` at start and after each wake (verify).
+   YouTube is left out on purpose: Sam does not mind it preloading. Runs 2 and 3 in the table above show switching the preloads off
+   changed little (lowest usable memory 202 and 194 MB, the same warm count). YouTube asks for 135 MB in `supportAppList`, and the
+   memory manager closes it when another app needs the room.
    Found 2026-10-31: switching off with the remote (power state `Active Standby`) closes every app but Live TV, Lumen included, with no
    close line in `/var/log/messages`. `KeepAlive` does not protect it. So the first Home press after a switch-on was a cold start (Home
    pressed 5 s after switch-on, Lumen up 6 to 9 s later). About 40 s into standby the TV suspends (`Suspend`, reason `quickStart`). The

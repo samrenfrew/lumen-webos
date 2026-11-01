@@ -28,6 +28,10 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Preload guard in `watch.sh` (`docs/keep-alive.md`, item 4). After a reboot, `/var/preferences/webos-preload-manager-conf.json`
+      still has `false` for Netflix, AirPlay and LG Channels, and `/tmp/homehook.log` shows a "preload: set back to off" line whenever
+      the TV had flipped one back on. YouTube is left preloading on purpose.
+
 - [ ] TV scripts, Home and Power, and Privacy in Settings (branch `ccr-dba88192-ygl4fc`; `docs/home-and-power-on.md`, `docs/privacy.md`).
       Live first over DevTools where it can be: the rows' text and layout. The root calls need a build with the scripts in it.
       1. Settings > System > TV scripts says Install or Update; OK installs them. Check `/tmp/homehook.log` and that `watch.sh` restarted.

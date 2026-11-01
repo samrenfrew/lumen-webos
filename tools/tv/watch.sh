@@ -10,6 +10,8 @@
 #  - About a minute after a boot, if no Lumen build is open, starts Lumen hidden (a preload launch), so the first Home press after a boot into
 #    Live TV is warm, not a cold start. Switching off (power state "Active Standby") closes every app but Live TV, so the same is done 10 s
 #    into each standby, and the first Home press after switch-on is warm too. Switch both off with /var/lib/homehook/no-boot-preload.
+#  - At start and after each wake, sets the apps in NO_PRELOAD back to false in the preload manager's file, because the TV turns them back on
+#    by itself (seen 26 Oct and 1 Nov). The manager reads the file only at boot, so a fix takes effect at the next reboot.
 #  - Keeps /var/lib/homehook/recent: the last eight apps that were in front (not Lumen, not LG Home), newest first, one id per line. Lumen reads
 #    it for its Recent row, so apps opened from anywhere show there.
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/no-screensaver exists (the old Settings > Screensaver > Off; Lumen now removes it): ends LG's
@@ -40,6 +42,8 @@ WAKE_SECS=30
 WAKE_SETTLE=3
 NOPRELOAD_FLAG=/var/lib/homehook/no-boot-preload
 RECENT=/var/lib/homehook/recent
+PRELOAD_CONF=/var/preferences/webos-preload-manager-conf.json
+NO_PRELOAD="netflix airplay com.webos.app.lgchannels"
 prev=""
 prevapp=""
 last=0
@@ -78,6 +82,18 @@ preload_me() {
   echo "$(date +%T) $1 preload ($target): $r" >> /tmp/homehook.log
 }
 
+# sets each app in NO_PRELOAD back to false in the preload manager's file; setPreloadPolicy answers true but changes nothing on this TV
+fix_preload() {
+  [ -f "$PRELOAD_CONF" ] || return
+  changed=""
+  for id in $NO_PRELOAD; do grep -qF "\"$id\":true" "$PRELOAD_CONF" && changed="$changed $id"; done
+  [ -z "$changed" ] && return
+  cp "$PRELOAD_CONF" "$PRELOAD_CONF.tmp" || return
+  for id in $changed; do sed -i "s/\"$id\":true/\"$id\":false/" "$PRELOAD_CONF.tmp"; done
+  mv "$PRELOAD_CONF.tmp" "$PRELOAD_CONF"
+  echo "$(date +%T) preload: set back to off:$changed (from the next reboot)" >> /tmp/homehook.log
+}
+
 # remembers an app that came to the front in $RECENT (plain app ids only; Lumen, Frame and LG Home are left out)
 note_recent() {
   case "$1" in ''|$LGHOME|$FRAME) return ;; esac
@@ -95,6 +111,7 @@ wake_open() {
   launchpid=$!
 }
 
+fix_preload
 while true; do
   # wake: the power state goes back to Active from standby or off (not from the screensaver), or the loop missed its ticks (suspended)
   now=$(date +%s)
@@ -111,6 +128,7 @@ while true; do
     echo "$(date +%T) wake (gap ${gap}s, power $pwstate)" >> /tmp/homehook.log
     # before the foreground query: right after a wake each query can take seconds
     [ ! -f "$NOWAKE_FLAG" ] && [ "$pwstate" = Active ] && wake_open ""
+    fix_preload
   fi
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
