@@ -1,4 +1,4 @@
-import {cpSync, existsSync, readFileSync, readdirSync, statSync, writeFileSync} from 'node:fs';
+import {cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync} from 'node:fs';
 import {dirname, join, normalize, resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {defineConfig, loadEnv, type Plugin} from 'vite';
@@ -43,6 +43,21 @@ function classicScriptTag (): Plugin {
 			// a dev build (the .dev id, or LUMEN_DEV=1 from the release workflow for branch pushes) offers tools that stable does not
 			dev: env.LUMEN_DEV === '1' || (env.LUMEN_DEV !== '0' && /\.dev$/.test(env.LUMEN_APP_ID || 'com.samrenfrew.lumen.dev')),
 			privateDir: env.LUMEN_PRIVATE !== '0' && existsSync(privateDir) ? privateDir : ''
+		};
+	}
+
+	/** The TV-side scripts, shipped inside the app as dist/tv/ so Settings > System > TV scripts can install them (lib/root.ts installTvScripts).
+	 *  Their source stays in tools/tv/, where the SSH tools and the docs point. Keep this list in step with TV_SCRIPTS in lib/root.ts. */
+	const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'home-setup.sh', 'privacy.sh', '60-homehook', 'hosts-extra'];
+	function tvScripts (): Plugin {
+		let outDir = 'dist';
+		return {
+			name: 'lumen-tv-scripts',
+			configResolved (config) { outDir = resolve(config.root, config.build.outDir); },
+			writeBundle () {
+				mkdirSync(join(outDir, 'tv'), {recursive: true});
+				for (const f of TV_SCRIPTS) cpSync(join(REPO_ROOT, 'tools', 'tv', f), join(outDir, 'tv', f));
+			}
 		};
 	}
 
@@ -98,7 +113,7 @@ function classicScriptTag (): Plugin {
 		const lumen = lumenSettings(mode);
 		return {
 		base: './',            // the app is loaded from a local file path on the TV
-		plugins: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title)],
+		plugins: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title), tvScripts()],
 		define: {__LUMEN_APP_ID__: JSON.stringify(lumen.appId), __LUMEN_DEV__: JSON.stringify(mode === 'development' || lumen.dev)},
 		build: {
 			target: BROWSER_TARGET,

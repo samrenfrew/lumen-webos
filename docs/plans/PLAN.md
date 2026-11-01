@@ -28,15 +28,19 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
-- [ ] Native Home and the power-on app (branch `ccr-dba88192-ygl4fc`, `docs/home-and-power-on.md`). Copy `tools/tv/home-setup.sh` and
-      `60-homehook` to the TV, then:
-      1. `home-setup.sh check` (read only). Note what it says for both methods and LG's power-on table.
-      2. `ssh -t <tv> 'sh /var/lib/homehook/home-setup.sh native-home on'`. Check: Home opens Lumen; Exit in an app opens Lumen; Back out of
-         an app opens Lumen; Lumen's LG Home button still opens LG Home.
-      3. If check said yes: `power-on on`, then `reboot`. Check: Lumen is the first thing drawn after the restart, with no Live TV first.
-         Then power off with the remote and on again: does Lumen come up, and how fast. Then the same with Wake-on-LAN (should open the
-         last input, then `watch.sh` swaps in Lumen as now).
-      4. `native-home off` and `power-on off` both put things back.
+- [ ] TV scripts, Home and Power, and Privacy in Settings (branch `ccr-dba88192-ygl4fc`; `docs/home-and-power-on.md`, `docs/privacy.md`).
+      Live first over DevTools where it can be: the rows' text and layout. The root calls need a build with the scripts in it.
+      1. Settings > System > TV scripts says Install or Update; OK installs them. Check `/tmp/homehook.log` and that `watch.sh` restarted.
+         Also `sh /var/lib/homehook/home-setup.sh check` over SSH once, for the fullest report.
+      2. Home and Power > Home button opens: Lumen. Check: Home opens Lumen; Exit in an app opens Lumen; Back out of an app opens Lumen;
+         Lumen's LG Home button still opens LG Home. Then switch it back and check LG Home returns.
+      3. When the TV turns on: Lumen (only if the row is not "Not available"). Restart the TV now. Check: Lumen is the first thing drawn,
+         with no Live TV first; the row no longer says "(after a restart)". Then power off and on with the remote, and with Wake-on-LAN.
+      4. Privacy, one row at a time, with an app or two in daily use between each (Plex, iPlayer, YouTube): agreements, Limit ad
+         tracking, Live Plus, Block LG ad servers, Stop LG tracking services. Note the values after a restart. Block TV software updates
+         last.
+      5. If step 2 or 3 works, remove the TV input added on 2026-10-24 (`eim/deleteDevice`, appId `com.samrenfrew.lumen`) and the item
+         "Cold start after a reboot" below.
 
 ---
 
@@ -79,16 +83,14 @@ From `docs/research/prior-art.md` and upstream (ammar027/lumen-webos). Build wit
 - [ ] Frigate front door card: over the home screen or the screensaver, a card with the door camera's live view when Frigate sees a person or
       motion. Lumen listens to Home Assistant over its WebSocket API. Test which stream the TV plays (HLS, or JPEG frames from go2rtc).
 - [ ] Home Assistant buttons in Control Center: a short row of chosen entities (for example the lounge lights).
-- [ ] Native Home: `appCategory: ["home"]` is in appinfo.json (built). Next is the TV step, `setDefaultApp` (upstream
+- [x] Native Home: built as Settings > Home and Power > Home button opens (see Verify). `appCategory: ["home"]` is in appinfo.json. The TV step is `setDefaultApp` (upstream
       `docs/native-home.md`), so LG's own Home routes open Lumen, not only the remote's Home key that Input Hook rebinds. Restore LG Home
       before removing Lumen.
       More reports since (2026-11-01, `docs/research/prior-art.md`): Hearth's `general.defaultApps.home` worked on a G5 on webOS 11.2,
       with Back out of an app going to Hearth. If it does not cover Exit here, the fallback is the webOS 10 Home takeover (mount over
       `com.webos.app.home`, then `blockSystemApp` and `releaseBlockSystemApp`) that Glasshouse and lg-luma use.
-- [ ] Free memory by stopping LG services. Read on the TV 2026-10-24: eight services cleanyourtv-WebOS stops (`remotelogger`,
-      `service-logger`, `contentminer`, `nudge`, `admanager`, `sportsalarm`, `adoverlay-service`, `uploadd`) run here, about 10 MB
-      together. Small but worth doing. `ss.apiadapter.pub` (23 MB) is unknown; find out what it is before touching it. Method: that repo's
-      `scripts/debloat-stop.sh`, re-applied at boot from init.d.
+- [x] Free memory by stopping LG services: built as Settings > Privacy > Stop LG tracking services (see Verify). `admanager` is left
+      running, as HBO Max and Disney+ wait for it. `ss.apiadapter.pub` (23 MB) is still unknown.
 
 ## Later
 

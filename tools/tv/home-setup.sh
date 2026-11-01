@@ -4,6 +4,7 @@
 #
 #   sh home-setup.sh check              read only: what this TV has, and whether each method can work here. Run this first.
 #   sh home-setup.sh status             read only: what is in place now.
+#   sh home-setup.sh state              read only: the same as key=value lines, for Lumen's Settings (lib/tvsetup.ts).
 #   sh home-setup.sh native-home on     the Home app setting (general.defaultApps.home) names Lumen. Run over `ssh -t`: setDefaultApp
 #                                       has been seen to need standard input open (upstream docs/native-home.md).
 #   sh home-setup.sh native-home off    back to LG Home.
@@ -28,6 +29,7 @@ BOOTD_BIN="${BOOTD_BIN:-/usr/sbin/bootd}"
 OVR_SUM="$HH/bootd-override.md5"     # the sum of the copy we wrote: a copy with another sum is someone else's and is left alone
 STOCK_SUM="$HH/bootd-stock.md5"      # LG's file when we wrote the copy: if it changes (firmware update), the copy goes
 HOME_BACKUP="$HH/defaultApps.backup.json"
+LOADED="${LOADED:-/tmp/lumen-poweron.loaded}"   # what bootd read at this boot (written once per boot by the guard): an app id or "off"
 REASONS="remoteKey localKey micomPower"
 LOG="${LOG:-/tmp/homehook.log}"
 LUNA="${LUNA:-luna-send}"
@@ -83,9 +85,30 @@ do_check () {
 do_status () {
   echo "native-home: $(home_app)"
   if ours; then
-    echo "power-on: $(tr -d '\n' < "$OVERRIDE" | sed -n 's/.*"remoteKey" *: *"\([^"]*\)".*/\1/p') (ours; from the next full restart if just set)"
+    echo "power-on: $(override_app) (ours; from the next full restart if just set)"
   elif [ -f "$OVERRIDE" ]; then echo "power-on: a copy that is not ours is in place"
   else echo "power-on: off (LG's own table)"; fi
+}
+
+override_app () { tr -d '\n' < "$OVERRIDE" 2>/dev/null | sed -n 's/.*"remoteKey" *: *"\([^"]*\)".*/\1/p'; }
+
+# key=value lines: home (the Home app now), native (ok, or why it cannot be set), poweron (an app id, off or foreign),
+# poweron_support (ok, or why not), poweron_loaded (what bootd read at this boot: an app id, off, or unknown when the guard has not run)
+do_state () {
+  echo "home=$(home_app)"
+  if ! t=$(target); then echo native=no-lumen
+  else
+    case "$(app_category "$t")" in
+      *'"home"'*) case "$(app_category "$LGHOME")" in *'"home"'*) echo native=ok ;; *) echo native=lghome-category ;; esac ;;
+      *) echo native=lumen-category ;;
+    esac
+  fi
+  if ours; then echo "poweron=$(override_app)"; elif [ -f "$OVERRIDE" ]; then echo poweron=foreign; else echo poweron=off; fi
+  if ! grep -q "$OVERRIDE" "$BOOTD_BIN" 2>/dev/null; then echo poweron_support=no-bootd
+  elif ! grep -q firstAppByPowerOnReason "$STOCK" 2>/dev/null; then echo poweron_support=no-table
+  elif ! command -v node >/dev/null 2>&1; then echo poweron_support=no-node
+  else echo poweron_support=ok; fi
+  echo "poweron_loaded=$(cat "$LOADED" 2>/dev/null || echo unknown)"
 }
 
 native_on () {
@@ -97,6 +120,12 @@ native_on () {
   r=$($LUNA -n 1 luna://com.webos.service.applicationmanager/setDefaultApp "{\"category\":\"home\",\"appId\":\"$t\"}" 2>&1)
   say "native-home on ($t): $r"
   now=$(home_app)
+  if [ "$now" != "$t" ]; then
+    # setDefaultApp did not take (it has been seen to need standard input open): the settings service directly (Hearth's route)
+    r=$($LUNA -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"general\",\"settings\":{\"defaultApps\":{\"home\":\"$t\"}}}" 2>&1)
+    say "native-home on ($t, settings service): $r"
+    now=$(home_app)
+  fi
   if [ "$now" = "$t" ]; then say "native-home: the setting now names $t. Press Home, then open an app and press Exit, then Back out of an app."
   else say "native-home: the setting names '$now', not $t"; return 1; fi
 }
@@ -141,6 +170,8 @@ power_off () {
 }
 
 do_guard () {
+  # once per boot (/tmp is empty after a restart): note what bootd read, so Settings can say when a restart is still needed
+  if [ ! -f "$LOADED" ]; then if ours; then override_app > "$LOADED"; else echo off > "$LOADED"; fi; fi
   # an empty copy (a power cut right after writing) is never valid
   if [ -f "$OVERRIDE" ] && [ ! -s "$OVERRIDE" ] && [ -f "$OVR_SUM" ]; then rm -f "$OVERRIDE" "$OVR_SUM" "$STOCK_SUM"; log "guard: empty power-on copy removed"; fi
   if ! any_lumen; then
@@ -161,6 +192,7 @@ do_guard () {
 case "$1" in
   check) do_check ;;
   status) do_status ;;
+  state) do_state ;;
   native-home) case "$2" in on) native_on "$3" ;; off) native_off ;; *) echo "usage: native-home on [app-id] | off"; exit 2 ;; esac ;;
   power-on) case "$2" in on) power_on "$3" ;; off) power_off ;; *) echo "usage: power-on on [app-id] | off"; exit 2 ;; esac ;;
   guard) do_guard ;;

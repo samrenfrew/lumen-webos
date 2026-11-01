@@ -95,7 +95,7 @@ To remove the scripts, run `rm /var/lib/webosbrew/init.d/60-homehook` on the TV,
 
 Use LG Input Hook to map the Home button to the app `com.samrenfrew.lumen`.
 
-To have LG's own Home routes (Exit, Back out of an app) open Lumen too, and the TV start on Lumen when it is switched on, see [docs/home-and-power-on.md](docs/home-and-power-on.md). Both are untested on the TV above so far.
+Settings > Home and Power can make LG's own Home routes (Exit, Back out of an app) open Lumen too, and the TV start on Lumen when it is switched on. See [docs/home-and-power-on.md](docs/home-and-power-on.md). Settings > Privacy withdraws LG's data agreements and blocks its ad servers and tracking services; see [docs/privacy.md](docs/privacy.md). Both need the TV scripts, which Settings > System > TV scripts installs from the app. Neither is tested on the TV above yet.
 
 If you do not use Input Hook, `watch.sh` can do this instead. Create the file `/var/lib/homehook/home-takeover` on the TV. When LG Home opens, the script then opens Lumen. This is slower than Input Hook, because LG Home shows for a moment first.
 

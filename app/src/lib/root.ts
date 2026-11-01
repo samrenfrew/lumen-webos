@@ -265,6 +265,91 @@ export function copyFontIn (appDir: string): Promise<boolean> {
 	return run(`[ -f ${HOMEHOOK}/fonts/sf.woff2 ] && mkdir -p ${appDir}/fonts && cp ${HOMEHOOK}/fonts/sf.woff2 ${appDir}/fonts/sf.woff2 && echo ok; true`).then((out) => out.trim() === 'ok');
 }
 
+/** The TV-side scripts shipped in the app's tv/ folder (vite.config.ts TV_SCRIPTS) and installed under HOMEHOOK; 60-homehook goes in the
+ *  Homebrew Channel's boot folder, and hosts-extra is copied only when the TV has none (it is yours to edit). */
+const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'home-setup.sh', 'privacy.sh'] as const;
+const BOOT_DIR = '/var/lib/webosbrew/init.d';
+const BOOT_HOOK = `${BOOT_DIR}/60-homehook`;
+
+/** Lumen builds the TV scripts may point Home and power-on at (tools/tv/home-setup.sh ME). */
+const LUMEN_IDS = ['com.samrenfrew.lumen', 'com.samrenfrew.lumen.dev'];
+
+/** One read of everything Settings shows about the TV scripts, as key=value lines (parsed by lib/tvsetup.ts): `scripts` (ok, old, missing
+ *  or unshipped), then home-setup.sh's and privacy.sh's own `state` lines when they are installed. */
+export function tvStatus (appDir: string): Promise<string> {
+	if (!APP_DIR.test(appDir)) return Promise.reject(new Error('refused: app folder'));
+	const S = `${appDir}/tv`;
+	const check = TV_SCRIPTS.map((f) => `if [ ! -f ${HOMEHOOK}/${f} ]; then m=1; elif ! cmp -s ${S}/${f} ${HOMEHOOK}/${f}; then d=1; fi`).join('; ');
+	return run([
+		'm=0; d=0',
+		check,
+		`if [ ! -f ${BOOT_HOOK} ]; then m=1; elif ! cmp -s ${S}/60-homehook ${BOOT_HOOK}; then d=1; fi`,
+		`if [ ! -d ${S} ]; then echo scripts=unshipped; elif [ $m = 1 ]; then echo scripts=missing; elif [ $d = 1 ]; then echo scripts=old; else echo scripts=ok; fi`,
+		`[ -f ${HOMEHOOK}/home-setup.sh ] && sh ${HOMEHOOK}/home-setup.sh state`,
+		`[ -f ${HOMEHOOK}/privacy.sh ] && sh ${HOMEHOOK}/privacy.sh state`,
+		'true'
+	].join('; '), 25000);
+}
+
+/** Installs or updates the TV scripts from the app's own tv/ folder, then restarts the watchers so the new ones run. Each file is written
+ *  aside and moved into place, so a running script is never changed under it. True when it finished. */
+export function installTvScripts (appDir: string): Promise<boolean> {
+	if (!APP_DIR.test(appDir)) return Promise.reject(new Error('refused: app folder'));
+	const S = `${appDir}/tv`;
+	const copy = (from: string, to: string) => `cp ${from} ${to}.new && chmod +x ${to}.new && mv -f ${to}.new ${to}`;
+	return run([
+		`[ -d ${S} ]`,
+		`mkdir -p ${HOMEHOOK} ${BOOT_DIR}`,
+		...TV_SCRIPTS.map((f) => copy(`${S}/${f}`, `${HOMEHOOK}/${f}`)),
+		copy(`${S}/60-homehook`, BOOT_HOOK),
+		`{ [ -f ${HOMEHOOK}/hosts-extra ] || cp ${S}/hosts-extra ${HOMEHOOK}/hosts-extra; }`,
+		`${BOOT_HOOK} restart`,
+		'echo installed'
+	].join(' && '), 20000).then((out) => /installed\s*$/.test(out));
+}
+
+/** home-setup.sh's changes, by name. */
+const HOME_ACTIONS = {
+	nativeOn: 'native-home on',
+	nativeOff: 'native-home off',
+	powerOnOn: 'power-on on',
+	powerOnOff: 'power-on off'
+} as const;
+export type HomeAction = keyof typeof HOME_ACTIONS;
+
+/** Runs one of home-setup.sh's changes (Settings > Home and Power). `appId` is the Lumen build to point at. Returns what it printed. */
+export function homeSetup (action: HomeAction, appId: string): Promise<string> {
+	const verb = HOME_ACTIONS[action];
+	if (!verb) return Promise.reject(new Error('refused: home action'));
+	const on = action === 'nativeOn' || action === 'powerOnOn';
+	if (on && LUMEN_IDS.indexOf(appId) === -1) return Promise.reject(new Error('refused: app id'));
+	return run(`sh ${HOMEHOOK}/home-setup.sh ${verb}${on ? ' ' + appId : ''} 2>&1; true`, 20000);
+}
+
+/** privacy.sh's changes, by name (Settings > Privacy). */
+const PRIVACY_ACTIONS = {
+	agreementsOff: 'agreements off',
+	agreementsRestore: 'agreements restore',
+	lmtOn: 'lmt on',
+	lmtOff: 'lmt off',
+	livePlusOn: 'liveplus on',
+	livePlusOff: 'liveplus off',
+	hostsOn: 'hosts on',
+	hostsOff: 'hosts off',
+	servicesOn: 'services on',
+	servicesOff: 'services off',
+	updatesOn: 'updates on',
+	updatesOff: 'updates off'
+} as const;
+export type PrivacyAction = keyof typeof PRIVACY_ACTIONS;
+
+/** Runs one of privacy.sh's changes. Returns what it printed. */
+export function privacy (action: PrivacyAction): Promise<string> {
+	const verb = PRIVACY_ACTIONS[action];
+	if (!verb) return Promise.reject(new Error('refused: privacy action'));
+	return run(`sh ${HOMEHOOK}/privacy.sh ${verb} 2>&1; true`, 30000);
+}
+
 /** Writes text to one of FILES. The text travels as base64, so nothing in it is ever read by the shell. */
 export function writeFile (name: HomehookFile, text: string): Promise<void> {
 	if (FILES.indexOf(name) === -1) return Promise.reject(new Error('unknown file ' + name));

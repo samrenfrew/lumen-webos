@@ -31,6 +31,7 @@ NOSAVER_FLAG=/var/lib/homehook/no-screensaver
 AMBIENT_ON=/tmp/lumen-ambient-on
 APPS=/media/developer/apps/usr/palm/applications
 EXTRA=/var/lib/homehook/hosts-extra
+PRIVACY_HOSTS=/var/lib/homehook/hosts-privacy   # Settings > Privacy > Block LG ad servers (privacy.sh hosts on)
 TAKEOVER_FLAG=/var/lib/homehook/home-takeover
 NOWAKE_FLAG=/var/lib/homehook/no-wake-launch
 WAKE_SECS=30
@@ -195,13 +196,13 @@ while true; do
       fi
     fi
   fi
-  # keep the extra blocked names in /etc/hosts (about every 30 s; the dashboard rewrites the table at boot)
+  # keep the extra blocked names (hosts-extra, and Settings > Privacy's list) in /etc/hosts (about every 30 s; the dashboard rewrites the table at boot)
   ticks=$((ticks + 1))
-  if [ $((ticks % 30)) -eq 1 ] && [ -f "$EXTRA" ]; then
-    # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in the file cannot point a name somewhere real
-    grep -E '^(0\.0\.0\.0|::)[[:space:]]+[A-Za-z0-9.-]+[[:space:]]*$' "$EXTRA" | while IFS= read -r l; do
-      ! grep -qF "$l" /etc/hosts 2>/dev/null && echo "$l" >> /etc/hosts
-    done
+  if [ $((ticks % 30)) -eq 1 ] && { [ -f "$EXTRA" ] || [ -f "$PRIVACY_HOSTS" ]; }; then
+    # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in a file cannot point a name somewhere real
+    # one pass: the lines not yet in the table (two greps, not one per line: the privacy list is about 180 lines)
+    missing=$(cat "$EXTRA" "$PRIVACY_HOSTS" 2>/dev/null | grep -E '^(0\.0\.0\.0|::)[[:space:]]+[A-Za-z0-9.-]+[[:space:]]*$' | grep -vxF -f /etc/hosts 2>/dev/null)
+    [ -n "$missing" ] && printf '%s\n' "$missing" >> /etc/hosts
   fi
   # faster ticks while a wake is open, so Lumen goes up as soon as the TV lets it
   if [ "$now" -lt "$wakeuntil" ]; then sleep 0.5; else sleep 1; fi

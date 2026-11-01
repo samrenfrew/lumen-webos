@@ -17,7 +17,9 @@ the screen it changes, and anything two screens share (the weather location, the
 | Appearance | Appearance, Focus highlight, Reduce motion, Dock blur |
 | Photos | Server address, API key, Test connection, Recent photos from |
 | Language and Region | Language, Clock, AM/PM on the clock (not with a 24-hour clock), Weather country, Weather city |
-| System | Show system apps, Restore settings from the TV; dev builds add the frame-rate counter and Liquid glass dock |
+| Home and Power | Home button opens, When the TV turns on, Restart the TV now (only while a restart is needed). Added 2026-11-01, `docs/home-and-power-on.md` |
+| Privacy | LG data agreements, Limit ad tracking, Live Plus, Block LG ad servers, Stop LG tracking services, Block TV software updates. Added 2026-11-01, `docs/privacy.md` |
+| System | TV scripts, Show system apps, Restore settings from the TV; dev builds add the frame-rate counter and Liquid glass dock |
 
 What changed from the first grouping:
 - The Screensaver page starts with one choice, LG's screensaver, My photos or Off, in place of the Use my photos switch. Off sets

@@ -35,7 +35,9 @@ import {CITIES, COUNTRIES} from './config/cities';
 import {AUTO_PLACE, peekWeather, readWeather, type Weather} from './lib/weather';
 import {useLiveTv} from './hooks/useLiveTv';
 import {channelColor, nowNextAt, rowChannels, type Channel} from './lib/livetv';
-import {openChannel, runningApps, uninstallApp} from './lib/root';
+import {homeSetup, installTvScripts, openChannel, privacy, reboot, runningApps, uninstallApp, type HomeAction, type PrivacyAction} from './lib/root';
+import {appDir, nativeWhy, powerOnPending, powerOnWhy, readTvState, scriptsReady, type TvState} from './lib/tvsetup';
+import {APP_ID} from './config/constants';
 import {bootMark, navMark} from './lib/log';
 import {LANGS, setClockMode, setLang} from './lib/i18n';
 
@@ -49,7 +51,7 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format'} as const;
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -74,6 +76,107 @@ const TOP_ITEMS: TileModel[] = [
 	{key: 'inputs', label: 'Inputs', glyph: 'inputs'}
 ];
 
+
+const LUMEN_IDS = ['com.samrenfrew.lumen', 'com.samrenfrew.lumen.dev'];
+const NEEDS_SCRIPTS = 'Install the TV scripts first, in Settings > System > TV scripts. ';
+
+/** Settings > Home and Power and Settings > Privacy: one row per TV-script setting, each showing what the TV reports. */
+function tvOptions (tv: TvState | null, busy: string): OptionItem[] {
+	const ready = scriptsReady(tv);
+	/** the value shown: Working while it changes, Checking before the first read, and the script's state after */
+	const shown = (id: string, value: string) => busy === id ? 'Working' : !tv ? (isWebOS() ? 'Checking' : 'Not on a TV') : !ready ? 'Needs TV scripts' : value;
+	const pre = tv && !ready ? NEEDS_SCRIPTS : '';
+	const onOff = (v: string) => v === 'on' ? 'On' : v === 'off' ? 'Off' : 'Not on this TV';
+	const rows: OptionItem[] = [];
+	const lumenHome = !!tv && LUMEN_IDS.indexOf(tv.home) >= 0;
+	const nWhy = tv ? nativeWhy(tv) : '';
+	rows.push({
+		id: OPTION.tvHome, group: 'tv', label: 'Home button opens',
+		description: pre + (nWhy && !lumenHome ? nWhy : "Which app LG's own Home routes open: the Home button, Exit, and Back out of an app. Lumen's LG Home button still opens LG Home. LG Input Hook can keep its Home mapping."),
+		value: lumenHome,
+		valueText: shown(OPTION.tvHome, lumenHome ? 'Lumen' : nWhy ? 'Not available' : 'LG Home')
+	});
+	const pWhy = tv ? powerOnWhy(tv) : '';
+	const powerLumen = !!tv && LUMEN_IDS.indexOf(tv.powerOn) >= 0;
+	const pending = powerOnPending(tv);
+	rows.push({
+		id: OPTION.tvPowerOn, group: 'tv', label: 'When the TV turns on',
+		description: pre + (pWhy && !powerLumen ? pWhy : 'Lumen: the power button and a start after a power cut open Lumen first, before Live TV is drawn. Casting, Wake-on-LAN and HDMI-CEC still go where they ask. Takes effect after the TV restarts.'),
+		value: powerLumen,
+		valueText: shown(OPTION.tvPowerOn, (powerLumen ? 'Lumen' : pWhy ? 'Not available' : 'Last input') + (pending ? ' (after a restart)' : ''))
+	});
+	if (pending) rows.push({
+		id: OPTION.tvRestart, group: 'tv', label: 'Restart the TV now',
+		description: 'The TV reads what it opens at power-on only when it starts. This restarts it now.',
+		value: false, valueText: shown(OPTION.tvRestart, 'Restart')
+	});
+
+	const a = tv ? tv.agreements : null;
+	rows.push({
+		id: OPTION.pvAgreements, group: 'privacy', label: 'LG data agreements',
+		description: pre + (tv && !tv.node ? 'This TV has no node to change them safely. ' : '') + "Withdraws LG's optional agreements: screen recognition, ads based on what you watch, personalised ads, ad cookies, sharing with data partners, extra usage data, remote diagnostics and marketing. Voice and the terms of use stay. OK again puts back what was there before.",
+		value: a === 0,
+		valueText: shown(OPTION.pvAgreements, a === null ? 'Unknown' : a === 0 ? 'Withdrawn' : `${a} given`)
+	});
+	rows.push({
+		id: OPTION.pvLmt, group: 'privacy', label: 'Limit ad tracking',
+		description: pre + "The TV's own setting: apps are asked not to use its advertising ID to profile you.",
+		value: !!tv && tv.lmt === 'on', valueText: shown(OPTION.pvLmt, onOff(tv ? tv.lmt : ''))
+	});
+	rows.push({
+		id: OPTION.pvLivePlus, group: 'privacy', label: 'Live Plus',
+		description: pre + "LG's screen recognition: it samples what is on screen, from apps and HDMI alike, to work out what you watch. Off is the private choice.",
+		value: !!tv && tv.livePlus === 'on', valueText: shown(OPTION.pvLivePlus, onOff(tv ? tv.livePlus : ''))
+	});
+	rows.push({
+		id: OPTION.pvHosts, group: 'privacy', label: 'Block LG ad servers',
+		description: pre + (tv && !tv.hostsWritable ? "This TV's /etc/hosts cannot be written, so nothing can be blocked. " : '') + "Blocks LG's ad, tracking and screen recognition servers on the TV itself. The Content Store, app updates and streaming apps keep working.",
+		value: !!tv && tv.hosts, valueText: shown(OPTION.pvHosts, tv && tv.hosts ? 'On' : 'Off')
+	});
+	rows.push({
+		id: OPTION.pvServices, group: 'privacy', label: 'Stop LG tracking services',
+		description: pre + "Stops LG's log uploaders, suggestion and screen recognition services, and stops them again at each start. Frees about 10 MB. LG's ad service stays, as some streaming apps wait for it." + (tv && tv.services && tv.servicesRunning ? ` ${tv.servicesRunning} still running.` : ''),
+		value: !!tv && tv.services, valueText: shown(OPTION.pvServices, tv && tv.services ? 'On' : 'Off')
+	});
+	rows.push({
+		id: OPTION.pvUpdates, group: 'privacy', label: 'Block TV software updates',
+		description: pre + 'A software update can remove root, and with it Lumen\'s TV scripts. This is the Homebrew Channel\'s own switch, and takes effect after the TV restarts.',
+		value: !!tv && tv.updates, valueText: shown(OPTION.pvUpdates, tv && tv.updates ? 'On' : 'Off')
+	});
+	return rows;
+}
+
+/** OK on a TV-script row. False when the row is not one of them. */
+function onTvOption (id: string, tv: TvState | null, run: (id: string, job: () => Promise<string>) => void, toast: (text: string, kind?: 'info' | 'error') => void): boolean {
+	if (id === OPTION.tvScripts) {
+		if (!tv) { toast(isWebOS() ? 'Still checking the TV' : 'Only on the TV'); return true; }
+		if (tv.scripts === 'unshipped') { toast('This build has no TV scripts in it', 'error'); return true; }
+		run(id, () => installTvScripts(appDir()).then((ok) => ok ? 'TV scripts installed' : 'Could not install the TV scripts'));
+		return true;
+	}
+	const home: Record<string, HomeAction> = {};
+	const pv: Record<string, PrivacyAction> = {};
+	if (id === OPTION.tvHome) home[id] = tv && LUMEN_IDS.indexOf(tv.home) >= 0 ? 'nativeOff' : 'nativeOn';
+	else if (id === OPTION.tvPowerOn) home[id] = tv && LUMEN_IDS.indexOf(tv.powerOn) >= 0 ? 'powerOnOff' : 'powerOnOn';
+	else if (id === OPTION.pvAgreements) pv[id] = tv && tv.agreements === 0 ? 'agreementsRestore' : 'agreementsOff';
+	else if (id === OPTION.pvLmt) pv[id] = tv && tv.lmt === 'on' ? 'lmtOff' : 'lmtOn';
+	else if (id === OPTION.pvLivePlus) pv[id] = tv && tv.livePlus === 'on' ? 'livePlusOff' : 'livePlusOn';
+	else if (id === OPTION.pvHosts) pv[id] = tv && tv.hosts ? 'hostsOff' : 'hostsOn';
+	else if (id === OPTION.pvServices) pv[id] = tv && tv.services ? 'servicesOff' : 'servicesOn';
+	else if (id === OPTION.pvUpdates) pv[id] = tv && tv.updates ? 'updatesOff' : 'updatesOn';
+	else if (id !== OPTION.tvRestart) return false;
+	if (!tv) { toast(isWebOS() ? 'Still checking the TV' : 'Only on the TV'); return true; }
+	if (!scriptsReady(tv)) { toast(NEEDS_SCRIPTS.trim()); return true; }
+	if (id === OPTION.tvRestart) { run(id, () => reboot().then(() => 'Restarting the TV')); return true; }
+	if (id === OPTION.tvHome && home[id] === 'nativeOn' && nativeWhy(tv)) { toast(nativeWhy(tv), 'error'); return true; }
+	if (id === OPTION.tvPowerOn && home[id] === 'powerOnOn' && powerOnWhy(tv)) { toast(powerOnWhy(tv), 'error'); return true; }
+	// what the settings service does with a key it never had is untried, so a setting the TV lacks is never written
+	if ((id === OPTION.pvLmt && !tv.lmt) || (id === OPTION.pvLivePlus && !tv.livePlus)) { toast('This TV has no such setting'); return true; }
+	if (id === OPTION.pvAgreements && tv.agreements === 0 && !tv.backup) { toast('Already withdrawn. LG\'s own menus can give them again.'); return true; }
+	if (home[id]) run(id, () => homeSetup(home[id], APP_ID));
+	else run(id, () => privacy(pv[id]));
+	return true;
+}
 
 export function App () {
 	// opened by watch.sh for the TV's screensaver: the first frame is the screensaver, so the home screen never shows first
@@ -361,6 +464,24 @@ export function App () {
 
 	// Settings' tabs are only built while Settings is open
 	const inSettings = screen === 'settings';
+
+	// Settings > Home and Power, Privacy and System > TV scripts: the TV's state, read when Settings opens and after each change (lib/tvsetup.ts)
+	const [tv, setTv] = useState<TvState | null>(null);
+	const [tvBusy, setTvBusy] = useState('');
+	const tvBusyRef = useRef('');
+	useEffect(() => { if (inSettings) readTvState().then(setTv); }, [inSettings]);
+	/** Runs one TV-script change: the row shows Working until it is done, then the script's last line shows as a toast and the state is read again. */
+	const runTv = useCallback((id: string, job: () => Promise<string>) => {
+		if (tvBusyRef.current) return;
+		tvBusyRef.current = id;
+		setTvBusy(id);
+		const done = () => readTvState().then((s) => { setTv(s); tvBusyRef.current = ''; setTvBusy(''); });
+		job().then((out) => {
+			const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+			const last = lines[lines.length - 1] || 'Done';
+			showToast(last.length > 160 ? last.slice(0, 157) + '...' : last, /refused|could not|cannot|not ours|no node|failed|left .* on/i.test(last) ? 'error' : 'info');
+		}, (e: unknown) => showToast(e instanceof Error ? e.message : String(e), 'error')).then(done, done);
+	}, [showToast]);
 	const tabs: SettingsTab[] = useMemo(() => {
 		if (!inSettings) return [];
 		const list: SettingsTab[] = [
@@ -694,7 +815,18 @@ export function App () {
 				...listed(OPTION.city, config.weatherCity)
 			},
 
+			// ----- Home and Power, Privacy (the TV scripts: tools/tv/home-setup.sh, tools/tv/privacy.sh) -----
+			...tvOptions(tv, tvBusy),
+
 			// ----- System -----
+			{
+				id: OPTION.tvScripts,
+				group: 'system' as const,
+				label: 'TV scripts',
+				description: "The scripts Lumen runs on the TV as root: the Home button watcher, Home and Power, and Privacy. They ship inside Lumen; this copies this build's into place and restarts them. Needs the Homebrew Channel with root.",
+				value: !!tv && tv.scripts === 'ok',
+				valueText: tvBusy === OPTION.tvScripts ? 'Working' : !tv ? (isWebOS() ? 'Checking' : 'Not on a TV') : tv.scripts === 'ok' ? 'Up to date' : tv.scripts === 'old' ? 'Update' : tv.scripts === 'missing' ? 'Install' : 'Not in this build'
+			},
 			{
 				id: OPTION.showAll,
 				group: 'system' as const,
@@ -724,7 +856,7 @@ export function App () {
 				value: config.liquidDock
 			}] : [])
 		];
-	}, [config, choices, immich.ready, immichDraft, immichTest]);
+	}, [config, choices, immich.ready, immichDraft, immichTest, tv, tvBusy]);
 
 	const wallpaper: WallpaperTab = useMemo(() => {
 		if (!inSettings) return {categories: [], entries: [], onPick: () => undefined};
@@ -888,6 +1020,7 @@ export function App () {
 	}, []);
 
 	const onOption = useCallback((optionId: string) => {
+		if (onTvOption(optionId, tv, runTv, showToast)) return;
 		if (optionId === OPTION.restore) {
 			readBackup().then((saved) => {
 				if (!saved) { showToast('No settings backup found on the TV', 'error'); return; }
@@ -911,7 +1044,7 @@ export function App () {
 		else if (optionId === OPTION.captions) updateConfig({...config, wallpaperCaptions: !config.wallpaperCaptions});
 		else if (optionId === OPTION.ambientPrint) updateConfig({...config, ambientPrint: !config.ambientPrint});
 		else if (optionId === OPTION.wpNew) updateConfig({...config, wpNewOnLaunch: !config.wpNewOnLaunch});
-	}, [config, immich.ready, testImmich]);
+	}, [config, immich.ready, testImmich, tv, runTv, showToast]);
 
 	/** a value picked from an option's pop-up list */
 	const onChoose = useCallback((optionId: string, index: number) => {

@@ -1,6 +1,6 @@
 # Home button and power-on
 
-Two TV settings that make Lumen the TV's home, set by `tools/tv/home-setup.sh` over SSH. Both are written defensively and are
+Two TV settings that make Lumen the TV's home, set from Settings > Home and Power, which runs `tools/tv/home-setup.sh` as root. Both are written defensively and are
 **(verify)** in `docs/plans/PLAN.md` until seen working on this TV. Where the ideas come from: `docs/research/prior-art.md` (Hearth 2.0,
 upstream `docs/native-home.md`, Glasshouse).
 
@@ -30,19 +30,33 @@ to Lumen. Every other reason (casting, Wake-on-LAN, HDMI-CEC, timers) stays LG's
 
 ## The boot guard
 
-`60-homehook` runs `home-setup.sh guard` at each boot. If no Lumen build is installed (checked twice, 15 s apart), it removes the
+`60-homehook` runs `home-setup.sh guard` at each boot. The first run after a boot also notes what `bootd` read
+(`/tmp/lumen-poweron.loaded`), which is how Settings knows a restart is still needed. If no Lumen build is installed (checked twice, 15 s apart), it removes the
 power-on copy and points Home back at LG Home. If a firmware update changed LG's `bootd.json`, it removes the copy so an old copy never
 hides the new file. Each step is logged to `/tmp/homehook.log`.
 
 ## Install and try
 
+From Lumen: Settings > System > TV scripts installs or updates the scripts from the app itself (they ship in the app's `tv/` folder; the
+build copies them from `tools/tv/`). Then Settings > Home and Power:
+
+- **Home button opens**: Lumen or LG Home. OK switches it. Shows "Not available" with the reason when the TV does not list a build as a
+  Home app.
+- **When the TV turns on**: Lumen or Last input, with "(after a restart)" until the TV has restarted, and a **Restart the TV now** row
+  meanwhile. Shows "Not available" with the reason when `bootd` here does not read the copy.
+
+Each row reads the TV's real state when Settings opens (`lib/tvsetup.ts`, one root call), and again after each change.
+
+Over SSH, the same script by hand:
+
 ```sh
-scp tools/tv/home-setup.sh tools/tv/60-homehook <tv>:/tmp/
-ssh <tv> 'cp /tmp/home-setup.sh /var/lib/homehook/ && cp /tmp/60-homehook /var/lib/webosbrew/init.d/ && chmod +x /var/lib/webosbrew/init.d/60-homehook'
-ssh <tv> 'sh /var/lib/homehook/home-setup.sh check'        # read only
+ssh <tv> 'sh /var/lib/homehook/home-setup.sh check'        # read only, the fullest report
 ssh -t <tv> 'sh /var/lib/homehook/home-setup.sh native-home on'
 ssh <tv> 'sh /var/lib/homehook/home-setup.sh power-on on' # then reboot
 ```
+
+`native-home on` from Lumen runs without a terminal. If `setDefaultApp` does not take that way (upstream saw it need standard input
+open), the script writes the setting through the settings service instead, as Hearth does, and reads it back either way.
 
 ## Undo
 
