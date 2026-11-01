@@ -202,9 +202,9 @@ export function setAmbientFlag (on: boolean): Promise<void> {
 	return run(on ? `mkdir -p ${HOMEHOOK} && touch ${HOMEHOOK}/ambient-screensaver` : `rm -f ${HOMEHOOK}/ambient-screensaver`).then(() => undefined);
 }
 
-/** Tells watch.sh to end LG's screensaver as soon as it starts, in every app (Settings > Screensaver > Off). */
-export function setSaverOffFlag (on: boolean): Promise<void> {
-	return run(on ? `mkdir -p ${HOMEHOOK} && touch ${HOMEHOOK}/no-screensaver` : `rm -f ${HOMEHOOK}/no-screensaver`).then(() => undefined);
+/** Removes the flag that told watch.sh to end LG's screensaver at once (Settings > Screensaver > Off, since removed: turning it off belongs to the service menu). */
+export function clearSaverOffFlag (): Promise<void> {
+	return run(`rm -f ${HOMEHOOK}/no-screensaver`).then(() => undefined);
 }
 
 /** While the ambient screen is up, watch.sh only ends LG's screensaver (which starts again after its timer, as nothing is pressed) instead of
@@ -267,7 +267,7 @@ export function copyFontIn (appDir: string): Promise<boolean> {
 
 /** The TV-side scripts shipped in the app's tv/ folder (vite.config.ts TV_SCRIPTS) and installed under HOMEHOOK; 60-homehook goes in the
  *  Homebrew Channel's boot folder, and hosts-extra is copied only when the TV has none (it is yours to edit). */
-const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'home-setup.sh', 'privacy.sh'] as const;
+const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh'] as const;
 const BOOT_DIR = '/var/lib/webosbrew/init.d';
 const BOOT_HOOK = `${BOOT_DIR}/60-homehook`;
 

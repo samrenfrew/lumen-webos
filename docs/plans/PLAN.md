@@ -32,15 +32,28 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       Live first over DevTools where it can be: the rows' text and layout. The root calls need a build with the scripts in it.
       1. Settings > System > TV scripts says Install or Update; OK installs them. Check `/tmp/homehook.log` and that `watch.sh` restarted.
          Also `sh /var/lib/homehook/home-setup.sh check` over SSH once, for the fullest report.
-      2. Home and Power > Home button opens: Lumen. Check: Home opens Lumen; Exit in an app opens Lumen; Back out of an app opens Lumen;
-         Lumen's LG Home button still opens LG Home. Then switch it back and check LG Home returns.
-      3. When the TV turns on: Lumen (only if the row is not "Not available"). Restart the TV now. Check: Lumen is the first thing drawn,
-         with no Live TV first; the row no longer says "(after a restart)". Then power off and on with the remote, and with Wake-on-LAN.
+      Tested remotely 2026-11-01: step 1 works (Install, then Up to date, watchers restarted). Power-on works: after a restart from
+      Live TV, bootd opened Lumen first and Live TV never showed. Home button opens: setDefaultApp did nothing for Exit, so it is now
+      the Home takeover (`docs/home-and-power-on.md`); Exit and Back out of YouTube open Lumen after about 1 s, and the guard mounts it
+      again after a restart. Still for Sam: how the 1 s hand-over looks, the real remote's Home and Exit, and Wake-on-LAN and remote
+      power-on from standby.
       4. Privacy, one row at a time, with an app or two in daily use between each (Plex, iPlayer, YouTube): agreements, Limit ad
          tracking, Live Plus, Block LG ad servers, Stop LG tracking services. Note the values after a restart. Block TV software updates
          last.
-      5. If step 2 or 3 works, remove the TV input added on 2026-10-24 (`eim/deleteDevice`, appId `com.samrenfrew.lumen`) and the item
+         Tested remotely 2026-11-01: the agreements were already withdrawn and Live Plus already off. Limit ad tracking, Block LG ad
+         servers (178 lines) and Stop LG tracking services are on; iPlayer and YouTube still open. The services row reports 2 still
+         running (`service-logger` and `nudge` sat in "deactivating"). Plex not tried.
+      5. Power-on works, so remove the TV input added on 2026-10-24 (`eim/deleteDevice`, appId `com.samrenfrew.lumen`) and the item
          "Cold start after a reboot" below.
+- [ ] Screensaver without Immich (`design/system-cleanup`): Settings > Screensaver offers Enabled or Disabled, with no Off; Disabled hides the other rows. Enabled with
+      Show set to Wallpaper pictures, LG's screensaver timer opens this app's, which crossfades the pictures ticked in Choose wallpaper.
+      Immich photos still work. Check that `/var/lib/homehook/no-screensaver` is gone after a launch.
+- [ ] Switch-on leaves Live TV alone (`design/system-cleanup`, `tools/tv/watch.sh`, on the TV 2026-10-31): the watcher opens Lumen at switch-on only
+      if Lumen was the last app in front, or the TV came up on LG Home. Check: watch Live TV, switch off, switch on, and Live TV stays with no
+      Lumen. Then switch off from Lumen and on again, and Lumen opens. `/var/lib/homehook/last-front` should name the app you were in.
+- [ ] Home soon after switch-on is warm (`tools/tv/watch.sh`, on the TV 2026-10-31): switching off closes Lumen, so the watcher starts it
+      hidden 10 s into standby. Seen: it loads in standby and survives the TV's deeper sleep (Lumen up 1 s after LG Home, 26 s after a
+      switch-on). Not yet seen: Home pressed within 5 s of switching on into Live TV, after at least a minute in standby.
 
 ---
 
@@ -57,12 +70,12 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
 - [ ] Keep apps alive (`docs/keep-alive.md`): Lumen, iPlayer, YouTube, Plex, Channel 4 and Channel 5 stay open in the background. Lumen's
       home screen lags for a moment on return. Next and untried: "Not tried yet" in that doc. Check Plex and iPlayer go quiet in the
       background and carry on from the same point.
-- [ ] Control Center timings (Sam, 2026-10-26): Control Center opens much faster than Inputs does, so the two panels feel different. Make
-      them match: compare their open durations and easing in source, pick one, and try it live over DevTools with Sam before building.
-- [ ] Control Center sub-menus are laggy again (Sam, 2026-10-26; about 16 fps open, 20 fps close, measured 2026-10-22): 21 live blurs
-      change every frame, and the key press runs 60-70 ms of script before the first frame. Possible fix: the grid controls drop their live
-      blur late in their fade (a switch at the start shows), and the list choices share one blur. Details in `docs/research/frame-rate.md`. Measure
-      again first, since the design cleanup may have changed the cost.
+- [ ] Control Center timings (Sam, 2026-10-26): Control Center opened much faster than Inputs, because its first frame takes 100 to
+      200 ms and about half of the 260 ms grow had gone before it showed. Its grow is now 460 ms (Inputs stays 260); Sam liked it live on
+      2026-10-27. Next: build it and confirm on the TV.
+- [ ] Sound and Picture lists feel slower to open and close than Theme and Clock (Sam, 2026-10-27). Not a speed problem: 50 and 100 ms
+      faster did not help. Their lists grow only downward, so the tile's "Sound" or "Picture" text is seen to slide and fade, while Theme
+      and Clock grow both ways and their text barely moves. Next: Sam to come back with a direction.
 - [ ] Exiting an app, or pressing Exit on the remote, opens LG Home, not Lumen (Sam, 2026-10-26). Only the Home key is rebound by Input
       Hook. The likely fix is the Native Home item under "Next" (`setDefaultApp`), so check whether it covers Exit and app close first.
 - [ ] Draw the lower rows one row at a time, not all at once 3.5 s after launch (`docs/research/startup-perf.md`, Still open).

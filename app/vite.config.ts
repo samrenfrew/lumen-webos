@@ -48,7 +48,7 @@ function classicScriptTag (): Plugin {
 
 	/** The TV-side scripts, shipped inside the app as dist/tv/ so Settings > System > TV scripts can install them (lib/root.ts installTvScripts).
 	 *  Their source stays in tools/tv/, where the SSH tools and the docs point. Keep this list in step with TV_SCRIPTS in lib/root.ts. */
-	const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'home-setup.sh', 'privacy.sh', '60-homehook', 'hosts-extra'];
+	const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh', '60-homehook', 'hosts-extra'];
 	function tvScripts (): Plugin {
 		let outDir = 'dist';
 		return {

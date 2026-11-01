@@ -83,8 +83,8 @@ export function powerOnPending (s: TvState | null): boolean {
 
 const NATIVE_WHY: Record<string, string> = {
 	'no-lumen': 'No Lumen build is installed where the TV scripts look for it.',
-	'lumen-category': 'The TV does not list this build as a Home app. Install a build with "appCategory": ["home"].',
-	'lghome-category': "LG Home is not listed as a Home app on this TV, so the way back is not known. Left alone."
+	'no-block': "This TV's app manager cannot be made to read a replacement Home app, so this cannot work here.",
+	'no-lghome': "LG Home's app folder is not where the TV scripts look for it. Left alone."
 };
 const POWER_WHY: Record<string, string> = {
 	'no-bootd': "This TV's start-up service does not read a replacement file, so this cannot work here.",

@@ -6,27 +6,54 @@ upstream `docs/native-home.md`, Glasshouse).
 
 ## Native Home
 
-The TV's Home routes open the app named in the system setting `general.defaultApps.home`. `native-home on` sets it to Lumen with
-`applicationManager/setDefaultApp`, after checking that both Lumen and LG Home have `"home"` in their `appCategory` (Lumen's
-`appinfo.json` has it). The first time, it saves the old answer to `/var/lib/homehook/defaultApps.backup.json`.
+The first try set `general.defaultApps.home` to Lumen with `setDefaultApp`. On this TV the setting took, but Exit and Back out of an app still opened LG Home, before and after a restart (tested 2026-11-01). So `native-home on` now uses the Home takeover from Glasshouse (`server/lib/home-takeover.js`, MIT) and lg-luma (`tv-helper/src/home.rs`, MIT):
 
-What it should fix: Exit, and Back out of an app, open LG Home today, because Input Hook only rebinds the Home key. Reports elsewhere say
-this setting covers those too (a G5 on webOS 11.2, a 65UT8000 on webOS 25). Input Hook's Home mapping can stay as it is.
+1. Write a stand-in app to `/var/lib/homehook/home-app`. It has LG Home's id (`com.webos.app.home`), `appCategory: ["home"]`, and a blank page that opens Lumen when it starts and on each relaunch.
+2. Bind-mount it over `/usr/palm/applications/com.webos.app.home`.
+3. Make the app manager read it again: `blockSystemApp`, then `releaseBlockSystemApp` (with `forceBlockSystemApp: false` where the TV's schema asks for it).
+4. Stop LG's Home process (`flutter-client -i com.webos.app.home`). The next Home, Exit or Back out of an app starts the stand-in, and the stand-in opens Lumen.
 
-If it does not cover Exit here, the next step is the webOS 10 Home takeover in `docs/research/prior-art.md` (a mount over LG Home's app).
+The mount does not outlive a restart. `/var/lib/homehook/home-mount` holds the Lumen id while it is on, and the boot guard mounts again about 20 s into a boot.
+
+Seen on this TV (2026-11-01): Exit from YouTube opened Lumen about 1 s after the press, with nothing in front in between. Back out of YouTube opened Lumen. iPlayer did not close on Back at all. After a restart the guard mounted again by itself.
+
+Known costs:
+- The hand-over gap of about 1 s. lg-luma has none, because it puts its own app under LG Home's id. The same for Lumen would be Lumen's files under that id, which makes a second copy of Lumen with its own storage.
+- While it is on, Lumen's LG Home button opens Lumen, since LG Home's id is the stand-in's.
 
 ## Power-on app
 
 When the TV is switched on, `bootd` picks the first app from `firstAppByPowerOnReason` in `/etc/palm/bootd.json`. For the power
 button (`remoteKey`), the TV's own button (`localKey`) and a cold start (`micomPower`) it has no app, so the TV opens its last input.
 `bootd` reads `/var/luna/preferences/bootd.json` instead when that exists. `power-on on` writes that copy with those three reasons set
-to Lumen. Every other reason (casting, Wake-on-LAN, HDMI-CEC, timers) stays LG's.
+to Lumen, and so do Wake-on-LAN (`wakeOnLan`, `wakeOnWiFi`), so a Home Assistant switch-on that is a full boot opens Lumen too. Every
+other reason (casting, HDMI-CEC, timers) stays LG's.
 
 - It takes effect after a full restart (`reboot`), since `bootd` reads the file only when it starts.
 - It refuses unless `bootd` names the copy's path, LG's file has the table, and `node` is there to write the JSON.
 - The copy's md5 is kept in `/var/lib/homehook/bootd-override.md5`. A copy with another sum is someone else's and is never changed.
-- Unknown on this TV: whether waking from standby goes through `bootd`. The `watch.sh` wake launch stays for that case either way.
+- A wake from standby does not go through `bootd`: see "Waking from standby" below.
 - If this works, the TV input added on 2026-10-24 (`MVPD_IP-com.samrenfrew.lumen`) can go: `eim/deleteDevice` with the same appId.
+
+## Waking from standby
+
+With Quick Start+ on, switching on from standby is a resume, not a boot. `bootd` does nothing on a resume, so neither the power-on table
+nor LG's Home Auto Launch applies. The TV brings back its last input. Found 2026-11-01, on Wake-on-LAN wakes from Live TV:
+
+- `tvpower/power/getPowerState` (subscribed) reports `Prepare Resume`, then `LastInput Ready`, then `Screen On`, about 2 s apart in all.
+  Nothing is in front at `Prepare Resume`. A subscription made before standby survives it.
+- Switching off closes every app but Live TV, Lumen included. A launch at `Prepare Resume` is then a cold start: Live TV showed for
+  about 6 to 8 s before Lumen.
+- The app manager refuses launches once suspend starts ("cannot launch in suspend mode"). A power key sent through `/dev/input/event1`
+  suspends at once; the real remote leaves about 40 s of Active Standby first (`docs/keep-alive.md`), where Lumen can be started hidden.
+- The stand-in Home app was still running after switch-offs. Untested: whether opening it at `Prepare Resume` stays in front of Live TV.
+- One switch-off during these tests ended in a reboot with reason `rebootByFault`.
+- `tools/tv/resume.sh` (started by `60-homehook`) opens Home at `Prepare Resume`. With the takeover mounted, Home is the stand-in, so Lumen
+  follows. First run, Wake-on-LAN from YouTube after an instant suspend (2026-11-01): nothing in front until 3 s after Screen On, the
+  stand-in at 3 s, Lumen at 7 s. Live TV never came to the front. Not yet seen: what the screen shows in those first 7 s, and the real
+  remote, whose standby window lets `watch.sh` start Lumen hidden, so the hand-over should be faster.
+- Glasshouse, Hearth, lg-luma and cleanyourtv-WebOS have no answer: Glasshouse opens its Home 4.5 s after the wake, over Live TV, and
+  skips Wake-on-LAN wakes.
 
 ## The boot guard
 
@@ -40,8 +67,7 @@ hides the new file. Each step is logged to `/tmp/homehook.log`.
 From Lumen: Settings > System > TV scripts installs or updates the scripts from the app itself (they ship in the app's `tv/` folder; the
 build copies them from `tools/tv/`). Then Settings > Home and Power:
 
-- **Home button opens**: Lumen or LG Home. OK switches it. Shows "Not available" with the reason when the TV does not list a build as a
-  Home app.
+- **Home button opens**: Lumen or LG Home. OK switches it. Shows "Not available" with the reason when the TV has no `blockSystemApp`.
 - **When the TV turns on**: Lumen or Last input, with "(after a restart)" until the TV has restarted, and a **Restart the TV now** row
   meanwhile. Shows "Not available" with the reason when `bootd` here does not read the copy.
 
@@ -50,17 +76,15 @@ Each row reads the TV's real state when Settings opens (`lib/tvsetup.ts`, one ro
 Over SSH, the same script by hand:
 
 ```sh
-ssh <tv> 'sh /var/lib/homehook/home-setup.sh check'        # read only, the fullest report
-ssh -t <tv> 'sh /var/lib/homehook/home-setup.sh native-home on'
+ssh -t <tv> 'sh /var/lib/homehook/home-setup.sh check'        # read only, the fullest report
+ssh <tv> 'sh /var/lib/homehook/home-setup.sh native-home on'
 ssh <tv> 'sh /var/lib/homehook/home-setup.sh power-on on' # then reboot
 ```
 
-`native-home on` from Lumen runs without a terminal. If `setDefaultApp` does not take that way (upstream saw it need standard input
-open), the script writes the setting through the settings service instead, as Hearth does, and reads it back either way.
+Over SSH, `luna-send` prints nothing unless the session has a terminal, so use `ssh -t` for `check`. Lumen's own root calls read fine.
 
 ## Undo
 
-- `sh /var/lib/homehook/home-setup.sh native-home off` and `power-on off`, then reboot.
-- By hand: `rm -f /var/luna/preferences/bootd.json`, reboot, and
-  `luna-send -n 1 luna://com.webos.service.applicationmanager/setDefaultApp '{"category":"home","appId":"com.webos.app.home"}'`.
+- `sh /var/lib/homehook/home-setup.sh native-home off` and `power-on off`, then reboot for power-on.
+- By hand: `rm -f /var/luna/preferences/bootd.json /var/lib/homehook/home-mount` and reboot.
 - Set Home back to LG Home before uninstalling Lumen. The guard does it at the next boot if you forget.

@@ -1,9 +1,9 @@
 #!/bin/sh
-# webosbrew boot hook: start the Home-button watcher (see /var/lib/homehook/watch.sh) and the Stadia watcher (stadia.sh), run the Home and
+# webosbrew boot hook: start the Home-button watcher (see /var/lib/homehook/watch.sh), the Stadia watcher (stadia.sh) and the switch-on hook (resume.sh), run the Home and
 # power-on guard (home-setup.sh guard: undoes both if Lumen is uninstalled) and stop LG's tracking services again if Settings > Privacy has
 # that on (privacy.sh boot). Never blocks boot.
 # `60-homehook restart` (Lumen's Settings > System > TV scripts, after copying new scripts in): stops both watchers first, so the new ones run.
-# Uninstall: rm /var/lib/webosbrew/init.d/60-homehook; kill the watchers (killall watch.sh stadia.sh).
+# Uninstall: rm /var/lib/webosbrew/init.d/60-homehook; kill the watchers (killall watch.sh stadia.sh resume.sh).
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 H=/var/lib/homehook
 running() {
@@ -18,11 +18,12 @@ start() {
   setsid nohup "$1" </dev/null >/dev/null 2>&1 &
 }
 if [ "$1" = restart ]; then
-  for s in $H/watch.sh $H/stadia.sh; do for pid in $(running "$s"); do kill "$pid" 2>/dev/null; done; done
+  for s in $H/watch.sh $H/stadia.sh $H/resume.sh; do for pid in $(running "$s"); do kill "$pid" 2>/dev/null; done; done
   sleep 1
 fi
 start $H/watch.sh
 start $H/stadia.sh
+start $H/resume.sh
 [ -f $H/home-setup.sh ] && { setsid nohup sh $H/home-setup.sh guard </dev/null >/dev/null 2>&1 & }
 [ -f $H/privacy.sh ] && [ "$1" != restart ] && { setsid nohup sh $H/privacy.sh boot </dev/null >/dev/null 2>&1 & }
 exit 0
