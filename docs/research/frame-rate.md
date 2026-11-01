@@ -83,3 +83,14 @@ The classes are gone. The fades that hide the grid now keep running at their end
 ## Settings rows (2026-10-26)
 
 Up and Down in a Settings list ran at about 16 to 18 fps. The rows shared one layer with the whole list, so each focus move rastered the full list (about 1000 by 840 px) for one row's zoom and shadow. Each row now has its own layer (`will-change: transform` on `.slist__row`), as the Guide rows do. In `walk.mjs settings`, raster time fell from about 1.1 s to 0.27 s and dropped frames by more than half. Sam: much smoother on the TV.
+
+## Opening Settings, and keeping it built while closed (2026-11-01)
+
+From an idea in Glasshouse: build the other screens while Home is still, so they open faster. A dev-only switch (`lumen.warm` in `app.tsx`) kept Settings built while closed, hidden (`mounted`) or drawn at 1% opacity so its tiles stay rastered (`drawn`). Each open was timed from the nav line: the key press, then the end of the first long frame gap, which is when Settings shows.
+
+- Settings shows about 420 to 470 ms after OK once it has been opened before in the session. About 100 to 170 ms is the page's own work before the switch, and about 250 to 350 ms is the wait for the first frame. Keeping it built did not change this: `mounted` gave about 440 ms, the same as off.
+- The first open after a page reload: about 525 ms with it off, about 480 ms built (three tries each, spread about 60 ms). The difference is inside the spread.
+- The first open after an install took 870 ms. That is the browser's caches being empty, which warm-up does not cover.
+- `drawn` made closing Settings worse: the return to Home gained gaps of 117 to 167 ms, where off had none.
+
+Not worth it: building Settings is not where the time goes. The Guide was not tried; it fetches its data when it opens, so it is a different case. The time left is the app's render when the screen changes and the first frame's raster.
