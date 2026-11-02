@@ -52,7 +52,7 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blEye: 'brightness-eye'} as const;
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -356,7 +356,7 @@ export function App () {
 	useEffect(() => { setBacklightSchedule(() => scheduledBacklight(configRef.current)); return afterFirstFrame(restoreLeftoverBacklight, 3000); }, []);
 	// Settings > Brightness: watch.sh reads the schedule from a file, written after each change and once per launch (it may have been reinstalled)
 	useEffect(() => afterFirstFrame(() => { writeBrightnessSchedule(configRef.current).catch(() => undefined); }, 3000),
-		[config.brightnessOn, config.blDayAt, config.blDay, config.blEveningAt, config.blEvening, config.blNightAt, config.blNight, config.blEye]);
+		[config.brightnessOn, config.blDayAt, config.blDay, config.blEveningAt, config.blEvening, config.blNightAt, config.blNight, config.blRamp, config.blEye]);
 
 	useHtmlClasses(config);
 	// the Control Center's values are read once a return has caught up, so the reads do not slow the redraw
@@ -566,6 +566,7 @@ export function App () {
 			[OPTION.blDay]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blDay},
 			[OPTION.blEvening]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blEvening},
 			[OPTION.blNight]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blNight},
+			[OPTION.blRamp]: {labels: ['At once', 'Over 30 minutes', 'Over 1 hour', 'Over 1½ hours', 'Over 2 hours'], values: [0, 30, 60, 90, 120], now: config.blRamp},
 			[OPTION.blEye]: {labels: ['As the TV is set', 'Off all day', 'Evening and night', 'Night only'], values: ['keep', 'off', 'evening', 'night'], now: config.blEye}
 		};
 	}, [config, immich]);
@@ -775,6 +776,7 @@ export function App () {
 				{id: OPTION.blEvening, group: 'brightness' as const, label: 'Evening brightness', description: 'The TV\'s backlight through the evening, from 0 to 100.', value: true, ...listed(OPTION.blEvening)},
 				{id: OPTION.blNightAt, group: 'brightness' as const, label: 'Night starts', description: 'When the night brightness is set. It holds until the day starts again.', value: true, ...listed(OPTION.blNightAt)},
 				{id: OPTION.blNight, group: 'brightness' as const, label: 'Night brightness', description: 'The TV\'s backlight through the night, from 0 to 100.', value: true, ...listed(OPTION.blNight)},
+				{id: OPTION.blRamp, group: 'brightness' as const, label: 'Change', description: 'How each part of the day moves to its brightness. At once: it jumps when that part starts. Over a time: it starts at the last part\'s brightness and changes a little each minute until it gets there. While it changes, a change by hand lasts only a minute.', value: config.blRamp > 0, ...listed(OPTION.blRamp)},
 				{id: OPTION.blEye, group: 'brightness' as const, label: 'Eye Comfort', description: 'Eye Comfort makes the picture warmer. As the TV is set: the schedule leaves it alone. Otherwise it is turned on and off with the parts of the day.', value: config.blEye !== 'keep' && config.blEye !== 'off', ...listed(OPTION.blEye)}
 			] : []),
 
@@ -1165,6 +1167,7 @@ export function App () {
 		else if (optionId === OPTION.blDay) updateConfig({...c, blDay: Number(value)});
 		else if (optionId === OPTION.blEvening) updateConfig({...c, blEvening: Number(value)});
 		else if (optionId === OPTION.blNight) updateConfig({...c, blNight: Number(value)});
+		else if (optionId === OPTION.blRamp) updateConfig({...c, blRamp: Number(value)});
 		else if (optionId === OPTION.blEye) updateConfig({...c, blEye: v});
 	}, [choices]);
 

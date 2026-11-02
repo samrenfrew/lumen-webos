@@ -102,6 +102,8 @@ export interface UserConfig {
 	blEvening: number;
 	blNightAt: string;
 	blNight: number;
+	/** minutes each part of the day takes to move from the last one's backlight to its own; 0 changes it at once */
+	blRamp: number;
 	/** Eye Comfort through the day: keep (as the TV is set) | off | evening (evening and night) | night */
 	blEye: string;
 	/** screensaver photos look like a print on the wall: lifted blacks, paper whites, light falling off from the top left */
@@ -179,6 +181,7 @@ export const DEFAULT_CONFIG: UserConfig = {
 	blEvening: 60,
 	blNightAt: '22:00',
 	blNight: 30,
+	blRamp: 0,
 	blEye: 'keep',
 	immichRecentDays: 180,
 	focusStrength: 'normal',
@@ -257,6 +260,7 @@ export function parseConfig (raw: string): UserConfig {
 		blEvening: level(parsed.blEvening, DEFAULT_CONFIG.blEvening),
 		blNightAt: hhmm(parsed.blNightAt, DEFAULT_CONFIG.blNightAt),
 		blNight: level(parsed.blNight, DEFAULT_CONFIG.blNight),
+		blRamp: [0, 30, 60, 90, 120].indexOf(Number(parsed.blRamp)) !== -1 ? Number(parsed.blRamp) : 0,
 		blEye: parsed.blEye === 'off' || parsed.blEye === 'evening' || parsed.blEye === 'night' ? parsed.blEye : 'keep',
 		immichRecentDays: [30, 90, 180, 365].indexOf(Number(parsed.immichRecentDays)) !== -1 ? Number(parsed.immichRecentDays) : 180,
 		ambient: typeof parsed.ambient === 'string' && parsed.ambient.indexOf('immich:') === 0 ? parsed.ambient : 'immich:recent',

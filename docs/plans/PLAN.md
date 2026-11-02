@@ -65,6 +65,8 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       minute `/tmp/homehook.log` shows a "brightness:" line and the backlight matches. Set a start time a minute or two ahead and watch it
       change. A change by hand stays until the next part of the day. With Lumen's screensaver up across a start time, the screensaver stays
       dim, and a key press brings back the new level, not the old one. Eye Comfort follows the schedule unless set to As the TV is set.
+      Change set to Over 30 minutes or more: from each start time the backlight moves from the last part's level to the new one, a
+      little each minute, with a "brightness:" line per change in the log. Check that a 1-point step each minute is not visible.
 - [ ] Screensaver goes back to the app (2026-11-02; `watch.sh` passes `from`, `leaveAmbient` in `app.tsx`). Pause a film in Plex and in
       YouTube, let the screensaver start, press OK: the paused film comes back where it was, not Lumen's home screen. Home over the
       screensaver still goes to Lumen's home screen. If an app restarts instead of resuming, note which (codefarm-eu moved to an overlay

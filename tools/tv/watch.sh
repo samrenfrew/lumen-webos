@@ -23,8 +23,9 @@
 #    /var/lib/homehook/frame-screensaver exists: opens Frame in screensaver mode, then ends LG's screensaver (turnOnScreen) so Frame is what shows.
 #  - Settings > Brightness: with /var/lib/homehook/backlight-schedule holding "HH:MM <backlight> on|off|keep" lines (Lumen writes it), sets the
 #    backlight and Eye Comfort when each part of the day starts, then leaves them, so a change by hand stays until the next one. Checked once a
-#    minute with the screen on, so a TV switched on later catches up. While Lumen's screensaver is up the backlight waits: the screensaver
-#    puts back the level for now when it ends, and this sets it again a minute later if not.
+#    minute with the screen on, so a TV switched on later catches up. With a "ramp <minutes>" line, each part of the day starts at the last
+#    one's backlight and moves to its own a little each minute over that time. While Lumen's screensaver is up the backlight waits: the
+#    screensaver puts back the level for now when it ends, and this sets it again a minute later if not.
 # Never spins: reacts only when the app changes, and at most once every 3 s. Does nothing if the app is not installed.
 # ME lists every Lumen build (stable, dev). Home opens the one that was last in front, or the first installed one in this list. The flag files in
 # /var/lib/homehook/ are shared by all of them, which is fine while only one is in front at a time.
@@ -120,30 +121,47 @@ wake_open() {
   launchpid=$!
 }
 
-# prints the brightness schedule's step in force now ("HH:MM level eye"): the last one at or before now, else the day's last (from yesterday)
+# minutes since midnight for "HH:MM" (a leading zero stripped, so 08 and 09 are not read as octal)
+hm_min() { h=${1%:*}; m=${1#*:}; echo $(( ${h#0} * 60 + ${m#0} )); }
+
+# prints the brightness schedule's step in force now and the backlight for this minute, as "HH:MM level eye backlight": the step is the
+# last one at or before now, else the day's last (from yesterday); with a ramp, the backlight moves from the step before's level to its own
 bl_step() {
   [ -s "$BL_SCHEDULE" ] || return 1
   steps=$(grep -E '^([01][0-9]|2[0-3]):[0-5][0-9] [0-9]{1,3} (on|off|keep)$' "$BL_SCHEDULE" | sort)
   [ -n "$steps" ] || return 1
-  hm=$(date +%H%M)
-  cur=$(printf '%s\n' "$steps" | tail -n 1)
+  ramp=$(sed -n 's/^ramp \([0-9]\{1,3\}\)$/\1/p' "$BL_SCHEDULE" | head -n 1)
+  now_min=$(hm_min "$(date +%H:%M)")
+  last=$(printf '%s\n' "$steps" | tail -n 1)
+  cur=$last; prev=""; before=$last
   while read -r at lv eye; do
-    [ "${at%:*}${at#*:}" -le "$hm" ] && cur="$at $lv $eye"
+    if [ "$(hm_min "$at")" -le "$now_min" ]; then prev=$before; cur="$at $lv $eye"; fi
+    before="$at $lv $eye"
   done <<STEPS
 $steps
 STEPS
-  echo "$cur"
+  # before the day's first step, the last one holds and the one before it is the second to last
+  [ -z "$prev" ] && prev=$(printf '%s\n' "$steps" | tail -n 2 | head -n 1)
+  set -- $cur
+  level=$2
+  if [ -n "$ramp" ] && [ "$ramp" -gt 0 ]; then
+    since=$(( (now_min - $(hm_min "$1") + 1440) % 1440 ))
+    from=$(printf '%s' "$prev" | cut -d' ' -f2)
+    [ "$since" -lt "$ramp" ] && level=$(( from + (level - from) * since / ramp ))
+  fi
+  echo "$cur $level"
 }
 
-# sets the backlight and Eye Comfort once per schedule step (a new part of the day, or a new schedule from Settings)
+# sets the backlight whenever the schedule's level for now changes (once per step, or each minute of a ramp), and Eye Comfort once per step
 bl_apply() {
-  step=$(bl_step) || { blset=""; eyeset=""; return; }
-  set -- $step
-  [ "$2" -le 100 ] || return
-  if [ "$step" != "$blset" ] && [ ! -f "$AMBIENT_ON" ]; then
-    luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$2\"}}" </dev/null >/dev/null 2>&1
-    blset=$step
-    echo "$(date +%T) brightness: backlight $2 (from $1)" >> /tmp/homehook.log
+  out=$(bl_step) || { blset=""; eyeset=""; return; }
+  set -- $out
+  step="$1 $2 $3"
+  [ "$4" -le 100 ] || return
+  if [ "$step $4" != "$blset" ] && [ ! -f "$AMBIENT_ON" ]; then
+    luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$4\"}}" </dev/null >/dev/null 2>&1
+    blset="$step $4"
+    echo "$(date +%T) brightness: backlight $4 (from $1)" >> /tmp/homehook.log
   fi
   if [ "$step" != "$eyeset" ]; then
     if [ "$3" != keep ]; then
