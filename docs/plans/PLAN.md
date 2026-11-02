@@ -14,13 +14,15 @@ seen unless something looks wrong.
 
 ---
 
-## Where things stand (2026-10-26)
+## Where things stand (2026-11-02)
 
-- Design audit done (branch `design/system-cleanup`, `docs/research/design-audit.md`): the stylesheet split, three glass materials, two focus
-  styles, one type scale (18, 22, 26, 32, 56, 80, 120), the wallpaper category bar with a sliding pill, and left-aligned Settings
-  headers. Sam checked each change live on the TV on 2026-10-26, and the build is installed. Step 9's focus-zone helper was dropped
-  (no shared logic to pull out). Not committed yet.
-- Pick up next: the two Control Center items in Open on the TV (open timing against Inputs, and the sub-menu lag).
+- Lumen 2.1.0 is released. It has the design audit (`docs/research/design-audit.md`), Home and Power, and Privacy. Branch
+  `ccr-dba88192-ygl4fc` is three commits past it (Moonlight's tile, the Home preload guard, the screensaver's first photo).
+- Built on 2026-11-02, not committed, not yet on the TV (it was off): Settings > Brightness, the screensaver going back to the app it came
+  up over, the wallpaper fade without the stall, and app names without the store tagline. Each is in Verify below.
+- Other forks were reviewed on 2026-11-02 (`docs/research/prior-art.md`, "Forks of Lumen"). Keep an eye on `codefarm-eu/lumen-webos`.
+- Pick up next: `npm run deploy:home` when the TV is on, then Settings > System > TV scripts > Update (`watch.sh` changed), then the new
+  Verify items. After that, the two Control Center items in Open on the TV.
 
 ---
 
@@ -58,6 +60,20 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
 - [ ] Home soon after switch-on is warm (`tools/tv/watch.sh`, on the TV 2026-10-31): switching off closes Lumen, so the watcher starts it
       hidden 10 s into standby. Seen: it loads in standby and survives the TV's deeper sleep (Lumen up 1 s after LG Home, 26 s after a
       switch-on). Not yet seen: Home pressed within 5 s of switching on into Live TV, after at least a minute in standby.
+- [ ] Settings > Brightness (2026-11-02; `lib/brightness.ts`, `tools/tv/watch.sh`). Needs the TV scripts updated. Turn off Home
+      Assistant's brightness and Eye Comfort automations first. Check: `/var/lib/homehook/backlight-schedule` holds three lines; within a
+      minute `/tmp/homehook.log` shows a "brightness:" line and the backlight matches. Set a start time a minute or two ahead and watch it
+      change. A change by hand stays until the next part of the day. With Lumen's screensaver up across a start time, the screensaver stays
+      dim, and a key press brings back the new level, not the old one. Eye Comfort follows the schedule unless set to As the TV is set.
+- [ ] Screensaver goes back to the app (2026-11-02; `watch.sh` passes `from`, `leaveAmbient` in `app.tsx`). Pause a film in Plex and in
+      YouTube, let the screensaver start, press OK: the paused film comes back where it was, not Lumen's home screen. Home over the
+      screensaver still goes to Lumen's home screen. If an app restarts instead of resuming, note which (codefarm-eu moved to an overlay
+      for this, which hints that some apps lose their place).
+- [ ] Wallpaper fade without the stall (2026-11-02, from quangtdev's fork): night dimming is now a black sheet (`#wpimage::before`), not
+      opacity, and a new picture is drawn 150 ms before its fade starts. Check at night: a wallpaper change fades smoothly, and the
+      dimming looks the same as before.
+- [ ] App names drop a store tagline (2026-11-02, from juanrusch's fork): "Spotify - Music and Podcasts" reads "Spotify", and a long name
+      in the dock ends in "…" inside the focused glass.
 
 ---
 

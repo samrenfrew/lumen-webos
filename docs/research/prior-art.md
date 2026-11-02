@@ -148,3 +148,24 @@ For Lumen: this is a third way to make Home open Lumen, beside Input Hook and `s
 - cleanyourtv-WebOS: Back on Home lists running apps with Close all; a full power off button.
 - lg-luma #91: let LG's screen saver start; #119: files written while running as root Home keep the app's owner.
 - free-my-tv (5,639 stars, no root on LG): a light mode on TVs with under 1 to 2 GB, from `navigator.deviceMemory`.
+
+## Forks of Lumen (read 2026-11-02)
+
+There are 32 forks across this repo and ammar027's. About ten have commits of their own. Most of those make Lumen run on an older TV, so their speed fixes do not apply to this one (Chromium 120): codefarm-eu (webOS 4, an LG C8), hmahesh007, xcv58 and nghoang1288 (webOS 5), and juanrusch (webOS 6). Nothing here was tried on this TV.
+
+Taken into Lumen on 2026-11-02 (see Verify in `docs/plans/PLAN.md`):
+
+- quangtdev: night dimming as a black sheet, not opacity, and a 150 ms head start before a wallpaper fade. They found that opacity on `#wpimage` made the GPU blend both pictures on every frame of a fade, and the fade stalled.
+- juanrusch: app names without the store tagline, and a long dock name ends in "…".
+
+Built our own way:
+
+- quangtdev's night backlight in `watch.sh`: it reads the backlight as it is, so it can save the screensaver's dimmed level as the "day" level. Lumen's Settings > Brightness instead keeps the schedule in Lumen and holds the backlight back while the screensaver shows.
+- codefarm-eu's screensaver over an app: a key goes back to the paused app. Lumen passes the app in the launch parameters. codefarm-eu later moved this into its overlay bar, which hints that some apps lose their place when they are opened again.
+
+Worth watching:
+
+- codefarm-eu/lumen-webos is the most active fork. It has the Lumen bar (a second app: a dock drawn over the app you are watching), home screen edit mode, a screensaver that moves the clock to stop burn-in, one watcher at a time (a lock in `/tmp`), and watchers started without inherited file descriptors (`60-homehook`). Its newest commits are many small fixes to the bar's icon copying, so the bar is not settled yet.
+- Pierregvx (branch `films-series`): a films and series section, AI picks and a player inside Lumen, in one large commit.
+- ayushcody (branch `pr/dev-mode-icons`): Lumen on a TV that is not rooted (Dev Mode), and Lucide icons for LG's own apps. Its PR here was closed.
+- quangtdev: Vietnamese, and a boot hook that stubs LG's ad and log services (Lumen's `privacy.sh` does the same job differently).
