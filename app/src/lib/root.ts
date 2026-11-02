@@ -26,7 +26,7 @@ const SETTINGS: Record<string, {category: string; values?: string[]}> = {
 };
 
 /** Files under HOMEHOOK that Lumen may write or read. */
-const FILES = ['lumen-config.json', 'recent', 'immich.json'] as const;
+const FILES = ['lumen-config.json', 'recent', 'immich.json', 'backlight-schedule'] as const;
 export type HomehookFile = typeof FILES[number];
 const LOG = `${HOMEHOOK}/lumen.log`;
 const LOG_MAX_BYTES = 64 * 1024;

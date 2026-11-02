@@ -21,6 +21,10 @@
 #    Over another app, "from" names it, so a key that ends the screensaver goes back to that app rather than to Lumen's home screen.
 #  - When the TV's power state becomes "Screen Saver" (LG's screensaver is not a foreground app, so the power state is what shows it) and
 #    /var/lib/homehook/frame-screensaver exists: opens Frame in screensaver mode, then ends LG's screensaver (turnOnScreen) so Frame is what shows.
+#  - Settings > Brightness: with /var/lib/homehook/backlight-schedule holding "HH:MM <backlight> on|off|keep" lines (Lumen writes it), sets the
+#    backlight and Eye Comfort when each part of the day starts, then leaves them, so a change by hand stays until the next one. Checked once a
+#    minute with the screen on, so a TV switched on later catches up. While Lumen's screensaver is up the backlight waits: the screensaver
+#    puts back the level for now when it ends, and this sets it again a minute later if not.
 # Never spins: reacts only when the app changes, and at most once every 3 s. Does nothing if the app is not installed.
 # ME lists every Lumen build (stable, dev). Home opens the one that was last in front, or the first installed one in this list. The flag files in
 # /var/lib/homehook/ are shared by all of them, which is fine while only one is in front at a time.
@@ -43,6 +47,7 @@ WAKE_SECS=30
 WAKE_SETTLE=3
 NOPRELOAD_FLAG=/var/lib/homehook/no-boot-preload
 RECENT=/var/lib/homehook/recent
+BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOAD_CONF=/var/preferences/webos-preload-manager-conf.json
 NO_PRELOAD="netflix airplay com.webos.app.lgchannels com.webos.app.home"   # Home: the preload manager starts it in front, and the stand-in then opens Lumen over the app you are watching
 prev=""
@@ -61,6 +66,9 @@ wakeuntil=$((tick + 90))   # a boot counts as a wake; LG Home may take a while t
 preloadat=$((tick + 60))   # once, after the boot rush; 0 when done
 STANDBY_PRELOAD_SECS=10
 standbyat=0                # when to preload in standby; -1 once done for this standby
+blmin=""                   # the minute the brightness schedule was last checked
+blset=""                   # the schedule step whose backlight was last set
+eyeset=""                  # the schedule step whose Eye Comfort was last set
 # prints the Lumen build in front, if any
 me_in_front() {
   for id in $ME; do case "$1" in *'"appId":"'$id'"'*) echo "$id"; return 0 ;; esac; done
@@ -110,6 +118,40 @@ wake_open() {
   ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$target\"}" </dev/null 2>&1)
     echo "$(date +%T) wake: open $target over ${1:-nothing}: $r" >> /tmp/homehook.log ) &
   launchpid=$!
+}
+
+# prints the brightness schedule's step in force now ("HH:MM level eye"): the last one at or before now, else the day's last (from yesterday)
+bl_step() {
+  [ -s "$BL_SCHEDULE" ] || return 1
+  steps=$(grep -E '^([01][0-9]|2[0-3]):[0-5][0-9] [0-9]{1,3} (on|off|keep)$' "$BL_SCHEDULE" | sort)
+  [ -n "$steps" ] || return 1
+  hm=$(date +%H%M)
+  cur=$(printf '%s\n' "$steps" | tail -n 1)
+  while read -r at lv eye; do
+    [ "${at%:*}${at#*:}" -le "$hm" ] && cur="$at $lv $eye"
+  done <<STEPS
+$steps
+STEPS
+  echo "$cur"
+}
+
+# sets the backlight and Eye Comfort once per schedule step (a new part of the day, or a new schedule from Settings)
+bl_apply() {
+  step=$(bl_step) || { blset=""; eyeset=""; return; }
+  set -- $step
+  [ "$2" -le 100 ] || return
+  if [ "$step" != "$blset" ] && [ ! -f "$AMBIENT_ON" ]; then
+    luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$2\"}}" </dev/null >/dev/null 2>&1
+    blset=$step
+    echo "$(date +%T) brightness: backlight $2 (from $1)" >> /tmp/homehook.log
+  fi
+  if [ "$step" != "$eyeset" ]; then
+    if [ "$3" != keep ]; then
+      luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"eyeComfortMode\":\"$3\"}}" </dev/null >/dev/null 2>&1
+      echo "$(date +%T) brightness: Eye Comfort $3 (from $1)" >> /tmp/homehook.log
+    fi
+    eyeset=$step
+  fi
 }
 
 fix_preload
@@ -220,6 +262,10 @@ while true; do
       *) pwprev="other" ;;
     esac
   fi
+  # Settings > Brightness, once a minute with the screen on; a minute missed in standby is caught up at the first one after
+  case "$pwstate" in
+    Active|"Screen Saver") m=$((now / 60)); [ "$m" != "$blmin" ] && { blmin=$m; bl_apply; } ;;
+  esac
   # boot: start Lumen hidden once, so the first Home press is warm. Tried once only, and only with the screen on.
   if [ "$preloadat" -gt 0 ] && [ "$now" -ge "$preloadat" ] && [ "$pwstate" = Active ]; then
     preloadat=0

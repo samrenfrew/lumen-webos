@@ -88,6 +88,9 @@ export function setBacklight (level: number): Promise<void> {
 /** The backlight before the screensaver lowered it, kept until it is put back, so a launch after a crash can still put it back. */
 const SAVED_BACKLIGHT_KEY = 'lumen-screensaver-backlight-v1';
 let dimmedHere = false;
+/** Settings > Brightness: the level for now, which the screensaver puts back instead of the one it saved (that may be from an earlier part of the day) */
+let scheduled: () => number | null = () => null;
+export function setBacklightSchedule (fn: () => number | null): void { scheduled = fn; }
 
 /** Lowers the backlight to `level` for the screensaver (never raises it), keeping the old value to put back. */
 export function dimForScreensaver (level: number, stillWanted: () => boolean): void {
@@ -99,11 +102,12 @@ export function dimForScreensaver (level: number, stillWanted: () => boolean): v
 	}).catch(() => undefined);
 }
 
-/** Puts back the backlight the screensaver lowered, if it did. Safe to call at any time. */
+/** Puts back the backlight the screensaver lowered, if it did: the schedule's level for now, else the one it saved. Safe to call at any time. */
 export function restoreBacklight (): void {
-	const before = readCache<number>(SAVED_BACKLIGHT_KEY);
-	if (before === null) return;
-	setBacklight(before).then(() => { writeCache(SAVED_BACKLIGHT_KEY, null); dimmedHere = false; }).catch(() => undefined);
+	const saved = readCache<number>(SAVED_BACKLIGHT_KEY);
+	if (saved === null) return;
+	const now = scheduled();
+	setBacklight(now === null ? saved : now).then(() => { writeCache(SAVED_BACKLIGHT_KEY, null); dimmedHere = false; }).catch(() => undefined);
 }
 
 /** At start-up: a backlight left low by a screensaver that never ended (Lumen closed or crashed) is put back, unless this launch dimmed it. */

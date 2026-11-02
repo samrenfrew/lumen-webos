@@ -93,6 +93,17 @@ export interface UserConfig {
 	ambientSeconds: number;
 	/** how far the screensaver lowers the TV's backlight while it shows: tv (not at all) | dim | low */
 	ambientBrightness: string;
+	/** Settings > Brightness: tools/tv/watch.sh sets the TV's backlight (and Eye Comfort, unless blEye is keep) at three times of day */
+	brightnessOn: boolean;
+	/** when each part of the day starts ("HH:MM") and its backlight (0 to 100) */
+	blDayAt: string;
+	blDay: number;
+	blEveningAt: string;
+	blEvening: number;
+	blNightAt: string;
+	blNight: number;
+	/** Eye Comfort through the day: keep (as the TV is set) | off | evening (evening and night) | night */
+	blEye: string;
 	/** screensaver photos look like a print on the wall: lifted blacks, paper whites, light falling off from the top left */
 	ambientPrint: boolean;
 	/** how far back the Immich Recent sources reach, in days: 30 | 90 | 180 | 365 */
@@ -161,6 +172,14 @@ export const DEFAULT_CONFIG: UserConfig = {
 	ambientSeconds: 30,
 	ambientBrightness: 'dim',
 	ambientPrint: false,
+	brightnessOn: false,
+	blDayAt: '07:00',
+	blDay: 80,
+	blEveningAt: '18:00',
+	blEvening: 60,
+	blNightAt: '22:00',
+	blNight: 30,
+	blEye: 'keep',
 	immichRecentDays: 180,
 	focusStrength: 'normal',
 	firstRow: 6,
@@ -231,6 +250,14 @@ export function parseConfig (raw: string): UserConfig {
 		ambientSeconds: [10, 20, 30, 60, 120, 300].indexOf(Number(parsed.ambientSeconds)) !== -1 ? Number(parsed.ambientSeconds) : 30,
 		ambientBrightness: parsed.ambientBrightness === 'tv' || parsed.ambientBrightness === 'low' ? parsed.ambientBrightness : 'dim',
 		ambientPrint: parsed.ambientPrint === true,
+		brightnessOn: parsed.brightnessOn === true,
+		blDayAt: hhmm(parsed.blDayAt, DEFAULT_CONFIG.blDayAt),
+		blDay: level(parsed.blDay, DEFAULT_CONFIG.blDay),
+		blEveningAt: hhmm(parsed.blEveningAt, DEFAULT_CONFIG.blEveningAt),
+		blEvening: level(parsed.blEvening, DEFAULT_CONFIG.blEvening),
+		blNightAt: hhmm(parsed.blNightAt, DEFAULT_CONFIG.blNightAt),
+		blNight: level(parsed.blNight, DEFAULT_CONFIG.blNight),
+		blEye: parsed.blEye === 'off' || parsed.blEye === 'evening' || parsed.blEye === 'night' ? parsed.blEye : 'keep',
 		immichRecentDays: [30, 90, 180, 365].indexOf(Number(parsed.immichRecentDays)) !== -1 ? Number(parsed.immichRecentDays) : 180,
 		ambient: typeof parsed.ambient === 'string' && parsed.ambient.indexOf('immich:') === 0 ? parsed.ambient : 'immich:recent',
 		// before ambientOn, an empty source meant LG's screensaver
@@ -248,6 +275,9 @@ export function parseConfig (raw: string): UserConfig {
 		guideFull: parsed.guideFull === true
 	});
 }
+
+const hhmm = (v: unknown, fallback: string) => typeof v === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : fallback;
+const level = (v: unknown, fallback: number) => typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= 100 ? v : fallback;
 
 /** Landscapes and Art: what the pictures start from on a new install */
 export function starterPicks (): string[] {

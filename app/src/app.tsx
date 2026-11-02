@@ -21,7 +21,8 @@ import {TIMING} from './config/constants';
 import {LOCAL_WALLPAPERS, WALLPAPERS, WALLPAPER_CATEGORIES, cloudUrl} from './config/wallpapers';
 import {setLiquidDock} from './lib/liquidGlass';
 import {resized, setPicks, setWallpaper, shownWallpaper} from './lib/wallpaper';
-import {restoreLeftoverBacklight} from './lib/tvcontrols';
+import {restoreLeftoverBacklight, setBacklightSchedule} from './lib/tvcontrols';
+import {scheduledBacklight, writeBrightnessSchedule} from './lib/brightness';
 import {albums as immichAlbums, cachedServer, IMMICH_SOURCES, loadServer, saveServer, testServer, type ImmichServer} from './lib/immich';
 import {Ambient, prepareAmbient} from './components/Ambient';
 import {setVideoChoice, setVideoPaused, setVideoWallpaper, VIDEO_PLACES} from './lib/wallpaperVideo';
@@ -51,7 +52,7 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates'} as const;
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blEye: 'brightness-eye'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -79,6 +80,13 @@ const TOP_ITEMS: TileModel[] = [
 
 
 const LUMEN_IDS = ['com.samrenfrew.lumen', 'com.samrenfrew.lumen.dev'];
+/** Settings > Brightness: the start times on offer, every half hour from `from` to `to` o'clock (past 24 wraps to the next morning) */
+const halfHours = (from: number, to: number) => {
+	const out: string[] = [];
+	for (let m = from * 60; m <= to * 60; m += 30) out.push(`${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${m % 60 === 0 ? '00' : '30'}`);
+	return out;
+};
+const BL_LEVELS = Array.from({length: 21}, (_, i) => i * 5);
 const NEEDS_SCRIPTS = 'Install the TV scripts first, in Settings > System > TV scripts. ';
 
 /** Settings > Home and Power and Settings > Privacy: one row per TV-script setting, each showing what the TV reports. */
@@ -345,7 +353,10 @@ export function App () {
 	}, [config.wpAutoMinutes, config.wallpaper]);
 
 	// a backlight left low by a screensaver that never ended goes back up
-	useEffect(() => afterFirstFrame(restoreLeftoverBacklight, 3000), []);
+	useEffect(() => { setBacklightSchedule(() => scheduledBacklight(configRef.current)); return afterFirstFrame(restoreLeftoverBacklight, 3000); }, []);
+	// Settings > Brightness: watch.sh reads the schedule from a file, written after each change and once per launch (it may have been reinstalled)
+	useEffect(() => afterFirstFrame(() => { writeBrightnessSchedule(configRef.current).catch(() => undefined); }, 3000),
+		[config.brightnessOn, config.blDayAt, config.blDay, config.blEveningAt, config.blEvening, config.blNightAt, config.blNight, config.blEye]);
 
 	useHtmlClasses(config);
 	// the Control Center's values are read once a return has caught up, so the reads do not slow the redraw
@@ -375,6 +386,8 @@ export function App () {
 	videoOnRef.current = videoOn;
 	// the wallpaper the screensaver opens on when started from the home screen; none when the TV's screensaver opens it
 	const ambientOpening = useRef<ReturnType<typeof shownWallpaper>>(null);
+	// the app the TV's screensaver came up over: a key that ends the screensaver goes back to it (a paused film), not to the home screen
+	const saverFrom = useRef('');
 	useEffect(() => setVideoWallpaper(videoOn), [videoOn]);
 	useEffect(() => { setAmbientFlag(config.ambientOn); }, [config.ambientOn]);
 	useEffect(() => { clearSaverOffFlag(); }, []);
@@ -386,8 +399,6 @@ export function App () {
 
 	// first run: put the installed apps on the home screen (the catalogue's favourites first)
 	useEffect(() => {
-	// the app the TV's screensaver came up over: a key that ends the screensaver goes back to it (a paused film), not to the home screen
-	const saverFrom = useRef('');
 		const c = configRef.current;
 		if (restoring || apps.length === 0) return;
 		const builtins = (ids: string[]) => ids.concat(BUILTIN_APPS.map((b) => b.id).filter((id) => ids.indexOf(id) === -1));
@@ -402,6 +413,13 @@ export function App () {
 		if (lumen) { ambientOpening.current = videoOnRef.current ? null : shownWallpaper(); saverFrom.current = ''; setScreen('ambient'); return; }
 		startScreensaver().catch(() => showToast("Couldn't start the screensaver (it needs the Homebrew Channel)", 'error'));
 	};
+	/** A key ended the screensaver: back to the app it came up over, else the home screen. The Home button is a plain relaunch and always goes home. */
+	const leaveAmbient = () => {
+		const from = saverFrom.current;
+		saverFrom.current = '';
+		setScreen('home');
+		if (from) launchApp(from).catch(() => undefined);
+	};
 
 	// idle screensaver: after the chosen time on the home screen without a key press or pointer move, while the launcher is in front
 	useEffect(() => {
@@ -413,13 +431,6 @@ export function App () {
 		};
 		arm();
 		const events = ['keydown', 'mousemove', 'click'];
-	/** A key ended the screensaver: back to the app it came up over, else the home screen. The Home button is a plain relaunch and always goes home. */
-	const leaveAmbient = () => {
-		const from = saverFrom.current;
-		saverFrom.current = '';
-		setScreen('home');
-		if (from) launchApp(from).catch(() => undefined);
-	};
 		events.forEach((e) => window.addEventListener(e, arm));
 		return () => { window.clearTimeout(timer); events.forEach((e) => window.removeEventListener(e, arm)); };
 	}, [config.ambientOn, config.idleSeconds, videoOn, screen, controls]);
@@ -547,7 +558,15 @@ export function App () {
 			[OPTION.ambientSeconds]: {labels: ['10 seconds', '20 seconds', '30 seconds', '1 minute', '2 minutes', '5 minutes'], values: [10, 20, 30, 60, 120, 300], now: config.ambientSeconds},
 			[OPTION.ambientBrightness]: {labels: ['As the TV is set', 'Dim', 'Very dim'], values: ['tv', 'dim', 'low'], now: config.ambientBrightness},
 			[OPTION.nightDim]: {labels: ['Off', 'At night', 'Always'], values: ['off', 'night', 'always'], now: config.wallpaperDim},
-			[OPTION.videoHours]: {labels: ['Always', 'Daytime (7 am to 7 pm)', 'Evenings (5 pm to 11 pm)', 'Night (7 pm to 7 am)'], values: ['always', 'day', 'evening', 'night'], now: config.videoHours}
+			[OPTION.videoHours]: {labels: ['Always', 'Daytime (7 am to 7 pm)', 'Evenings (5 pm to 11 pm)', 'Night (7 pm to 7 am)'], values: ['always', 'day', 'evening', 'night'], now: config.videoHours},
+			[OPTION.blOn]: {labels: ['Off', 'On'], values: ['off', 'on'], now: config.brightnessOn ? 'on' : 'off'},
+			[OPTION.blDayAt]: {labels: halfHours(5, 12), values: halfHours(5, 12), now: config.blDayAt},
+			[OPTION.blEveningAt]: {labels: halfHours(15, 22), values: halfHours(15, 22), now: config.blEveningAt},
+			[OPTION.blNightAt]: {labels: halfHours(19, 26), values: halfHours(19, 26), now: config.blNightAt},
+			[OPTION.blDay]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blDay},
+			[OPTION.blEvening]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blEvening},
+			[OPTION.blNight]: {labels: BL_LEVELS.map(String), values: BL_LEVELS, now: config.blNight},
+			[OPTION.blEye]: {labels: ['As the TV is set', 'Off all day', 'Evening and night', 'Night only'], values: ['keep', 'off', 'evening', 'night'], now: config.blEye}
 		};
 	}, [config, immich]);
 	/** the list fields of an option: its choices, which is set, and the text shown on the right */
@@ -738,6 +757,25 @@ export function App () {
 					value: config.saverForecast,
 					...listed(OPTION.saverCast)
 				}
+			] : []),
+
+			// ----- Brightness -----
+			{
+				id: OPTION.blOn,
+				group: 'brightness' as const,
+				label: 'Brightness schedule',
+				description: 'Sets the TV\'s brightness at the start of the day, the evening and the night, and Eye Comfort if you choose. It works while Lumen is closed, and needs the TV scripts (Settings > System). A change by hand stays until the next part of the day. Turn off anything else that sets the brightness on a timer, such as Home Assistant, so the two do not fight.',
+				value: config.brightnessOn,
+				...listed(OPTION.blOn)
+			},
+			...(config.brightnessOn ? [
+				{id: OPTION.blDayAt, group: 'brightness' as const, label: 'Day starts', description: 'When the day brightness is set.', value: true, ...listed(OPTION.blDayAt)},
+				{id: OPTION.blDay, group: 'brightness' as const, label: 'Day brightness', description: 'The TV\'s backlight through the day, from 0 to 100.', value: true, ...listed(OPTION.blDay)},
+				{id: OPTION.blEveningAt, group: 'brightness' as const, label: 'Evening starts', description: 'When the evening brightness is set.', value: true, ...listed(OPTION.blEveningAt)},
+				{id: OPTION.blEvening, group: 'brightness' as const, label: 'Evening brightness', description: 'The TV\'s backlight through the evening, from 0 to 100.', value: true, ...listed(OPTION.blEvening)},
+				{id: OPTION.blNightAt, group: 'brightness' as const, label: 'Night starts', description: 'When the night brightness is set. It holds until the day starts again.', value: true, ...listed(OPTION.blNightAt)},
+				{id: OPTION.blNight, group: 'brightness' as const, label: 'Night brightness', description: 'The TV\'s backlight through the night, from 0 to 100.', value: true, ...listed(OPTION.blNight)},
+				{id: OPTION.blEye, group: 'brightness' as const, label: 'Eye Comfort', description: 'Eye Comfort makes the picture warmer. As the TV is set: the schedule leaves it alone. Otherwise it is turned on and off with the parts of the day.', value: config.blEye !== 'keep' && config.blEye !== 'off', ...listed(OPTION.blEye)}
 			] : []),
 
 			// ----- Appearance -----
@@ -1120,6 +1158,14 @@ export function App () {
 		}
 		else if (optionId === OPTION.ambientSeconds) updateConfig({...c, ambientSeconds: Number(value)});
 		else if (optionId === OPTION.ambientBrightness) updateConfig({...c, ambientBrightness: v});
+		else if (optionId === OPTION.blOn) updateConfig({...c, brightnessOn: v === 'on'});
+		else if (optionId === OPTION.blDayAt) updateConfig({...c, blDayAt: v});
+		else if (optionId === OPTION.blEveningAt) updateConfig({...c, blEveningAt: v});
+		else if (optionId === OPTION.blNightAt) updateConfig({...c, blNightAt: v});
+		else if (optionId === OPTION.blDay) updateConfig({...c, blDay: Number(value)});
+		else if (optionId === OPTION.blEvening) updateConfig({...c, blEvening: Number(value)});
+		else if (optionId === OPTION.blNight) updateConfig({...c, blNight: Number(value)});
+		else if (optionId === OPTION.blEye) updateConfig({...c, blEye: v});
 	}, [choices]);
 
 	/** Replace a row's order with `keys` (the full list of what's shown). */
