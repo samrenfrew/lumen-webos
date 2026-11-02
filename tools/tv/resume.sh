@@ -2,19 +2,18 @@
 # Every switch-on opens Lumen, the Live TV of a resume never shows. Started at boot by 60-homehook; runs as root.
 # With Quick Start+ on, switching on from standby (remote, Wake-on-LAN, Home Assistant) is a resume, not a boot: bootd does nothing and the
 # TV brings back its last input. The power state reports "Prepare Resume" about 2 s before "Screen On", with nothing in front yet, so Home is
-# opened then. With the Home takeover mounted (home-setup.sh native-home on) Home is the stand-in, which outlives standby and opens Lumen.
+# opened then. Lumen is opened itself, not the Home stand-in, which showed a "Home" loading screen before Lumen.
 # watch.sh still opens Lumen at each wake as the fallback. Findings: docs/home-and-power-on.md, "Waking from standby".
+# At "Request Power Off", about 3.5 s before standby, a Lumen in front is sent to its home screen. The TV shows a picture of the last screen
+# for about 2.5 s after the next switch-on, and it was the screensaver. Lumen is closed in standby, so it starts fresh at each switch-on anyway.
 # Switch off with /var/lib/homehook/no-wake-launch (shared with watch.sh).
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 NOWAKE_FLAG=/var/lib/homehook/no-wake-launch
-LGHOME=com.webos.app.home
 ME="com.samrenfrew.lumen com.samrenfrew.lumen.dev"
 APPS=/media/developer/apps/usr/palm/applications
 LOG=/tmp/homehook.log
 
 target () {
-  # the stand-in while it is mounted over LG Home, else Lumen itself
-  if grep -q " /usr/palm/applications/$LGHOME " /proc/mounts; then echo "$LGHOME"; return 0; fi
   for id in $ME; do [ -d "$APPS/$id" ] && { echo "$id"; return 0; }; done
   return 1
 }
@@ -28,6 +27,16 @@ while true; do
         t=$(target) || continue
         r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$t\",\"noSplash\":true}" </dev/null 2>&1)
         echo "$(date +%T) resume: open $t: $r" >> "$LOG" ;;
+      *'"Request Power Off"'*)
+        [ -f "$NOWAKE_FLAG" ] && continue
+        f=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
+        for id in $ME; do
+          case "$f" in *'"appId":"'$id'"'*)
+            # a plain relaunch is the Home button: Lumen leaves the screensaver, Settings or the Guide for its home screen
+            r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$id\"}" </dev/null 2>&1)
+            echo "$(date +%T) power off: $id to its home screen: $r" >> "$LOG" ;;
+          esac
+        done ;;
     esac
   done
   sleep 5

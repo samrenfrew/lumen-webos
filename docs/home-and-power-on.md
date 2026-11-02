@@ -52,6 +52,14 @@ nor LG's Home Auto Launch applies. The TV brings back its last input. Found 2026
   follows. First run, Wake-on-LAN from YouTube after an instant suspend (2026-11-01): nothing in front until 3 s after Screen On, the
   stand-in at 3 s, Lumen at 7 s. Live TV never came to the front. Not yet seen: what the screen shows in those first 7 s, and the real
   remote, whose standby window lets `watch.sh` start Lumen hidden, so the hand-over should be faster.
+- 2026-11-02 (verify): `resume.sh` now opens Lumen itself, not the stand-in. Through the stand-in, Sam saw a "Home" loading screen
+  for a few seconds before Lumen.
+- Seen 2026-11-02, remote power key with the screensaver up: "Request Power Off" comes about 3.5 s before "Request Active Standby", and
+  the TV is in Suspend about 6 s after the key, too soon for `watch.sh`'s standby preload at 10 s. Lumen is still open at "Prepare
+  Suspend" but is closed by the next switch-on, so each switch-on is a cold start under LG's "Home loading..." cover (Lumen's title is
+  "Home"). For about 2.5 s after Screen On the TV's resume cover (`com.webos.app.coverui`) shows a picture of the last screen, which
+  was the screensaver. `resume.sh` now relaunches Lumen at "Request Power Off" when it is in front, so that picture is the home
+  screen (verify; one run worked). Starting Lumen hidden at "Prepare Suspend" did not keep it warm.
 - Glasshouse, Hearth, lg-luma and cleanyourtv-WebOS have no answer: Glasshouse opens its Home 4.5 s after the wake, over Live TV, and
   skips Wake-on-LAN wakes.
 
