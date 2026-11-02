@@ -90,7 +90,7 @@
 
 /* the bar's name is taken out of the flow so it cannot move the icons; the tile keeps its full height so the grid stays put */
 .rows > .row:first-child .tile { position: relative; min-height: calc(var(--layout-tile-height) + 68px); }
-.rows > .row:first-child .tile__label { position: absolute; left: 50%; top: calc(var(--layout-tile-height) + 8.5px); width: auto; height: auto; margin: 0; transform: translateX(-50%); white-space: nowrap; }
+.rows > .row:first-child .tile__label { position: absolute; left: 50%; top: calc(var(--layout-tile-height) + 8.5px); width: auto; height: auto; margin: 0; transform: translateX(-50%); white-space: nowrap; max-width: calc(var(--layout-tile-size) * var(--lift-bar)); text-overflow: ellipsis; }
 /* the grid's name sits a little lower and rises with its lifted tile */
 .rows > .row:not(:first-child) .tile__label { margin-top: 32px; }
 .rows > .row:not(:first-child) .tile--focused .tile__label { transform: translateY(-4.5px); }

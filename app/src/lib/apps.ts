@@ -144,14 +144,15 @@ function listViaHomebrew (): Promise<AppEntry[]> {
 				const path = p.largeIcon || p.icon;
 				if (path && icons[p.id]) iconPaths[p.id] = path;
 				const known = APP_CATALOG.find((c) => c.id === p.id);
+				// the catalogue's titles are shorter than LG's ("IPTV Player" vs "webOS IPTV Player"); a store title's tagline goes ("Spotify - Music and Podcasts")
+				const title = known ? known.title : p.title.split(/\s+[-–—:|]\s+/)[0];
 				return {
 					id: p.id,
-					// the catalogue's titles are shorter than LG's ("IPTV Player" vs "webOS IPTV Player")
-					title: known ? known.title : p.title,
+					title,
 					// the catalogue's own icon before the TV's: they are full squares picked to fill a tile, the TV's often have a margin
-					iconUrl: packIcon(p.id, known ? known.title : p.title) || (known && known.icon ? ICON_DIR + known.icon : undefined) || icons[p.id],
+					iconUrl: packIcon(p.id, title) || (known && known.icon ? ICON_DIR + known.icon : undefined) || icons[p.id],
 					color: known && known.color,
-					plain: !packIcon(p.id, known ? known.title : p.title) && !!(icons[p.id] || (known && known.icon))
+					plain: !packIcon(p.id, title) && !!(icons[p.id] || (known && known.icon))
 				} as AppEntry;
 			}).map(withIconColor)).then((list) => { bootMark('apps-colours'); return list; }));
 		});
