@@ -151,7 +151,10 @@ Most useful first:
    LG Home off too, 2026-11-02 (verify): with the Home takeover on, each preload of `com.webos.app.home` shows the stand-in in front, and it
    opens Lumen over the app being watched (seen four times that morning over iPlayer, caller `com.webos.service.preloadmanager` in
    `/var/log/messages`). The stand-in's `document.hidden` check did not stop it. `com.webos.app.home` is now in `NO_PRELOAD`. Set to
-   `false` in the file by hand, then `systemctl restart preload-manager.service` (no effect on the app in front). Runs 2 and 3 in the table above show switching the preloads off
+   `false` in the file by hand, then `systemctl restart preload-manager.service` (no effect on the app in front).
+   That did not hold: by 11:03 the TV had set Home back to `true`, and the preload manager opened Home over iPlayer again at 14:28.
+   Since 2026-11-02 (verify) `watch.sh` stops the preload manager outright (`systemctl stop preload-manager.service`) at start, after
+   each wake and every 30 ticks. Nothing is preloaded by LG any more, YouTube and Live TV included; `watch.sh` still preloads Lumen. Runs 2 and 3 in the table above show switching the preloads off
    changed little (lowest usable memory 202 and 194 MB, the same warm count). YouTube asks for 135 MB in `supportAppList`, and the
    memory manager closes it when another app needs the room.
    Found 2026-10-31: switching off with the remote (power state `Active Standby`) closes every app but Live TV, Lumen included, with no

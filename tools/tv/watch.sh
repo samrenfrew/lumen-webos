@@ -10,8 +10,8 @@
 #  - About a minute after a boot, if no Lumen build is open, starts Lumen hidden (a preload launch), so the first Home press after a boot into
 #    Live TV is warm, not a cold start. Switching off (power state "Active Standby") closes every app but Live TV, so the same is done 10 s
 #    into each standby, and the first Home press after switch-on is warm too. Switch both off with /var/lib/homehook/no-boot-preload.
-#  - At start and after each wake, sets the apps in NO_PRELOAD back to false in the preload manager's file, because the TV turns them back on
-#    by itself (seen 26 Oct and 1 Nov). The manager reads the file only at boot, so a fix takes effect at the next reboot.
+#  - Keeps LG's preload manager stopped: checked at start, after each wake and every 30 ticks. It opens LG Home in front every few minutes, and
+#    the stand-in then opens Lumen over the app you are watching. Its config file did not stop it: the TV turns Home back on by itself.
 #  - Keeps /var/lib/homehook/recent: the last eight apps that were in front (not Lumen, not LG Home), newest first, one id per line. Lumen reads
 #    it for its Recent row, so apps opened from anywhere show there.
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/no-screensaver exists (the old Settings > Screensaver > Off; Lumen now removes it): ends LG's
@@ -49,8 +49,7 @@ WAKE_SETTLE=3
 NOPRELOAD_FLAG=/var/lib/homehook/no-boot-preload
 RECENT=/var/lib/homehook/recent
 BL_SCHEDULE=/var/lib/homehook/backlight-schedule
-PRELOAD_CONF=/var/preferences/webos-preload-manager-conf.json
-NO_PRELOAD="netflix airplay com.webos.app.lgchannels com.webos.app.home"   # Home: the preload manager starts it in front, and the stand-in then opens Lumen over the app you are watching
+PRELOADMGR=preload-manager.service
 prev=""
 prevapp=""
 last=0
@@ -92,16 +91,11 @@ preload_me() {
   echo "$(date +%T) $1 preload ($target): $r" >> /tmp/homehook.log
 }
 
-# sets each app in NO_PRELOAD back to false in the preload manager's file; setPreloadPolicy answers true but changes nothing on this TV
-fix_preload() {
-  [ -f "$PRELOAD_CONF" ] || return
-  changed=""
-  for id in $NO_PRELOAD; do grep -qF "\"$id\":true" "$PRELOAD_CONF" && changed="$changed $id"; done
-  [ -z "$changed" ] && return
-  cp "$PRELOAD_CONF" "$PRELOAD_CONF.tmp" || return
-  for id in $changed; do sed -i "s/\"$id\":true/\"$id\":false/" "$PRELOAD_CONF.tmp"; done
-  mv "$PRELOAD_CONF.tmp" "$PRELOAD_CONF"
-  echo "$(date +%T) preload: set back to off:$changed (from the next reboot)" >> /tmp/homehook.log
+# stops LG's preload manager if it runs; Restart=on-failure, so a clean stop holds until the next boot
+stop_preload() {
+  systemctl is-active -q "$PRELOADMGR" 2>/dev/null || return
+  systemctl stop "$PRELOADMGR" 2>/dev/null
+  echo "$(date +%T) preload manager stopped" >> /tmp/homehook.log
 }
 
 # remembers an app that came to the front in $RECENT (plain app ids only; Lumen, Frame and LG Home are left out)
@@ -172,7 +166,7 @@ bl_apply() {
   fi
 }
 
-fix_preload
+stop_preload
 while true; do
   # wake: the power state goes back to Active from standby or off (not from the screensaver), or the loop missed its ticks (suspended)
   now=$(date +%s)
@@ -189,7 +183,7 @@ while true; do
     echo "$(date +%T) wake (gap ${gap}s, power $pwstate)" >> /tmp/homehook.log
     # before the foreground query: right after a wake each query can take seconds
     [ ! -f "$NOWAKE_FLAG" ] && [ "$pwstate" = Active ] && wake_open ""
-    fix_preload
+    stop_preload
   fi
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
@@ -298,6 +292,7 @@ while true; do
   fi
   # keep the extra blocked names (hosts-extra, and Settings > Privacy's list) in /etc/hosts (about every 30 s; the dashboard rewrites the table at boot)
   ticks=$((ticks + 1))
+  [ $((ticks % 30)) -eq 0 ] && stop_preload
   if [ $((ticks % 30)) -eq 1 ] && { [ -f "$EXTRA" ] || [ -f "$PRIVACY_HOSTS" ]; }; then
     # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in a file cannot point a name somewhere real
     # one pass: the lines not yet in the table (two greps, not one per line: the privacy list is about 180 lines)
