@@ -72,6 +72,9 @@ date and weather bottom left. Any key returns to the home screen.
 - Settings > Screensaver > Start on the home screen after (30 seconds to 5 minutes): when the home screen is left alone that long, Lumen
   opens the photos itself, so LG's screensaver never shows first. Control Center > Art mode opens the photos at once, even with another Screensaver choice. The TV's own
   screensaver timer still covers other apps.
+- The first photo is loaded 8 seconds after the home screen shows, so both of these open on it about 1.2 s in, once the clock has slid
+  into place. Each next photo loads 3 seconds into the one before it, so a crossfade never waits on the network. Measured 2026-11-02 on the
+  home network: a photo takes about 0.2 s to download and decode, and a new batch from Immich about 0.6 s. (verify)
 - Needs the updated `tools/tv/watch.sh` on the TV (it looks for `/var/lib/homehook/ambient-screensaver`, which the setting creates).
 - LG's screensaver keeps starting after its timer while the ambient screen is up (nothing is pressed); `watch.sh` sees
   `/tmp/lumen-ambient-on` and only ends it.

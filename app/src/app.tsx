@@ -23,7 +23,7 @@ import {setLiquidDock} from './lib/liquidGlass';
 import {resized, setPicks, setWallpaper, shownWallpaper} from './lib/wallpaper';
 import {restoreLeftoverBacklight} from './lib/tvcontrols';
 import {albums as immichAlbums, cachedServer, IMMICH_SOURCES, loadServer, saveServer, testServer, type ImmichServer} from './lib/immich';
-import {Ambient} from './components/Ambient';
+import {Ambient, prepareAmbient} from './components/Ambient';
 import {setVideoChoice, setVideoPaused, setVideoWallpaper, VIDEO_PLACES} from './lib/wallpaperVideo';
 import {clearSaverOffFlag, setAmbientFlag, setVideoFlag, startScreensaver} from './lib/system';
 import {setFpsCounter} from './lib/fps';
@@ -65,6 +65,7 @@ function inVideoHours (mode: string, now = new Date()): boolean {
 const TILES_FOR: Record<number, {size: number; height: number; gap: number}> = {5: {size: 288, height: 173, gap: 58}, 6: {size: 240, height: 144, gap: 46}, 7: {size: 206, height: 124, gap: 38}};
 /** the backlight the screensaver lowers the TV to, by Settings > Screensaver > Brightness */
 const AMBIENT_BACKLIGHT: Record<string, number> = {dim: 30, low: 10};
+const PREPARE_SAVER_MS = 8000;   // after the home screen shows, so the screensaver's photo loads clear of the boot and the way back from an app
 const RECENT_MAX = 8;
 /** what the last launch showed, drawn at once on a cold start (lib/boot.ts) */
 const INPUTS_CACHE_KEY = 'lumen-boot-inputs-v1';
@@ -413,6 +414,12 @@ export function App () {
 		events.forEach((e) => window.addEventListener(e, arm));
 		return () => { window.clearTimeout(timer); events.forEach((e) => window.removeEventListener(e, arm)); };
 	}, [config.ambientOn, config.idleSeconds, videoOn, screen, controls]);
+	// the screensaver's first photo is loaded while the home screen is up, so the idle timer and Control Center's Art mode both open on it at once
+	useEffect(() => {
+		if (screen !== 'home') return;
+		const timer = window.setTimeout(() => { if (!document.hidden) prepareAmbient(config.saverShow, config.ambient, config.wallpaperPicks); }, PREPARE_SAVER_MS);
+		return () => window.clearTimeout(timer);
+	}, [screen, config.saverShow, config.ambient, config.wallpaperPicks]);
 	useEffect(() => { setVideoFlag(videoOn); }, [videoOn]);
 
 	// ----- derived rows -----
