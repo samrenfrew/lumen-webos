@@ -20,8 +20,12 @@ export const IMMICH_SOURCES: {key: string; title: string}[] = [
 	{key: 'immich:all', title: 'All photos'}
 ];
 
-/** The start of the Recent window (Settings > Immich > Recent photos from). */
-function recentSince (): string { return new Date(Date.now() - loadConfig().immichRecentDays * 864e5).toISOString(); }
+/** The start of a window that many days back. */
+function since (days: number): string { return new Date(Date.now() - days * 864e5).toISOString(); }
+
+/** Each batch is half from the whole window, a quarter from its last third and a quarter from its last twelfth. Over a year, about a third
+ *  of the photos shown are from the last month and a third are over 4 months old. */
+const TIERS = [{part: 1, share: 0.5}, {part: 1 / 3, share: 0.25}, {part: 1 / 12, share: 0.25}];
 
 const SERVER_KEY = 'lumen-immich-server-v1';
 const POOL_KEY = 'lumen-immich-pool-v1';
@@ -256,23 +260,32 @@ function searchIn (server: ImmichServer, sel: string, away: Record<string, true>
 	const parts = sel.split('|');
 	if (parts.length > 1) return searchIn(server, parts[Math.floor(Math.random() * parts.length)], away);
 	const keep = (list: Asset[], broad: boolean) => arrange(list.filter((a) => (!a.type || a.type === 'IMAGE') && (!broad || camera(a)) && !away[a.id]));
-	const random = (body: object, broad: boolean) =>
-		immichRequest(server.url, server.key, '/api/search/random', {body: {type: 'IMAGE', withExif: true, withPeople: true, size: 40, ...body}})
-			.then((text) => keep(JSON.parse(text) as Asset[], broad));
+	const ask = (body: object, size: number) =>
+		immichRequest(server.url, server.key, '/api/search/random', {body: {type: 'IMAGE', withExif: true, withPeople: true, size, ...body}})
+			.then((text) => JSON.parse(text) as Asset[]);
+	const random = (body: object, broad: boolean) => ask(body, 40).then((list) => keep(list, broad));
+	// recent photos weighted up (TIERS); days is the window, and the first tier has no limit when all is set
+	const tiered = (days: number, size: number, body: object, all = false) => Promise.all(TIERS.map((t) =>
+		ask(t.part === 1 && all ? body : {...body, takenAfter: since(days * t.part)}, Math.round(size * t.share)).catch(() => [] as Asset[])
+	)).then((lists) => {
+		const seen: Record<string, true> = {};
+		return lists.reduce((out, list) => out.concat(list), [] as Asset[]).filter((a) => !seen[a.id] && (seen[a.id] = true));
+	});
+	const recent = (size: number) => tiered(loadConfig().immichRecentDays, size, {});
 	if (sel === 'immich:memories') {
 		return immichRequest(server.url, server.key, `/api/memories?for=${today()}`).then((text) => {
 			const memories = JSON.parse(text) as {assets?: Asset[]}[];
 			const batch = keep(memories.reduce((all, m) => all.concat(m.assets || []), [] as Asset[]), false);
-			return batch.ids.length > 0 ? batch : random({takenAfter: recentSince()}, true);   // no memories today
+			return batch.ids.length > 0 ? batch : recent(40).then((list) => keep(list, true));   // no memories today
 		});
 	}
-	if (sel === 'immich:favorites') return random({isFavorite: true}, false);
-	if (sel === 'immich:recent') return random({takenAfter: recentSince()}, true);
+	// Immich keeps no date for when a photo was made a favourite, so the date it was taken stands in, over the last year
+	if (sel === 'immich:favorites') return tiered(365, 40, {isFavorite: true}, true).then((list) => keep(list, false));
+	if (sel === 'immich:recent') return recent(40).then((list) => keep(list, true));
 	if (sel === 'immich:recent-people') {
 		// a bigger batch, since only some have people in them; if none do (or the server leaves people out) it falls back to plain Recent
-		const body = {type: 'IMAGE', withExif: true, withPeople: true, size: 120, takenAfter: recentSince()};
-		return immichRequest(server.url, server.key, '/api/search/random', {body}).then((text) => {
-			const list = (JSON.parse(text) as Asset[]).filter((a) => !!a.people && a.people.length > 0);
+		return recent(120).then((all) => {
+			const list = all.filter((a) => !!a.people && a.people.length > 0);
 			const batch = keep(list, true);
 			return batch.ids.length > 0 ? batch : searchIn(server, 'immich:recent', away);
 		});

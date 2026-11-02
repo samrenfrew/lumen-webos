@@ -29,8 +29,11 @@ Settings > Wallpaper > Wallpaper type > Immich photos then picks the photos for 
 A stack shows as its cover photo only. Lumen reads the list of stacks from Immich every 6 hours and leaves the other photos in each stack out.
 
 - **Recent**: random photos taken in the last 6 months. Settings > Immich > Recent photos from changes this to the last month, 3 months or year.
+  Newer photos are weighted up: each batch of 40 is half from the whole window, a quarter from its last third and a quarter from its last
+  twelfth. Measured on Sam's library over a year (2026-11-02): from the last month 34% (10% before), 1 to 4 months 34%, older 31%.
 - **On this day**: Immich's memories for today (photos from this date in past years); Recent when there are none.
-- **Favourites**: random from the photos marked as favourites.
+- **Favourites**: random from the photos marked as favourites, with those taken in the last year weighted up the same way. Immich keeps no
+  date for when a photo was made a favourite, so the date it was taken stands in.
 - **All my photos**: random from everything.
 - **Your albums**: each album with photos in it is listed by name.
 
