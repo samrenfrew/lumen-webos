@@ -1,13 +1,18 @@
-// Launch parameters: {"view":"recent"} opens Lumen on its Recent row and {"view":"guide"} on the Guide (buttons rebound with LG Input Hook). webOS hands them over
+// Launch parameters: {"view":"recent"} opens Lumen on its Recent row and {"view":"guide"} on the Guide (buttons rebound with LG Input Hook). watch.sh opens the
+// screensaver with {"view":"ambient","from":"<app id>"}, the app it came up over. webOS hands them over
 // in webOSSystem.launchParams (PalmSystem on older firmware) on a cold start and in a webOSRelaunch event when Lumen is already running. Untested on webOS 25 (PLAN Phase 2).
 
 const system = () => window.webOSSystem || window.PalmSystem;
 
-export interface LaunchParams { view?: string; }
+export interface LaunchParams { view?: string; from?: string; }
+
+const APP_ID = /^[A-Za-z0-9._-]{1,128}$/;
 
 function clean (p: unknown): LaunchParams {
 	const o = (p && typeof p === 'object' ? p : {}) as Record<string, unknown>;
-	return typeof o.view === 'string' ? {view: o.view} : {};
+	const out: LaunchParams = typeof o.view === 'string' ? {view: o.view} : {};
+	if (typeof o.from === 'string' && APP_ID.test(o.from)) out.from = o.from;
+	return out;
 }
 
 /** The parameters Lumen was started with. Dev preview: ?view=recent. */
