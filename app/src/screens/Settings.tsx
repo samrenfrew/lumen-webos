@@ -165,9 +165,13 @@ export function Settings ({tabs, wallpaper, options, active, onToggle, onReorder
 
 	const groupGlyph = (id: OptionGroup) => GROUPS.filter((g) => g.id === id)[0].glyph;
 
+	/** a list of two flips in place on OK, like a switch: a page for one other value is a wasted step */
+	const flips = (o: OptionItem) => !!o.choices && o.choices.length === 2 && !o.picks;
+
 	/** OK on an option: a list option opens its choices page, a text option its text page, anything else is handed on (switches flip in place) */
 	const activateOption = (o: OptionItem) => {
 		if (o.text) { setTyped(o.text.value); push({kind: 'text', optionId: o.id}); }
+		else if (flips(o)) onChoose(o.id, o.choice === 1 ? 0 : 1);
 		else if (o.choices && o.choices.length > 0) push({kind: 'choice', optionId: o.id}, Math.max(0, o.choice || 0));
 		else onOption(o.id);
 	};
@@ -195,7 +199,7 @@ export function Settings ({tabs, wallpaper, options, active, onToggle, onReorder
 				key: o.id,
 				label: o.label,
 				value: o.valueText !== undefined ? o.valueText : o.value ? 'On' : 'Off',
-				chevron: !!(o.text || (o.choices && o.choices.length))
+				chevron: !!(o.text || (o.choices && o.choices.length && !flips(o)))
 			}));
 			const descriptions = list.map((o) => o.description);
 			// Choose wallpaper sits under Wallpaper type, since the type decides what it offers
