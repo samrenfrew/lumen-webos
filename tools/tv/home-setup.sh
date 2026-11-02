@@ -139,7 +139,7 @@ reread () {
 }
 sam_type () { $LUNA -n 1 -w 8000 luna://com.webos.applicationManager/getAppInfo "{\"id\":\"$LGHOME\"}" 2>/dev/null | tr -d '\n ' | sed -n 's/.*"type":"\([^"]*\)".*/\1/p'; }
 
-# the stand-in: a blank page under LG Home's id that opens Lumen when started and on every relaunch, so Lumen stays one app
+# the stand-in: a blank page under LG Home's id that opens Lumen whenever it is shown, so Lumen stays one app
 stage () {
   mkdir -p "$STAND_IN" || return 1
   [ -f "$STAND_IN/icon.png" ] || cp "$LGHOME_DIR/icon.png" "$STAND_IN/icon.png" 2>/dev/null
@@ -166,7 +166,9 @@ EOF
   cat > "$STAND_IN/index.html" <<EOF
 <!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}</style></head><body><script>
 function lumen () { try { var b = new PalmServiceBridge(); b.onservicecallback = function () {}; b.call("luna://com.webos.applicationManager/launch", JSON.stringify({id: "$1"})); } catch (e) {} }
-lumen(); document.addEventListener("webOSRelaunch", lumen, true);
+// the preload manager starts LG Home hidden in the background; opening Lumen then would pull it over whatever is playing
+function shown () { if (!document.hidden) lumen(); }
+shown(); document.addEventListener("webOSRelaunch", shown, true); document.addEventListener("visibilitychange", shown);
 </script></body></html>
 EOF
 }
