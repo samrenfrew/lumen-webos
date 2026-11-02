@@ -56,7 +56,8 @@ html, body {
 /* two portrait photos side by side, each half the screen wide with a thin black seam; a portrait is always taller than its half, so fitting the width covers it */
 #wpimage.wp-pair, #wpimage .wpfade.wp-pair { background-color: #000; background-size: calc(50% - 4px) auto; background-position: left center, right center; }
 #bgvideo { object-fit: cover; background: #000; }
-html.night #wpimage { opacity: 0.55; }
+/* night dimming is a black sheet, the same as opacity 0.55 over the black page: opacity on #wpimage made the GPU blend both pictures offscreen on every frame of a fade */
+html.night #wpimage::before { content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; background: rgba(0, 0, 0, 0.45); }
 /* Art pictures: the screensaver's Print look (.ambient__print) over the painting, above the fade layer so a new one gets it as it fades in */
 html.wp-art #wpimage::after {
 	content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none;

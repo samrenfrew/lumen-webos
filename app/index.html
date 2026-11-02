@@ -9,7 +9,7 @@
     <style>
       html, body { margin: 0; background: #000; overflow: hidden; }
       #wpimage { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; background: center / cover no-repeat; }
-      html.night #wpimage { opacity: 0.55; }
+      html.night #wpimage::before { content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; background: rgba(0, 0, 0, 0.45); }
       #wpimage .wpfade { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: center / cover no-repeat; opacity: 0; transition: opacity 450ms ease-out; }
     </style>
     <script type="module" src="./src/main.tsx"></script>

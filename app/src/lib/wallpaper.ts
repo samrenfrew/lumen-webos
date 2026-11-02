@@ -18,6 +18,8 @@ import {bootMark} from './log';
 const HTML_CLASS = 'wp-image';
 const PROXY = 'https://images.weserv.nl/';       // free image resizer: a 1920-wide copy instead of the multi-MB original
 const FADE_MS = 450;
+/** the new picture's layer is drawn this long before its fade starts, so its first draw does not stall the fade */
+const FADE_WARM_MS = 150;
 /** how long after a picture is up before the next launch's one is fetched, so it never competes with start-up */
 const PREPARE_DELAY_MS = 8000;
 /** never in a URL, so it can join the two URLs of a portrait pair */
@@ -238,9 +240,13 @@ function paint (el: HTMLElement, src: string, pos: string): void {
 	layer.className = pair ? 'wpfade wp-pair' : 'wpfade';
 	layer.style.backgroundImage = next;
 	layer.style.backgroundPosition = pos;
+	// its own GPU layer from the start, drawn while still invisible, so the fade only changes opacity
+	layer.style.willChange = 'opacity';
 	el.appendChild(layer);
-	window.requestAnimationFrame(() => window.requestAnimationFrame(() => { layer.style.opacity = '1'; }));
-	fadeTimer = window.setTimeout(() => { el.style.backgroundImage = next; el.style.backgroundPosition = pos; el.classList.toggle('wp-pair', pair); layer.remove(); }, FADE_MS + 60);
+	fadeTimer = window.setTimeout(() => {
+		layer.style.opacity = '1';
+		fadeTimer = window.setTimeout(() => { el.style.backgroundImage = next; el.style.backgroundPosition = pos; el.classList.toggle('wp-pair', pair); layer.remove(); }, FADE_MS + 60);
+	}, FADE_WARM_MS);
 }
 
 /** The sharp picture on screen now (one URL, or two for a portrait pair) and its Immich id, or null when none is painted. */
