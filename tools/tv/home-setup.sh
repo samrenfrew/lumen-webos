@@ -166,7 +166,7 @@ EOF
   cat > "$STAND_IN/index.html" <<EOF
 <!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}</style></head><body><script>
 function lumen () { try { var b = new PalmServiceBridge(); b.onservicecallback = function () {}; b.call("luna://com.webos.applicationManager/launch", JSON.stringify({id: "$1"})); } catch (e) {} }
-// the preload manager starts LG Home hidden in the background; opening Lumen then would pull it over whatever is playing
+// a hidden launch opens nothing; the preload manager's launches of Home still show, so watch.sh keeps Home off its list
 function shown () { if (!document.hidden) lumen(); }
 shown(); document.addEventListener("webOSRelaunch", shown, true); document.addEventListener("visibilitychange", shown);
 </script></body></html>
