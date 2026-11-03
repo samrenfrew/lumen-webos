@@ -124,6 +124,17 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   cannot take the controller's input away from the game (seen 2026-10-22).
   A virtual Start press to pause the game is not built: it needs a uinput helper (`/dev/uinput` exists), and Moonlight would see it as a
   second controller.
+- Mid-game drops (2026-11-02): `stadia.log` shows three drops on 2026-10-31 (22:16, 22:35, 22:38), each fixed by Stadia + Y. LG's
+  system log (`/var/log/legacy-log`) rotates about hourly, so their cause was already gone. One lead: Bluetooth and Wi-Fi share one
+  MediaTek MT7668 chip on an internal USB link. On 2026-11-02 at 10:37 a wake from standby gave "xHC error in resume", the chip failed
+  `HCI_RESET`, the Bluetooth service crashed and the chip was reset (`/mnt/lg/cmn_data/btsvc/bt_history` says `ERROR_HCI_TIMEOUT`).
+  The TV also rebooted on a fault (`PowerOnReason: rebootByFault`) about 20:19 on 2026-11-01. Not yet tied to a drop.
+- The stack is LG's Fluoride (Android's Bluetooth stack), not BlueZ. The wait before a dead link counts as dropped is the LE supervision
+  timeout, agreed with the controller at connect time; no TV config sets it. A USB Bluetooth adapter will not help: the kernel has no
+  generic `btusb`, only LG's module drivers (`btmtk_usb`, `btmt7921_usb`, `rtk_btusb`). `bt_stack.conf` has the stack's own log and HCI
+  snoop switched off (`BtStackLog2File`, `BtSnoopLogOutput`); turning them on would record each disconnect's reason. Not tried.
+- Built 2026-11-02: while Moonlight is in front, `stadia.sh` copies the Bluetooth, USB and HID lines of LG's system log to
+  `/var/lib/homehook/bt.log` (UTC times; `stadia.log` is local time), trimmed to 20 000 lines past 4 MB.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
