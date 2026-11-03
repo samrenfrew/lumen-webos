@@ -5,6 +5,7 @@
 #  - Broken: a connection this script did not pair sends nothing for SILENT_SECS, or a connection drops (it always comes back broken).
 #  - Repair: forget the controller, scan, pair, connect. Tried again and again until its input device appears, for up to REPAIR_SECS.
 # Log: /var/lib/homehook/stadia.log. Off: /var/lib/homehook/no-stadia. In any app, not only Moonlight: /var/lib/homehook/stadia-any-app.
+# While watching, it also copies the Bluetooth lines from LG's system log to /var/lib/homehook/bt.log (times in UTC), so a drop can be read later.
 B=luna://com.webos.service.bluetooth2
 MOON=com.limelight.webos
 DIR=/var/lib/homehook
@@ -51,6 +52,19 @@ addr() {
   fi
 }
 stop_raw() { [ -n "$rawpid" ] && kill "$rawpid" 2>/dev/null; rawpid=""; }
+BTLOG=$DIR/bt.log
+BT_PAT='webos-bluetooth|bthidmanager|btmtk|bt_time|[[]BT[]]|xhci|ehci|usb [0-9]|hidraw|Stadia|18D1:9400'
+# LG rotates its system log about hourly, too soon to read a drop the next day; awk flushes each line so none is lost when it is stopped
+start_bt() {
+  [ -n "$btpid" ] && return
+  [ -f "$BTLOG" ] && [ "$(wc -c < "$BTLOG")" -gt 4000000 ] && tail -n 20000 "$BTLOG" > "$BTLOG.tmp" && mv "$BTLOG.tmp" "$BTLOG"
+  echo "$(date -u '+%FT%TZ') --- Moonlight in front" >> "$BTLOG"
+  tail -n 0 -F /var/log/legacy-log 2>/dev/null | awk -v p="$BT_PAT" '$0 ~ p { print; fflush() }' >> "$BTLOG" &
+  btpid=$!
+}
+# tail ends on its own at its next write once awk is gone
+stop_bt() { [ -n "$btpid" ] && kill "$btpid" 2>/dev/null; btpid=""; }
+trap 'stop_bt; stop_raw; exit' TERM INT
 # one forget, scan, pair, connect; true when the input device came back
 repair_once() {
   a=$(addr) || return 1
@@ -72,7 +86,7 @@ repair_once() {
 
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-up=0; ok=0; fresh=0; since=0; repair_until=0; rawpid=""; active=0
+up=0; ok=0; fresh=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0
 while true; do
   sleep 2
   now=$(date +%s)
@@ -83,10 +97,10 @@ while true; do
   fi
   if [ "$on" -eq 0 ]; then
     [ "$active" -eq 1 ] && log "Moonlight left the front: watching paused"
-    active=0; repair_until=0; up=0; stop_raw; close_alert
+    active=0; repair_until=0; up=0; stop_raw; stop_bt; close_alert
     continue
   fi
-  [ "$active" -eq 0 ] && log "Moonlight in front: watching"
+  [ "$active" -eq 0 ] && log "Moonlight in front: watching" && start_bt
   active=1
   if present; then
     if [ "$up" -eq 0 ]; then
