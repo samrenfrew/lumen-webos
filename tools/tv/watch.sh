@@ -63,6 +63,9 @@ mesince=0
 launchpid=0
 tick=$(date +%s)
 wakeuntil=$((tick + 90))   # a boot counts as a wake; LG Home may take a while to come up
+# a restart of the scripts (TV up over 5 minutes) is not a boot, so it leaves the app in front alone
+up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+[ "${up:-0}" -gt 300 ] && wakeuntil=0
 preloadat=$((tick + 60))   # once, after the boot rush; 0 when done
 STANDBY_PRELOAD_SECS=10
 standbyat=0                # when to preload in standby; -1 once done for this standby
@@ -170,7 +173,7 @@ stop_preload
 while true; do
   # wake: the power state goes back to Active from standby or off (not from the screensaver), or the loop missed its ticks (suspended)
   now=$(date +%s)
-  gap=$((now - tick)); tick=$now
+  gap=$((now - tick))
   pw=$(luna-send -n 1 luna://com.webos.service.tvpower/power/getPowerState '{}' </dev/null 2>/dev/null)
   # webOS 25 answers "state": "Active", with a space
   pwstate=$(printf '%s' "$pw" | sed -n 's/.*"state": *"\([^"]*\)".*/\1/p')
@@ -299,6 +302,8 @@ while true; do
     missing=$(cat "$EXTRA" "$PRIVACY_HOSTS" 2>/dev/null | grep -E '^(0\.0\.0\.0|::)[[:space:]]+[A-Za-z0-9.-]+[[:space:]]*$' | grep -vxF -f /etc/hosts 2>/dev/null)
     [ -n "$missing" ] && printf '%s\n' "$missing" >> /etc/hosts
   fi
+  # the gap counts only the sleep, so a slow pass (the screensaver hand-off takes about 6 s) is not taken for a wake
+  tick=$(date +%s)
   # faster ticks while a wake is open, so Lumen goes up as soon as the TV lets it
   if [ "$now" -lt "$wakeuntil" ]; then sleep 0.5; else sleep 1; fi
 done
