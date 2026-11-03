@@ -6,9 +6,10 @@
 # watch.sh still opens Lumen at each wake as the fallback. Findings: docs/home-and-power-on.md, "Waking from standby".
 # At "Request Power Off", about 3.5 s before standby, a Lumen in front is sent to its home screen. The TV shows a picture of the last screen
 # for about 2.5 s after the next switch-on, and it was the screensaver. Lumen is closed in standby, so it starts fresh at each switch-on anyway.
-# Switch off with /var/lib/homehook/no-wake-launch (shared with watch.sh).
+# Only while Settings > Home and Power opens Lumen at power-on (POWERON_SUM); also switched off by /var/lib/homehook/no-wake-launch (shared with watch.sh).
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 NOWAKE_FLAG=/var/lib/homehook/no-wake-launch
+POWERON_SUM=/var/lib/homehook/bootd-override.md5   # written by home-setup.sh power-on on, removed by power-on off
 ME="com.samrenfrew.lumen com.samrenfrew.lumen.dev"
 APPS=/media/developer/apps/usr/palm/applications
 LOG=/tmp/homehook.log
@@ -23,7 +24,7 @@ while true; do
   luna-send -i luna://com.webos.service.tvpower/power/getPowerState '{"subscribe":true}' </dev/null 2>/dev/null | while IFS= read -r l; do
     case "$l" in
       *'"Prepare Resume"'*)
-        [ -f "$NOWAKE_FLAG" ] && continue
+        { [ -f "$NOWAKE_FLAG" ] || [ ! -f "$POWERON_SUM" ]; } && continue
         t=$(target) || continue
         r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$t\",\"noSplash\":true}" </dev/null 2>&1)
         echo "$(date +%T) resume: open $t: $r" >> "$LOG" ;;

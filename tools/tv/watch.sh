@@ -6,7 +6,8 @@
 #  - After the TV wakes (power state back to Active, or a gap in this loop's once-a-second ticks, which means it was suspended) and after a boot:
 #    opens Lumen as soon as the screen is on, whatever the TV opened: every switch-on opens Lumen. resume.sh acts first, at "Prepare Resume";
 #    this is the fallback. During a wake the loop ticks every 0.5 s and retries each tick until Lumen has stayed in front for WAKE_SETTLE
-#    seconds, or WAKE_SECS have passed; after that, apps are left alone. Switch off with /var/lib/homehook/no-wake-launch.
+#    seconds, or WAKE_SECS have passed; after that, apps are left alone. Only while Settings > Home and Power opens Lumen at power-on
+#    (home-setup.sh power-on on leaves POWERON_SUM); also switched off by /var/lib/homehook/no-wake-launch.
 #  - About a minute after a boot, if no Lumen build is open, starts Lumen hidden (a preload launch), so the first Home press after a boot into
 #    Live TV is warm, not a cold start. Switching off (power state "Active Standby") closes every app but Live TV, so the same is done 10 s
 #    into each standby, and the first Home press after switch-on is warm too. Switch both off with /var/lib/homehook/no-boot-preload.
@@ -43,6 +44,7 @@ EXTRA=/var/lib/homehook/hosts-extra
 PRIVACY_HOSTS=/var/lib/homehook/hosts-privacy   # Settings > Privacy > Block LG ad servers (privacy.sh hosts on)
 TAKEOVER_FLAG=/var/lib/homehook/home-takeover
 NOWAKE_FLAG=/var/lib/homehook/no-wake-launch
+POWERON_SUM=/var/lib/homehook/bootd-override.md5   # written by home-setup.sh power-on on, removed by power-on off
 APPS_HOME=/usr/palm/applications/$LGHOME   # mounted over by home-setup.sh native-home on (the stand-in)
 WAKE_SECS=30
 WAKE_SETTLE=3
@@ -109,6 +111,8 @@ note_recent() {
   { echo "$1"; [ -f "$RECENT" ] && grep -vxF "$1" "$RECENT"; } | head -n 8 > "$RECENT.tmp" && mv "$RECENT.tmp" "$RECENT"
 }
 
+# with power-on set to last input, a switch-on leaves the TV's own app in front
+wake_wanted () { [ ! -f "$NOWAKE_FLAG" ] && [ -f "$POWERON_SUM" ]; }
 # opens Lumen without waiting (a launch can take seconds right after a wake), unless the last one is still in flight; $1 is the app in front
 wake_open() {
   [ "$launchpid" -gt 0 ] && [ -d "/proc/$launchpid" ] && return
@@ -185,7 +189,7 @@ while true; do
     wakeuntil=$((now + WAKE_SECS)); last=0
     echo "$(date +%T) wake (gap ${gap}s, power $pwstate)" >> /tmp/homehook.log
     # before the foreground query: right after a wake each query can take seconds
-    [ ! -f "$NOWAKE_FLAG" ] && [ "$pwstate" = Active ] && wake_open ""
+    wake_wanted && [ "$pwstate" = Active ] && wake_open ""
     stop_preload
   fi
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
@@ -194,7 +198,7 @@ while true; do
   if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then prevapp=$app; note_recent "$app"; fi
   # wake: Lumen in front as soon as the screen is on, whatever the TV opened
   if [ -n "$front" ]; then [ "$mesince" -eq 0 ] && mesince=$now; else mesince=0; fi
-  if [ ! -f "$NOWAKE_FLAG" ] && [ "$now" -lt "$wakeuntil" ] && [ "$pwstate" = Active ]; then
+  if [ "$now" -lt "$wakeuntil" ] && wake_wanted && [ "$pwstate" = Active ]; then
     if [ -n "$front" ]; then
       # settled: the TV can still put its own app over Lumen in the first seconds, so the wake ends only once Lumen has stayed up
       [ $((now - mesince)) -ge "$WAKE_SETTLE" ] && wakeuntil=0

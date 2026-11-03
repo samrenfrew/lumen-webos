@@ -60,6 +60,9 @@ nor LG's Home Auto Launch applies. The TV brings back its last input. Found 2026
   "Home"). For about 2.5 s after Screen On the TV's resume cover (`com.webos.app.coverui`) shows a picture of the last screen, which
   was the screensaver. `resume.sh` now relaunches Lumen at "Request Power Off" when it is in front, so that picture is the home
   screen (verify; one run worked). Starting Lumen hidden at "Prepare Suspend" did not keep it warm.
+- 2026-11-03 (verify): `resume.sh` and `watch.sh` open Lumen at a switch-on only while Settings > Home and Power > When the TV turns
+  on is Lumen, read from the `bootd-override.md5` file that `home-setup.sh power-on on` writes. Before this, they opened Lumen at
+  every switch-on whatever the setting said (issue 6, on an LG C5).
 - Glasshouse, Hearth, lg-luma and cleanyourtv-WebOS have no answer: Glasshouse opens its Home 4.5 s after the wake, over Live TV, and
   skips Wake-on-LAN wakes.
 
