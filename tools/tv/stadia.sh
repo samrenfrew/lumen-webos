@@ -1,8 +1,8 @@
 #!/bin/sh
 # Stadia controller watcher, for Moonlight. After the controller is switched off and on it reconnects but sends no input until it is paired
 # again (docs/research/spikes.md). While Moonlight is in front, this notices that and pairs it again as soon as you hold Stadia + Y (orange light).
-#  - A connection counts as working once a report arrives on its hidraw node. A pairing made here counts as working at once.
-#  - Broken: a connection this script did not pair sends nothing for SILENT_SECS, or a connection drops (it always comes back broken).
+#  - A connection counts as working once a report arrives on its hidraw node, also one this script just paired (an input device alone is no proof).
+#  - Broken: a connection sends nothing for SILENT_SECS, or a connection drops (it always comes back broken).
 #  - Repair: forget the controller, scan, pair, connect. Tried again and again until its input device appears, for up to REPAIR_SECS.
 #    A try counts only if the old input device went away first, since a pair made outside pairing mode "succeeds" and changes nothing.
 #  - A connection that is not known to work shows an alert: B on the controller dismisses it, OK on the remote starts the repair at once,
@@ -18,7 +18,7 @@ ADDR_FILE=$DIR/stadia-address
 RAW=/tmp/stadia-raw
 SILENT_SECS=30
 REPAIR_SECS=180
-FIND_TRIES=15
+FIND_TRIES=10
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
 ls1() { luna-send -n 1 "$@" </dev/null 2>/dev/null; }
@@ -107,26 +107,28 @@ repair_once() {
   # luna-send -i keeps the scan open while its stdin is open
   sleep 40 | luna-send -i $B/adapter/startDiscovery '{}' >/dev/null 2>&1 &
   # the controller shows up in the scan only while it is in pairing mode, so pair the moment it does (2026-11-04: a fixed 4 s wait paired too early)
-  n=0; line=""
+  # 2026-11-04: the entry left from before the unpair has an empty scanRecord and matched at once; a live one is taken to have data (a guess)
+  n=0; line=""; last=""
   while [ "$n" -lt "$FIND_TRIES" ]; do
-    line=$(unpaired_line "$a")
-    [ -n "$line" ] && break
+    last=$(unpaired_line "$a")
+    if printf '%s' "$last" | grep -q '"scanRecord":\[[0-9]'; then line=$last; break; fi
     sleep 2; n=$((n + 1))
   done
-  if [ -z "$line" ]; then ls1 $B/adapter/cancelDiscovery '{}' >/dev/null; log "re-pair try: the controller did not show up in the scan (not in pairing mode)"; return 1; fi
-  log "controller in the scan after $((n * 2))s: $(printf '%s' "$line" | cut -c1-300)"
+  if [ -n "$line" ]; then log "controller in the scan after $((n * 2))s: $(printf '%s' "$line" | cut -c1-400)"
+  else log "no live scan entry after $((n * 2))s, pairing anyway: $(printf '%s' "$last" | cut -c1-400)"; fi
   r=$(timeout 15 luna-send -n 2 $B/adapter/pair "{\"address\":\"$a\",\"subscribe\":true}" </dev/null 2>&1 | tr -d ' \n')
   sleep 2
   present || { ls1 $B/hid/connect "{\"address\":\"$a\"}" >/dev/null; sleep 3; }
   ls1 $B/adapter/cancelDiscovery '{}' >/dev/null
-  if present; then log "re-paired $a"; close_alert; toast "Controller paired."; return 0; fi
+  # an input device is not proof (2026-11-04: it existed while the controller was still waiting in pairing mode), so the loop waits for a report
+  if present; then log "paired $a, waiting for input"; return 0; fi
   log "re-pair try failed (controller not in pairing mode yet?): $(printf '%s' "$r" | cut -c1-160)"
   return 1
 }
 
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-up=0; ok=0; fresh=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0
+up=0; ok=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0; repaired=0
 rm -f "$ASK"
 while true; do
   sleep 2
@@ -138,7 +140,7 @@ while true; do
   fi
   if [ "$on" -eq 0 ]; then
     [ "$active" -eq 1 ] && log "Moonlight left the front: watching paused"
-    active=0; repair_until=0; up=0; stop_raw; stop_bt; stop_ok; close_alert; alert_shown=0; rm -f "$ASK"
+    active=0; repair_until=0; up=0; stop_raw; stop_bt; stop_ok; close_alert; alert_shown=0; repaired=0; rm -f "$ASK"
     continue
   fi
   [ "$active" -eq 0 ] && log "Moonlight in front: watching" && start_bt && start_ok
@@ -150,7 +152,7 @@ while true; do
       up=0; stop_raw; log "controller reconnected on its own ($seen to $cur)"
     fi
     if [ "$up" -eq 0 ]; then
-      up=1; since=$now; ok=$fresh; fresh=0; seen=$cur
+      up=1; since=$now; ok=0; seen=$cur
       log "controller connected ($([ "$ok" -eq 1 ] && echo "paired here, working" || echo "checking for input"))"
       # a reconnect has always been dead so far, so offer the fix now rather than after SILENT_SECS; while a repair is already running,
       # its Stadia + Y alert stays up instead
@@ -162,6 +164,7 @@ while true; do
       if [ -z "$rawpid" ] && h=$(hidraw); then cat "$h" >> "$RAW" 2>/dev/null & rawpid=$!; fi
       if [ -s "$RAW" ]; then
         ok=1; repair_until=0; alert_shown=0; stop_raw; close_alert; log "input seen: working"
+        [ "$repaired" -eq 1 ] && { repaired=0; toast "Controller paired."; }
       elif [ $((now - since)) -ge "$SILENT_SECS" ] && [ "$repair_until" -le "$now" ]; then
         repair_until=$((now + REPAIR_SECS)); log "no input for ${SILENT_SECS}s: broken, re-pairing on Stadia + Y"
         alert "Controller not responding" "$HOLD_MSG"
@@ -182,7 +185,7 @@ while true; do
     fi
   fi
   if [ "$repair_until" -gt "$now" ] && [ "$ok" -eq 0 ]; then
-    if repair_once; then fresh=1; repair_until=0; fi
+    if repair_once; then repaired=1; repair_until=0; fi
   elif [ "$repair_until" -gt 0 ] && [ "$repair_until" -le "$now" ]; then
     repair_until=0; log "gave up re-pairing after ${REPAIR_SECS}s; switch the controller off and on to try again"
     close_alert; toast "Stopped waiting for the controller.<br>Switch it off and on to try again."

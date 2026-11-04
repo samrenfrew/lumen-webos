@@ -34,7 +34,9 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       drop or a reconnect: the Controller check alert says B on the controller dismisses it, OK on the remote reconnects. OK shows the
       Stadia + Y alert at once, and Stadia + Y pairs it without waiting for the dead link to time out. Check `stadia.log` for "controller
       reconnected on its own" (a drop that came back inside one 2 s poll) and "OK on the remote: re-pairing". Also whether Back on the
-      remote closes the alert.
+      remote closes the alert. After a repair the check alert returns until a button press arrives; "Controller paired." shows then, not
+      before. In the log, "controller in the scan after Ns" should come only after Stadia + Y (a "no live scan entry ... pairing anyway"
+      line shows the scan guess was wrong).
 
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).

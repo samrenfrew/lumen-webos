@@ -151,6 +151,11 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   paired after a fixed 4 s scan. Now a try scans for up to 30 s and pairs when the controller's address shows in `device/getStatus` with
   `"paired":false` (it does so only in pairing mode, also a guess), and logs that entry. `getStatus` also lists neighbours' devices and
   old scan results as `"paired":false`, so a stale entry for the controller would make this pair early again; the log line will show it.
+- Second Moonlight test (2026-11-04 21:23): that stale entry happened. The scan matched "after 0s" with `"scanRecord":[]` and `"adapterAddress":""`
+  (the paired entry has scan data), the script paired before Stadia + Y, an input device (`9400.000A`) appeared, and it toasted "Controller
+  paired." while the controller was still orange and sent nothing. `tools/tv/stadia-repair-test.sh` in pairing mode fixed it (2112 bytes).
+  Now a try needs a scan entry with data (a guess that a live one has it; after 20 s it pairs anyway and logs the entry), and a repair no
+  longer counts as working until a report arrives: the check alert comes back after it, and B on the controller confirms.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
