@@ -7,7 +7,7 @@ export const LANGS = [
 	{code: 'es', name: 'Español', locale: 'es-ES'},
 	{code: 'fr', name: 'Français', locale: 'fr-FR'},
 	{code: 'it', name: 'Italiano', locale: 'it-IT'},
-	{code: 'pt', name: 'Português', locale: 'pt-PT'},
+	{code: 'pt', name: 'Português', locale: 'pt-BR'},
 	{code: 'nl', name: 'Nederlands', locale: 'nl-NL'},
 	{code: 'tr', name: 'Türkçe', locale: 'tr-TR'},
 	{code: 'hi', name: 'हिन्दी', locale: 'hi-IN'}
@@ -23,6 +23,7 @@ const TABLE: Record<string, string[]> = {
 	"Choose wallpaper": ["Hintergrund wählen", "Elegir fondo", "Choisir le fond d'écran", "Scegli sfondo", "Escolher fundo", "Achtergrond kiezen", "Duvar kağıdı seç", "वॉलपेपर चुनें"],
 	"Channels": ["Sender", "Canales", "Chaînes", "Canali", "Canais", "Zenders", "Kanallar", "चैनल"],
 	"Appearance": ["Darstellung", "Apariencia", "Apparence", "Aspetto", "Aspeto", "Weergave", "Görünüm", "दिखावट"],
+	"Theme": ["Thema", "Tema", "Thème", "Tema", "Tema", "Thema", "Tema", "थीम"],
 	"Light": ["Hell", "Claro", "Clair", "Chiaro", "Claro", "Licht", "Açık", "लाइट"],
 	"Dark": ["Dunkel", "Oscuro", "Sombre", "Scuro", "Escuro", "Donker", "Koyu", "डार्क"],
 	"Weather country": ["Wetter-Land", "País del tiempo", "Pays météo", "Paese meteo", "País do tempo", "Weerland", "Hava durumu ülkesi", "मौसम देश"],
@@ -86,7 +87,7 @@ const TABLE: Record<string, string[]> = {
 		"Centro de control",
 		"Centre de contrôle",
 		"Centro di controllo",
-		"Central de controlo",
+		"Central de Controle",
 		"Bedieningscentrum",
 		"Denetim Merkezi",
 		"कंट्रोल सेंटर"
@@ -96,7 +97,7 @@ const TABLE: Record<string, string[]> = {
 		"Controles rápidos",
 		"Commandes rapides",
 		"Controlli rapidi",
-		"Controlos rápidos",
+		"Controles rápidos",
 		"Snelbediening",
 		"Hızlı Kontroller",
 		"त्वरित नियंत्रण"
@@ -106,7 +107,7 @@ const TABLE: Record<string, string[]> = {
 		"Ajustes",
 		"Réglages",
 		"Impostazioni",
-		"Definições",
+		"Configurações",
 		"Instellingen",
 		"Ayarlar",
 		"सेटिंग्स"
@@ -335,7 +336,7 @@ const TABLE: Record<string, string[]> = {
 		"Tekrar OK'a basın",
 		"फिर OK दबाएं"
 	],
-	"Backlight": ["Hintergrundbeleuchtung", "Luz de fondo", "Rétroéclairage", "Retroilluminazione", "Retroiluminação", "Achtergrondverlichting", "Arka ışık", "बैकलाइट"],
+	"Backlight": ["Hintergrundbeleuchtung", "Luz de fondo", "Rétroéclairage", "Retroilluminazione", "Brilho OLED", "Achtergrondverlichting", "Arka ışık", "बैकलाइट"],
 	"Eye Comfort": ["Augenkomfort", "Confort visual", "Confort visuel", "Comfort visivo", "Conforto visual", "Oogcomfort", "Göz konforu", "आई कम्फर्ट"],
 	"Volume": [
 		"Lautstärke",
