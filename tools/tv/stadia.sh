@@ -5,8 +5,9 @@
 #  - Broken: a connection this script did not pair sends nothing for SILENT_SECS, or a connection drops (it always comes back broken).
 #  - Repair: forget the controller, scan, pair, connect. Tried again and again until its input device appears, for up to REPAIR_SECS.
 #    A try counts only if the old input device went away first, since a pair made outside pairing mode "succeeds" and changes nothing.
-#  - A connection that is not known to work shows an alert with Dismiss and Reconnect. Reconnect (OK on the remote) starts the repair at
-#    once, so there is no wait for SILENT_SECS or for the dead link to time out. It is ignored once the controller has sent input.
+#  - A connection that is not known to work shows an alert: B on the controller dismisses it, OK on the remote starts the repair at once,
+#    so there is no wait for SILENT_SECS or for the dead link to time out. OK is read from the remote's input device (the alert's own
+#    buttons cannot start a root command, tried 2026-11-04). It is ignored once the controller has sent input.
 # Log: /var/lib/homehook/stadia.log. Off: /var/lib/homehook/no-stadia. In any app, not only Moonlight: /var/lib/homehook/stadia-any-app.
 # While watching, it also copies the Bluetooth lines from LG's system log to /var/lib/homehook/bt.log (times in UTC), so a drop can be read later.
 B=luna://com.webos.service.bluetooth2
@@ -34,14 +35,27 @@ close_alert() {
   alert_id=""
 }
 HOLD_MSG="Hold Stadia + Y until the light flashes orange."
-# the Reconnect button runs a root command through the Homebrew Channel that leaves this file, and the loop below picks it up
+# an OK press on the remote (key 28, from the "LGE RCU" node) while the check alert is up starts the repair; the alert's own buttons cannot
 ASK=/tmp/stadia-reconnect
+RCU=/dev/input/event1
 check_alert() {
-  close_alert
-  alert_id=$(ls1 luna://com.webos.notification/createAlert "{\"sourceId\":\"com.samrenfrew.lumen\",\"title\":\"Controller check\",\"message\":\"Press B on the controller. If nothing happens, choose Reconnect with the remote.\",\"buttons\":[{\"label\":\"Dismiss\",\"focus\":true},{\"label\":\"Reconnect\",\"onclick\":\"luna://org.webosbrew.hbchannel.service/exec\",\"params\":{\"command\":\"touch $ASK\"}}]}" \
-    | sed -n 's/.*"alertId": *"\([^"]*\)".*/\1/p')
+  alert "Controller check" "Press B on the controller to dismiss. If nothing happens, press OK on the remote to reconnect it."
+  alert_shown=1
 }
+# the node is opened once and read one 16-byte event at a time, so no press is missed between reads
+start_ok() {
+  [ -n "$okpid" ] && return
+  ( exec 3<"$RCU" || exit
+    while ev=$(dd bs=16 count=1 <&3 2>/dev/null | od -An -t x2 -v); do
+      [ -n "$ev" ] || break
+      case "$ev" in *"0001 001c 0001 0000"*) : > "$ASK" ;; esac
+    done ) &
+  okpid=$!
+}
+stop_ok() { [ -n "$okpid" ] && kill "$okpid" 2>/dev/null; okpid=""; }
 present() { grep -q '^N: Name="Stadia' /proc/bus/input/devices; }
+# the input device's instance (9400.0003); it changes at every reconnect, so a drop that comes back within one poll still shows
+inst() { grep -A3 '^N: Name="Stadia' /proc/bus/input/devices | sed -n 's/^S: Sysfs=.*\(9400\.[0-9a-f]*\).*/\1/p' | head -1; }
 # the controller's hidraw node (Google 18d1:9400)
 hidraw() {
   for x in /sys/class/hidraw/hidraw*; do
@@ -74,7 +88,7 @@ start_bt() {
 }
 # tail ends on its own at its next write once awk is gone
 stop_bt() { [ -n "$btpid" ] && kill "$btpid" 2>/dev/null; btpid=""; }
-trap 'stop_bt; stop_raw; exit' TERM INT
+trap 'stop_bt; stop_raw; stop_ok; exit' TERM INT
 # one forget, scan, pair, connect; true when the input device came back
 repair_once() {
   a=$(addr) || return 1
@@ -99,7 +113,7 @@ repair_once() {
 
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-up=0; ok=0; fresh=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0
+up=0; ok=0; fresh=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0
 rm -f "$ASK"
 while true; do
   sleep 2
@@ -111,14 +125,19 @@ while true; do
   fi
   if [ "$on" -eq 0 ]; then
     [ "$active" -eq 1 ] && log "Moonlight left the front: watching paused"
-    active=0; repair_until=0; up=0; stop_raw; stop_bt; close_alert; rm -f "$ASK"
+    active=0; repair_until=0; up=0; stop_raw; stop_bt; stop_ok; close_alert; alert_shown=0; rm -f "$ASK"
     continue
   fi
-  [ "$active" -eq 0 ] && log "Moonlight in front: watching" && start_bt
+  [ "$active" -eq 0 ] && log "Moonlight in front: watching" && start_bt && start_ok
   active=1
   if present; then
+    cur=$(inst)
+    if [ "$up" -eq 1 ] && [ -n "$cur" ] && [ "$cur" != "$seen" ]; then
+      # 2026-11-03: the link dropped and came back inside one poll, dead, and nothing was shown
+      up=0; stop_raw; log "controller reconnected on its own ($seen to $cur)"
+    fi
     if [ "$up" -eq 0 ]; then
-      up=1; since=$now; ok=$fresh; fresh=0
+      up=1; since=$now; ok=$fresh; fresh=0; seen=$cur
       log "controller connected ($([ "$ok" -eq 1 ] && echo "paired here, working" || echo "checking for input"))"
       # a reconnect has always been dead so far, so offer the fix now rather than after SILENT_SECS; while a repair is already running,
       # its Stadia + Y alert stays up instead
@@ -129,7 +148,7 @@ while true; do
       # the hidraw node can show up a moment after the input device
       if [ -z "$rawpid" ] && h=$(hidraw); then cat "$h" >> "$RAW" 2>/dev/null & rawpid=$!; fi
       if [ -s "$RAW" ]; then
-        ok=1; repair_until=0; stop_raw; close_alert; log "input seen: working"
+        ok=1; repair_until=0; alert_shown=0; stop_raw; close_alert; log "input seen: working"
       elif [ $((now - since)) -ge "$SILENT_SECS" ] && [ "$repair_until" -le "$now" ]; then
         repair_until=$((now + REPAIR_SECS)); log "no input for ${SILENT_SECS}s: broken, re-pairing on Stadia + Y"
         alert "Controller not responding" "$HOLD_MSG"
@@ -142,10 +161,10 @@ while true; do
   fi
   if [ -f "$ASK" ]; then
     rm -f "$ASK"
-    if [ "$ok" -eq 1 ]; then log "Reconnect chosen, ignored: the controller works"
-    else
-      log "Reconnect chosen: re-pairing on Stadia + Y"
-      repair_until=$((now + REPAIR_SECS))
+    # only while the check alert is up, so an OK press used to drive Moonlight's menus does nothing
+    if [ "$alert_shown" -eq 1 ] && [ "$ok" -eq 0 ] && [ "$repair_until" -le "$now" ] && present; then
+      log "OK on the remote: re-pairing on Stadia + Y"
+      alert_shown=0; repair_until=$((now + REPAIR_SECS))
       alert "Reconnecting the controller" "$HOLD_MSG"
     fi
   fi
