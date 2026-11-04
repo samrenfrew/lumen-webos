@@ -30,6 +30,13 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Stadia Reconnect button (branch `claude/stadia-controller-reconnect-iax0gd`, `tools/tv/stadia.sh`). Copy the script to
+      `/var/lib/homehook/` and restart it. First, over SSH, check the alert can reach the script: a `createAlert` with a button whose
+      `onclick` is `luna://org.webosbrew.hbchannel.service/exec` and `params` `{"command":"touch /tmp/x"}`; press it and check `/tmp/x`.
+      Then in Moonlight, after a drop: the Controller check alert has Dismiss (focused) and Reconnect. B on a working controller clears
+      it. Reconnect from the remote shows the Stadia + Y alert at once, and Stadia + Y pairs it without waiting for the link to drop.
+      In `stadia.log`, a re-pair try with the old connection still up now logs "re-pair try skipped" instead of a false "re-paired".
+
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).
 

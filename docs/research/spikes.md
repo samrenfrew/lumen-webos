@@ -135,6 +135,12 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   snoop switched off (`BtStackLog2File`, `BtSnoopLogOutput`); turning them on would record each disconnect's reason. Not tried.
 - Built 2026-11-02: while Moonlight is in front, `stadia.sh` copies the Bluetooth, USB and HID lines of LG's system log to
   `/var/lib/homehook/bt.log` (UTC times; `stadia.log` is local time), trimmed to 20 000 lines past 4 MB.
+- Changed 2026-11-04 (not yet seen on the TV): a re-pair try used to count as working whenever the input device was there after it. If
+  `unpair` leaves a connected controller up (not yet known), the old dead input device is still there, so the try logged "re-paired",
+  toasted "Controller paired." and stopped watching, and only a drop (Stadia + Y) started a real repair. Now a try first waits for the
+  old input device to go, calling `hid/disconnect` if `unpair` did not drop it, and skips the try if it stays. The check alert has
+  Dismiss and Reconnect; Reconnect's `onclick` runs `touch /tmp/stadia-reconnect` through the Homebrew Channel's exec service, and the
+  watcher starts the repair at once. Whether the notification service may call that service is unknown.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
