@@ -18,6 +18,7 @@ ADDR_FILE=$DIR/stadia-address
 RAW=/tmp/stadia-raw
 SILENT_SECS=30
 REPAIR_SECS=180
+FIND_TRIES=15
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
 ls1() { luna-send -n 1 "$@" </dev/null 2>/dev/null; }
@@ -89,6 +90,10 @@ start_bt() {
 # tail ends on its own at its next write once awk is gone
 stop_bt() { [ -n "$btpid" ] && kill "$btpid" 2>/dev/null; btpid=""; }
 trap 'stop_bt; stop_raw; stop_ok; exit' TERM INT
+# the scan's entry for this address while it is not paired (one line per device, as in addr)
+unpaired_line() {
+  ls1 $B/device/getStatus '{}' | tr -d ' \n' | sed 's/{"classOfDevice"/\n&/g' | grep "\"address\":\"$1\"" | grep '"paired":false' | head -1
+}
 # one forget, scan, pair, connect; true when the input device came back
 repair_once() {
   a=$(addr) || return 1
@@ -100,8 +105,16 @@ repair_once() {
   if present; then ls1 $B/hid/disconnect "{\"address\":\"$a\"}" >/dev/null; sleep 3; fi
   if present; then log "re-pair try skipped: the old connection is still up after unpair and disconnect"; return 1; fi
   # luna-send -i keeps the scan open while its stdin is open
-  sleep 20 | luna-send -i $B/adapter/startDiscovery '{}' >/dev/null 2>&1 &
-  sleep 4
+  sleep 40 | luna-send -i $B/adapter/startDiscovery '{}' >/dev/null 2>&1 &
+  # the controller shows up in the scan only while it is in pairing mode, so pair the moment it does (2026-11-04: a fixed 4 s wait paired too early)
+  n=0; line=""
+  while [ "$n" -lt "$FIND_TRIES" ]; do
+    line=$(unpaired_line "$a")
+    [ -n "$line" ] && break
+    sleep 2; n=$((n + 1))
+  done
+  if [ -z "$line" ]; then ls1 $B/adapter/cancelDiscovery '{}' >/dev/null; log "re-pair try: the controller did not show up in the scan (not in pairing mode)"; return 1; fi
+  log "controller in the scan after $((n * 2))s: $(printf '%s' "$line" | cut -c1-300)"
   r=$(timeout 15 luna-send -n 2 $B/adapter/pair "{\"address\":\"$a\",\"subscribe\":true}" </dev/null 2>&1 | tr -d ' \n')
   sleep 2
   present || { ls1 $B/hid/connect "{\"address\":\"$a\"}" >/dev/null; sleep 3; }

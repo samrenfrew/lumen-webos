@@ -146,6 +146,11 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   no refusal in the log). Launching an app from the alert would take Moonlight's foreground, so the watcher instead reads the remote:
   `/dev/input/event1` ("LGE RCU") sends key 28 for OK and 412 for Back (16-byte events, 32-bit timeval); `event9` sent nothing. While the
   check alert is up and the controller is unproven, an OK press starts the repair.
+- First Moonlight test (2026-11-04): run 1 worked, 22 s from OK to working. Run 2's first try failed after 44 s with "not in pairing mode
+  yet", and the second try (after Stadia + Y again) worked. Cause, a guess: the try starts on the OK press, before Stadia + Y is held, and
+  paired after a fixed 4 s scan. Now a try scans for up to 30 s and pairs when the controller's address shows in `device/getStatus` with
+  `"paired":false` (it does so only in pairing mode, also a guess), and logs that entry. `getStatus` also lists neighbours' devices and
+  old scan results as `"paired":false`, so a stale entry for the controller would make this pair early again; the log line will show it.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
