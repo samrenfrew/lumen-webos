@@ -169,3 +169,25 @@ Worth watching:
 - Pierregvx (branch `films-series`): a films and series section, AI picks and a player inside Lumen, in one large commit.
 - ayushcody (branch `pr/dev-mode-icons`): Lumen on a TV that is not rooted (Dev Mode), and Lucide icons for LG's own apps. Its PR here was closed.
 - quangtdev: Vietnamese, and a boot hook that stubs LG's ad and log services (Lumen's `privacy.sh` does the same job differently).
+
+## Check-in 2026-11-05 (commits since 2026-11-01)
+
+Read from commit subjects and messages only, not source. Nothing here was tried on a TV.
+
+No new commits: gprot42/webos-launch-home, zzeppieri/webos-custom-home, OmkarK97/webos-vibehack, free-my-tv, and upstream ammar027/lumen-webos. ecklf/lg-luma has one commit (a preview image).
+
+### Worth trying
+
+- **Live preview of the focused input or channel.** Shipped in Glasshouse 0.137.0 (#1104, with a TV tile in #1066). HDMI plays as `ext://hdmi:N`; a channel plays through `service/webos-broadcast-preview`. Tested on a G3 only. Needs a check that Live TV preview works on this TV (webOS 25). Try it live over DevTools before any build.
+- **`spinnerOnLaunch: false`.** cleanyourtv-WebOS set it, with `noSplashOnLaunch`, on its manager app to stop LG's grey splash and spinner (#131, checked on a real TV). Lumen's `app/public/appinfo.json` has `noSplashOnLaunch` but no `spinnerOnLaunch`. One line. Also check any separate Lumen app for the same flash.
+
+### Worth a look, not urgent
+
+- **Homebar 0.19.5 to 0.19.7** (rawinek/webos-homebar): after a wake from standby it sends one HOME; a held BACK closes it as System HOME; Inputs page with USB drives. webOS 11 on a G5, so only loosely relevant, but it matches the Exit and wake behaviour still to verify.
+- **cleanyourtv-WebOS add-ons** (v1.6.14, then add-on work on 2026-11-03): wallpaper photo sources and cards (Unsplash, Immich, weather forecast, prayer times) supplied as downloadable add-ons. Lumen already has Immich; the plug-in idea is the only part that might fit.
+- **Ad blocker hosts** (Glasshouse #1111): `elastic.lgwebostv.com` (Content Store request logs) and `rdx2.nextlgsdp.com` (sdx report upload on webOS 10). Compare with `privacy.sh`'s list and add any that are missing.
+
+### Skip
+
+- Glasshouse wallpaper Darkening and Pure white theme (cosmetic), and Homebar's Inputs page (Lumen has inputs).
+- New small repos since 2026-11-01 (a Chromium port, a no-root launcher, a Turkish widget launcher): nothing relevant.
