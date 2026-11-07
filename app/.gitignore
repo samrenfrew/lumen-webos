@@ -6,3 +6,4 @@ build/
 
 # local, per-person settings
 src/config/catalog.local.ts
+dist-guide/

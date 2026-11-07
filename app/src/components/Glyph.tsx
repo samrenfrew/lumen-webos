@@ -1,6 +1,6 @@
 // Inline SVG line icons used by the Misc row and the settings badge.
 
-export type GlyphName = 'house' | 'gear' | 'inputs' | 'screensaver' | 'sliders' | 'wifi' | 'ethernet' | 'muted' | 'timer' | 'folder' | 'speaker' | 'picture' | 'power' | 'restart' | 'sun' | 'eye' | 'guide' | 'grid' | 'image' | 'cloud' | 'contrast' | 'globe' | 'trash' | 'minus';
+export type GlyphName = 'house' | 'gear' | 'inputs' | 'screensaver' | 'sliders' | 'wifi' | 'ethernet' | 'muted' | 'timer' | 'folder' | 'speaker' | 'picture' | 'power' | 'restart' | 'sun' | 'eye' | 'guide' | 'grid' | 'image' | 'cloud' | 'contrast' | 'globe' | 'trash' | 'minus' | 'list' | 'next';
 
 export function Glyph ({name}: {name: GlyphName}) {
 	return (
@@ -39,6 +39,10 @@ export function Glyph ({name}: {name: GlyphName}) {
 				? <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" />
 				: name === 'guide'
 				? <path d="M3.5 5.5h17v13h-17zM3.5 9.5h17M9 9.5v9" />
+				: name === 'list'
+				? <path d="M8.5 6.5h12M8.5 12h12M8.5 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01" />
+				: name === 'next'
+				? <path d="M4 12h15M13.5 6.5 19 12l-5.5 5.5" />
 				: name === 'grid'
 				? <path d="M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z" />
 				: name === 'image'

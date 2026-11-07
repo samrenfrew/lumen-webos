@@ -5,7 +5,8 @@
   "scripts": {
     "build:ipk": "sh tools/build_ipk.sh",
     "deploy": "sh tools/deploy.sh",
-    "deploy:home": "LUMEN_APP_ID=com.samrenfrew.lumen LUMEN_APP_TITLE=Home LUMEN_DEV=1 sh tools/deploy.sh",
+    "deploy:home": "LUMEN_APP_ID=com.samrenfrew.lumen LUMEN_APP_TITLE=Home LUMEN_DEV=1 sh tools/deploy.sh && sh tools/deploy_guide.sh",
+    "deploy:guide": "sh tools/deploy_guide.sh",
     "push-font": "sh tools/push_sf_font.sh",
     "dev": "npm --prefix app run dev",
     "release": "python3 tools/build_release.py"

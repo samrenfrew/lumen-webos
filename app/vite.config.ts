@@ -109,18 +109,41 @@ function classicScriptTag (): Plugin {
 		};
 	}
 
+	/** Lumen Guide (docs/plans/guide-overlay.md): the overlay app, built from guide.html into dist-guide/ with LUMEN_TARGET=guide. Its appinfo is
+	 *  public-guide/appinfo.json; from app/private/ it takes only the font, since it shows no icons or wallpapers. */
+	const GUIDE_ID = 'com.samrenfrew.lumen.guide';
+	function guideFont (privateDir: string): Plugin {
+		let outDir = 'dist-guide';
+		return {
+			name: 'lumen-guide-font',
+			configResolved (config) { outDir = resolve(config.root, config.build.outDir); },
+			resolveId (id) { return id === PRIVATE_MODULE ? '\0' + PRIVATE_MODULE : undefined; },
+			load (id) { return id === '\0' + PRIVATE_MODULE ? 'export const ICON_PACK = {};\nexport const PRIVATE_WALLPAPERS = null;\n' : undefined; },
+			writeBundle () {
+				const font = privateDir && join(privateDir, 'fonts', 'sf.woff2');
+				if (font && existsSync(font)) { mkdirSync(join(outDir, 'fonts'), {recursive: true}); cpSync(font, join(outDir, 'fonts', 'sf.woff2')); }
+			}
+		};
+	}
+
 	export default defineConfig(({mode}) => {
 		const lumen = lumenSettings(mode);
+		const guide = process.env.LUMEN_TARGET === 'guide';
+		const appId = guide ? GUIDE_ID : lumen.appId;
 		return {
 		base: './',            // the app is loaded from a local file path on the TV
-		plugins: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title), tvScripts()],
-		define: {__LUMEN_APP_ID__: JSON.stringify(lumen.appId), __LUMEN_DEV__: JSON.stringify(mode === 'development' || lumen.dev)},
+		publicDir: guide ? 'public-guide' : 'public',
+		plugins: guide
+			? [preact(), classicScriptTag(), guideFont(lumen.privateDir)]
+			: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title), tvScripts()],
+		define: {__LUMEN_APP_ID__: JSON.stringify(appId), __LUMEN_DEV__: JSON.stringify(mode === 'development' || lumen.dev)},
 		build: {
 			target: BROWSER_TARGET,
-			outDir: 'dist',
+			outDir: guide ? 'dist-guide' : 'dist',
 			modulePreload: false,
 			cssTarget: BROWSER_TARGET,
 			rollupOptions: {
+				input: guide ? resolve(APP_DIR, 'guide.html') : resolve(APP_DIR, 'index.html'),
 				output: {
 					format: 'iife',
 					inlineDynamicImports: true,

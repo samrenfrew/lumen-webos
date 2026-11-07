@@ -23,7 +23,8 @@ interface Props {
 	at: number;
 	onAt: (i: number) => void;
 	active: boolean;
-	onOpen: (channel: Channel) => void;
+	/** OK: the channel, and the programme the focus is on (Lumen Guide tunes only to one that is on now) */
+	onOpen: (channel: Channel, programme?: Programme) => void;
 	/** Up on the first channel: focus moves to the switcher */
 	onTop: () => void;
 	onClose: () => void;
@@ -92,7 +93,7 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 		return true;
 	}, [at, last, focused, anchor, win, base, lastWin, now, channels, listings, onAt, onTop, onClose]);
 	useKeys(handleKey, active);
-	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at]); }, onLongPress: () => undefined}, active);
+	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at], focused); }, onLongPress: () => undefined}, active);
 
 	const {top, from: rowFrom, to: rowTo} = rowWindow(channels.length, at, IN_VIEW, FOCUS_AT, SPARE);
 	const t = Date.now();

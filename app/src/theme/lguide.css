@@ -1,0 +1,87 @@
+/* Lumen Guide (src/guide/), the overlay app over Live TV. Only the panel is drawn: the page stays clear so the picture shows round it.
+   An overlay cannot see the video, so there is no blur: a dark tint, glass rims on the rows and rail, and a soft fade into the picture.
+   The rows reuse the Guide's parts (.guide__num, .guide__logo, .guide__prog, .guide__meta, .guide__meter in guide.css), cut to one column. */
+
+@font-face {
+	font-family: 'Geist Variable';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: block;
+	src: url('../assets/geist-wght.woff2') format('woff2');
+}
+
+* { box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: transparent; user-select: none; }
+#root { position: relative; width: 100%; height: 100%; }
+
+.lguide {
+	position: absolute; left: 0; top: 0; width: 100%; height: 100%; color: var(--ink-guide);
+	font-family: var(--font-family); letter-spacing: -0.011em; -webkit-font-smoothing: antialiased;
+	--lguide-tint: rgba(8, 10, 18, 0.8);
+}
+
+/* ---------- the panel: 880px with the rail, sliding in from the left; the fade past its edge keeps it from reading as a hard box ---------- */
+
+.lguide__panel, .lguide__head, .lguide__view, .lguide__rail { animation: lguide-in var(--dur-slide) var(--ease-out) both; }
+@keyframes lguide-in { from { transform: translateX(-120px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.lguide__panel { position: absolute; left: 0; top: 0; width: 880px; height: 100%; background: var(--lguide-tint); }
+.lguide__panel::after { content: ''; position: absolute; left: 100%; top: 0; width: 160px; height: 100%; background: linear-gradient(to right, var(--lguide-tint), rgba(8, 10, 18, 0)); }
+
+.lguide__head { position: absolute; left: 150px; top: 56px; font-size: 44px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+
+/* ---------- the list: rows 120px tall every 132px (GuideApp.tsx ROW_STEP), hidden until the TV says which channel is on ---------- */
+
+.lguide__view { position: absolute; left: 96px; top: 136px; width: 784px; height: 930px; overflow: hidden; }
+.lguide__view .guide__track { opacity: 0; transition: transform var(--dur-scroll) var(--ease-out), opacity var(--dur-fade) ease-out; }
+.lguide__view--ready .guide__track { opacity: 1; }
+.lguide__row {
+	position: absolute; left: 24px; right: 36px; height: 120px; margin-top: 12px; padding: 0 28px 0 16px; border-radius: var(--radius-card);
+	display: flex; flex-direction: row; align-items: center; background: var(--glass-row); box-shadow: var(--glass-row-rim);
+	transform-origin: 0 50%; transition: transform var(--dur-focus) ease-out; will-change: transform;
+}
+/* the focused capsule is a plate that only fades in, as in the Guide */
+.lguide__row::before {
+	content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: -1; border-radius: var(--radius-card); pointer-events: none;
+	background: var(--focus-fill); box-shadow: var(--guide-plate-shadow); opacity: 0; will-change: opacity;
+}
+.lguide__row--focused::before { opacity: 1; }
+.lguide__row--focused { z-index: 1; color: var(--focus-ink); transform: scale(var(--lift-press)); }
+/* on the rail, the row the list will come back to stays lighter */
+.lguide__row--at { background: var(--glass-row-on); }
+.lguide__row--off .lguide__prog { opacity: 0.55; }
+.lguide__row--focused .guide__meter { background: var(--meter-focus); }
+.lguide__row--focused .guide__meter span { background: var(--focus-ink); }
+.lguide__prog { flex: 1 1 auto; min-width: 0; margin-left: 28px; }
+
+/* ---------- the rail: icons 96px wide at the left edge; Left opens it to 280px over the list, with names ---------- */
+
+.lguide__rail { position: absolute; left: 0; top: 0; width: 96px; height: 100%; z-index: 2; }
+.lguide__railplate {
+	position: absolute; left: 0; top: 0; width: 300px; height: 100%; background: rgba(12, 14, 24, 0.94); box-shadow: inset -1.5px 0 1px -1px rgba(255, 255, 255, 0.3), 18px 0 40px rgba(0, 0, 0, 0.35);
+	transform: translateX(-300px); transition: transform var(--dur-slide) var(--ease-out); will-change: transform;
+}
+.lguide__rail--open .lguide__railplate { transform: translateX(0); }
+.lguide__railitem {
+	position: relative; margin: 0 0 12px 16px; height: 64px; width: 64px; border-radius: 32px; display: flex; flex-direction: row; align-items: center;
+	color: var(--ink-guide); opacity: 0.6; transition: opacity var(--dur-focus) ease-out;
+}
+.lguide__railplate + .lguide__railitem { margin-top: 150px; }
+.lguide__railitem--on { opacity: 1; background: var(--glass-row); box-shadow: var(--glass-row-rim); }
+.lguide__railitem .tile__glyph { position: absolute; left: 16px; top: 16px; width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.lguide__raillabel { position: absolute; left: 72px; font-size: 30px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity var(--dur-fade) ease-out; }
+.lguide__rail--open .lguide__railitem { width: 252px; opacity: 0.85; }
+.lguide__rail--open .lguide__raillabel { opacity: 1; }
+/* the focused item is a white capsule behind the icon and the name */
+.lguide__railitem::before {
+	content: ''; position: absolute; left: 0; top: 0; width: 252px; height: 64px; z-index: -1; border-radius: 32px; background: var(--focus-fill); opacity: 0; will-change: opacity;
+}
+.lguide__railitem--focused { color: var(--focus-ink); opacity: 1; }
+.lguide__railitem--focused::before { opacity: 1; }
+
+/* ---------- the Full guide: Lumen's grid (screens/FullGuide.tsx) full screen over a darker tint; Back returns to the panel ---------- */
+
+.lguide__full { background: rgba(8, 10, 18, 0.9); animation: lguide-fade var(--dur-fade) ease-out both; }
+@keyframes lguide-fade { from { opacity: 0; } to { opacity: 1; } }
+
+html.reduce-motion .lguide * { animation: none; transition: none; }
