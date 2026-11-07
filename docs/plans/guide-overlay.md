@@ -79,4 +79,14 @@ First build installed on 2026-11-07 (dev build only, not in the Homebrew Channel
   43 MB (PSS), close to Lumen's. The guide is in `com.webos.memorymanager.KeepAlive` beside Lumen (set with `setConfigs`), which the memory
   manager reads only at boot, so it takes effect after the next reboot. Standby still closes it, as it closes Lumen (docs/keep-alive.md);
   the first LIST after a switch-on is then a cold open.
-- **(verify)** On the TV: the rail position after the fix (the icons sat at the very top in the first build), Left onto the rail and its names, OK on Next and Full guide, Back from the Full guide, the 30 s close, Channel Up working again after the guide hides, and the hidden guide surviving a switch to another app and back once the keep list is live.
+- **Found for binding by app (2026-11-07):** GUIDE is code 362 for Input Hook (`IR_KEY_GUIDE` = 370, minus 8). Input Hook 1.5.1 has the
+  actions `launch` (with `params`), `exec`, `replace` and `ignore`, and it reloads `keybinds.json` when the file changes ("Keybinds
+  reloaded due to config file change" in its library). Starting the guide with LG's hidden start (`"preload":"full"`) did not help: it
+  was not in `running` 6 s later, and the next launch took 5.6 s to show.
+- **Only in Live TV (2026-11-07):** `tools/tv/watch.sh` now follows Live TV. When Live TV comes to the front it binds LIST and GUIDE to the
+  guide and starts it with `{"hidden":true}`: the page hides before it draws, so the first LIST shows it in 0.3 s. When another app comes to
+  the front it unbinds LIST (each app gets its own), binds GUIDE to an `exec` that opens Lumen on its Guide (`{"view":"guide"}`), and
+  closes the guide to free its memory. Seen on the TV: the hidden start stayed hidden, LIST showed it and LIST again hid it, and a switch
+  to Lumen changed the binds and closed the guide. Not seen: the switch back to Live TV (the TV went into standby mid-test).
+  A wake straight into Live TV is not an app change for the watcher, so the guide is not started then and the first LIST is a cold open.
+- **(verify)** On the TV: back into Live TV starts the guide hidden and binds LIST and GUIDE again; GUIDE in another app opens Lumen's Guide; the rail position after the fix (the icons sat at the very top in the first build), Left onto the rail and its names, OK on Next and Full guide, Back from the Full guide, the 30 s close, Channel Up working again after the guide hides, and the hidden guide surviving a switch to another app and back once the keep list is live.

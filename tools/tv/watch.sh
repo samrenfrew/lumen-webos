@@ -13,6 +13,9 @@
 #    into each standby, and the first Home press after switch-on is warm too. Switch both off with /var/lib/homehook/no-boot-preload.
 #  - Keeps LG's preload manager stopped: checked at start, after each wake and every 30 ticks. It opens LG Home in front every few minutes, and
 #    the stand-in then opens Lumen over the app you are watching. Its config file did not stop it: the TV turns Home back on by itself.
+#  - Lumen Guide (the overlay, docs/plans/guide-overlay.md), when installed: while Live TV is in front, LIST and GUIDE open it (Input Hook binds),
+#    and it is started hidden as Live TV comes up, so the first LIST shows it at once. Elsewhere LIST is left to the app, GUIDE opens Lumen on
+#    its Guide, and the guide is closed to free its memory. Input Hook reloads keybinds.json by itself when it changes.
 #  - Keeps /var/lib/homehook/recent: the last eight apps that were in front (not Lumen, not LG Home), newest first, one id per line. Lumen reads
 #    it for its Recent row, so apps opened from anywhere show there.
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/no-screensaver exists (the old Settings > Screensaver > Off; Lumen now removes it): ends LG's
@@ -52,6 +55,9 @@ NOPRELOAD_FLAG=/var/lib/homehook/no-boot-preload
 RECENT=/var/lib/homehook/recent
 BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
+GUIDE=com.samrenfrew.lumen.guide
+LIVETV=com.webos.app.livetv
+KEYBINDS=/home/root/.config/lginputhook/keybinds.json
 prev=""
 prevapp=""
 last=0
@@ -109,6 +115,45 @@ note_recent() {
   for id in $ME; do [ "$1" = "$id" ] && return; done
   printf '%s' "$1" | grep -qE '^[A-Za-z0-9._-]+$' || return
   { echo "$1"; [ -f "$RECENT" ] && grep -vxF "$1" "$RECENT"; } | head -n 8 > "$RECENT.tmp" && mv "$RECENT.tmp" "$RECENT"
+}
+
+# rewrites the LIST (787) and GUIDE (362) binds for $1 = live (both open the guide) or away (GUIDE opens Lumen's Guide, LIST unbound), keeping
+# every other bind; the file is written only when it changes
+guide_binds() {
+  python3 - "$KEYBINDS" "$1" "$GUIDE" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
+import json, sys
+path, mode, guide, lumen = sys.argv[1:5]
+try:
+    with open(path) as f: binds = json.load(f)
+except Exception:
+    binds = {}
+want = dict(binds)
+if mode == 'live':
+    want['787'] = {'action': 'launch', 'id': guide}
+    want['362'] = {'action': 'launch', 'id': guide}
+else:
+    want.pop('787', None)
+    if lumen:
+        want['362'] = {'action': 'exec', 'command': 'luna-send -n 1 luna://com.webos.applicationManager/launch \'{"id":"%s","params":{"view":"guide"}}\'' % lumen}
+    else:
+        want.pop('362', None)
+if want != binds:
+    with open(path + '.tmp', 'w') as f: json.dump(want, f)
+    import os; os.rename(path + '.tmp', path)
+PY
+}
+# the app in front changed from $2 to $1: into Live TV, the binds for it and the guide started hidden; out of it, the other binds and the guide closed
+guide_follow() {
+  [ -d "$APPS/$GUIDE" ] || return
+  if [ "$1" = "$LIVETV" ]; then
+    guide_binds live
+    ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$GUIDE\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
+      echo "$(date +%T) guide: start hidden: $r" >> /tmp/homehook.log ) &
+  elif [ "$2" = "$LIVETV" ] || [ -z "$2" ]; then
+    guide_binds away
+    luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$GUIDE\"}" </dev/null >/dev/null 2>&1
+    [ -n "$2" ] && echo "$(date +%T) guide: closed, left Live TV for $1" >> /tmp/homehook.log
+  fi
 }
 
 # with power-on set to last input, a switch-on leaves the TV's own app in front
@@ -195,7 +240,7 @@ while true; do
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
   app=$(printf '%s' "$out" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p')
-  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then prevapp=$app; note_recent "$app"; fi
+  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then guide_follow "$app" "$prevapp"; prevapp=$app; note_recent "$app"; fi
   # wake: Lumen in front as soon as the screen is on, whatever the TV opened
   if [ -n "$front" ]; then [ "$mesince" -eq 0 ] && mesince=$now; else mesince=0; fi
   if [ "$now" -lt "$wakeuntil" ] && wake_wanted && [ "$pwstate" = Active ]; then
