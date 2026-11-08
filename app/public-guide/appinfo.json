@@ -1,0 +1,20 @@
+{
+  "id": "com.samrenfrew.lumen.guide",
+  "version": "0.1.0",
+  "vendor": "samrenfrew",
+  "type": "web",
+  "main": "guide.html",
+  "title": "Lumen Guide",
+  "appDescription": "A narrow channel guide over Live TV, opened with LIST.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
+  "resolution": "1920x1080",
+  "transparent": true,
+  "defaultWindowType": "overlay",
+  "handlesRelaunch": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "disableBackHistoryAPI": true,
+  "visible": false
+}

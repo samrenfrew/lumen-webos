@@ -1,0 +1,83 @@
+/* Lumen Guide (src/guide/), the overlay app over Live TV. Only the panel is drawn: the page stays clear so the picture shows round it.
+   An overlay cannot see the video, so there is no blur: a dark tint, glass rims on the rows and rail, and a soft fade into the picture.
+   The rows reuse the Guide's parts (.guide__num, .guide__logo, .guide__prog, .guide__meta, .guide__meter in guide.css), cut to one column. */
+
+@font-face {
+	font-family: 'Geist Variable';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: block;
+	src: url('../assets/geist-wght.woff2') format('woff2');
+}
+
+* { box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: transparent; user-select: none; }
+#root { position: relative; width: 100%; height: 100%; }
+
+.lguide {
+	position: absolute; left: 0; top: 0; width: 100%; height: 100%; color: var(--ink-guide);
+	font-family: var(--font-family); letter-spacing: -0.011em; -webkit-font-smoothing: antialiased;
+	/* the panel's darkness; the fade past its edge follows it */
+	--lguide-tint-a: 0.65;
+	--lguide-tint: rgba(8, 10, 18, var(--lguide-tint-a));
+}
+
+/* ---------- the panel: 880px with the rail, sliding in from the left; the fade past its edge keeps it from reading as a hard box ---------- */
+
+.lguide__panel, .lguide__head, .lguide__view, .lguide__rail { animation: lguide-in var(--dur-slide) var(--ease-out) both; }
+@keyframes lguide-in { from { transform: translateX(-120px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+
+.lguide__panel { position: absolute; left: 0; top: 0; width: 880px; height: 100%; background: var(--lguide-tint); }
+/* an eased fade (stops on an ease-out curve), so the edge has no visible line where a straight fade starts */
+.lguide__panel::after {
+	content: ''; position: absolute; left: 100%; top: 0; width: 280px; height: 100%;
+	background: linear-gradient(to right, var(--lguide-tint) 0%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.737)) 19%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.541)) 34%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.382)) 47%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.277)) 56.5%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.194)) 65%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.126)) 73%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.075)) 80.2%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.043)) 86.1%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.021)) 91%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.007)) 95.2%, rgba(8, 10, 18, calc(var(--lguide-tint-a) * 0.003)) 98.2%, rgba(8, 10, 18, 0) 100%);
+}
+
+.lguide__head { position: absolute; left: 150px; top: 56px; font-size: 44px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+
+/* ---------- the list: rows 120px tall every 132px (GuideApp.tsx ROW_STEP) ----------
+   The rows slide in with the panel as empty shapes: blocks for the number, logo, title, times and progress. Once the TV says which channel
+   is on (GuideApp.tsx ready), the real rows fade in over them as one layer while the shapes fade out, so nothing jumps into view. */
+
+.lguide__view { position: absolute; left: 96px; top: 136px; width: 784px; height: 930px; overflow: hidden; }
+.lguide__row {
+	position: absolute; left: 24px; right: 36px; height: 120px; margin-top: 12px; padding: 0 28px 0 16px; border-radius: var(--radius-card);
+	display: flex; flex-direction: row; align-items: center; background: var(--glass-row); box-shadow: var(--glass-row-rim);
+	transform-origin: 0 50%; transition: transform var(--dur-focus) ease-out; will-change: transform;
+}
+/* the focused capsule is a plate that only fades in, as in the Guide */
+.lguide__row::before {
+	content: ''; position: absolute; left: 0; top: 0; right: 0; bottom: 0; z-index: -1; border-radius: var(--radius-card); pointer-events: none;
+	background: var(--focus-fill); box-shadow: var(--guide-plate-shadow); opacity: 0; will-change: opacity;
+}
+.lguide__row--focused::before { opacity: 1; }
+.lguide__row--focused { z-index: 1; color: var(--focus-ink); transform: scale(var(--lift-press)); }
+/* on the rail, the row the list will come back to stays lighter */
+.lguide__row--at { background: var(--glass-row-on); }
+.lguide__row--off .lguide__prog { opacity: 0.55; }
+.lguide__row--focused .guide__meter { background: var(--meter-focus); }
+.lguide__row--focused .guide__meter span { background: var(--focus-ink); }
+.lguide__prog { flex: 1 1 auto; min-width: 0; margin-left: 28px; }
+.lguide__slot { position: relative; flex: 0 0 132px; height: 80px; margin-left: 16px; border-radius: 16px; background: var(--ph-fill); }
+.lguide__slot .guide__logo { width: 100%; height: 100%; margin-left: 0; }
+.lguide__ph { display: block; border-radius: 8px; background: var(--ph-fill); }
+.lguide__ph--num { width: 40px; height: 26px; margin: 0 auto; }
+.lguide__ph--title { width: 62%; height: 28px; margin: 5px 0; }
+.lguide__ph--time { width: 150px; height: 18px; margin: 4px 0; }
+.lguide__ph--meter { flex: 0 1 220px; height: 5px; margin: 0 16px; border-radius: 3px; }
+.lguide__rows { animation: lguide-reveal var(--dur-reveal) ease-out both; }
+.lguide__shells--out { animation: lguide-reveal var(--dur-reveal) ease-out reverse both; }
+@keyframes lguide-reveal { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- the rail (guide.css .rail): its items start beside the rows ---------- */
+
+.lguide { --rail-top: 150px; }
+
+/* ---------- the Full guide: Lumen's grid (screens/FullGuide.tsx) full screen over a darker tint; Back returns to the panel ---------- */
+
+.lguide__full { background: rgba(8, 10, 18, 0.75); animation: lguide-fade var(--dur-fade) ease-out both; }
+@keyframes lguide-fade { from { opacity: 0; } to { opacity: 1; } }
+
+html.reduce-motion .lguide * { animation: none; transition: none; }
