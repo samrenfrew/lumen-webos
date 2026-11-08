@@ -1,6 +1,7 @@
-# Builds the public .ipk (no app/private/).
+# Builds the public .ipk files, Lumen and Lumen Guide (no app/private/).
 #  - a push to main: a stable release. The version comes from appinfo.json; if that tag exists, the patch number goes up to the next free one.
-#    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository.
+#    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. Lumen Guide (the overlay over
+#    Live TV) is built and published beside Lumen, with the same version.
 #  - a push to any other branch: a dev build (Settings > Frame-rate counter), kept as a workflow artifact only. Nothing is published.
 name: release
 on:
@@ -40,10 +41,12 @@ jobs:
               c = c * 1000 + int(os.environ['GITHUB_RUN_NUMBER'])
           d['version'] = f'{a}.{b}.{c}'
           json.dump(d, open(p, 'w'), indent=2)
+          g = 'app/public-guide/appinfo.json'; gd = json.load(open(g)); gd['version'] = d['version']
+          json.dump(gd, open(g, 'w'), indent=2)
           open(os.environ['GITHUB_ENV'], 'a').write(f"VERSION={d['version']}\n")
           print(d['version'])
           PY
-      - name: Build the .ipk
+      - name: Build the .ipk files
         env:
           LUMEN_DEV: ${{ github.ref_name == 'main' && '0' || '1' }}
         run: python3 tools/build_release.py
@@ -59,21 +62,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          IPK=$(ls release/*.ipk)
-          SUM=$(sha256sum "$IPK" | cut -d' ' -f1)
-          printf 'Built from %s.\n\nInstall: drop the .ipk onto Dev Manager, or `ares-install --device lgtv %s`.\n\nSHA-256: `%s`\n' \
-            "$GITHUB_SHA" "$(basename "$IPK")" "$SUM" > notes.md
-          gh release create "v$VERSION" "$IPK" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
+          LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
+          GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
+          {
+            printf 'Built from %s.\n\nInstall: drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`.\n\n' "$GITHUB_SHA"
+            for f in "$LUMEN" "$GUIDE"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
+          } > notes.md
+          gh release create "v$VERSION" "$LUMEN" "$GUIDE" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
       - name: Homebrew Channel repository
         # The Channel reads the index with XHR, so it is served from raw.githubusercontent.com (CORS allowed) on the hbc-repo branch:
         #   https://raw.githubusercontent.com/<repo>/hbc-repo/stable/apps.json
         if: github.ref_name == 'main'
         run: |
-          IPK=$(ls release/*.ipk)
+          LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
+          GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
           BASE="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/hbc-repo/stable"
-          URL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/$(basename "$IPK")"
+          DL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION"
           git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
           git fetch origin hbc-repo && git worktree add hbc origin/hbc-repo || { git worktree add --detach hbc && git -C hbc checkout --orphan hbc-repo && git -C hbc rm -rfq .; }
           rm -rf hbc/stable
-          python3 tools/gen_hbc_repo.py "$IPK" "$URL" "$BASE" hbc/stable
+          python3 tools/gen_hbc_repo.py "$BASE" hbc/stable "$LUMEN" "$DL/$(basename "$LUMEN")" app/dist "$GUIDE" "$DL/$(basename "$GUIDE")" app/dist-guide
           cd hbc && git add -A && git commit -qm "stable: v$VERSION ${GITHUB_SHA:0:7}" && git push origin HEAD:hbc-repo
