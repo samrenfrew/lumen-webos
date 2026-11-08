@@ -1,6 +1,6 @@
 # Live TV row and guide: build plan
 
-Written 2026-10-17 at the end of the Live TV spike, for a fresh session to build from. The spike trail (every call tried, what failed and why)
+Written 2026-10-17 at the end of the Live TV spike. Both phases are built and released; this file now records how they work. The spike trail (every call tried, what failed and why)
 is in `docs/research/live-tv.md`; this file only keeps what the build needs.
 
 ## What we are building
@@ -14,17 +14,17 @@ is in `docs/research/live-tv.md`; this file only keeps what the build needs.
    moves, OK switches to the channel, Back returns to Home. Only two listings per channel are needed, not the full schedule.
 
 **Phase 2 (later)**
-3. **Full guide**: a time grid (two hours across, channels down, a line at now) behind a Now and Next / Full guide switcher at the top
-   right of the Guide screen. Not in phase 1; build the Guide screen so the switcher can be added without moving things around.
+3. **Full guide**: a time grid (two hours across, channels down, a line at now). Since 2026-11-08 a rail at the left edge
+   (`components/Rail.tsx`, shared with Lumen Guide) switches between Now, Next and the Full guide. It replaced the switch at the top right.
 
 **Not doing**
-- Anything drawn over Live TV (a channel list overlay, a mini guide on top of the picture). Live TV is a separate app; Lumen is not on
-  screen while it plays.
+- Anything drawn over Live TV from inside Lumen. Live TV is a separate app, and Lumen is not on screen while it plays. A separate
+  overlay app, Lumen Guide, does this instead (`docs/plans/guide-overlay.md`).
 - There is no Recent row any more (every app is in the grid), so the Live TV row is the only titled row.
 
 ## Status
 
-**2026-10-17, first version of phase 1 built** (not yet run on the TV):
+**2026-10-17, phase 1 built** (since released):
 - The Live TV row is the **last row, under the app grid** (Sam's call: not between the glass bar and the grid as in the mock). First 5
   channels by number, radio, data and skipped channels left out, with the Guide tile first (Sam's call, 2026-10-17; the mock has it last). Settings > Options > "Live TV row" (on by default).
 - Channel tiles follow the tvOS suggestions rather than the mock: every logo on the same dark tile, no number on the tile (it is in the
@@ -45,9 +45,9 @@ is in `docs/research/live-tv.md`; this file only keeps what the build needs.
   /var/lib/homehook/lumen.log 20 s after launch: `boot script 40, frame 310, ..., getChannelList 2900-4100, ...` (stage times and every
   root call's start-end, ms since the page started).
 
-**2026-10-17, first version of phase 2 built** (not yet run on the TV):
-- The switcher sits at the top right of the Guide. Up from the first channel reaches it; Left/Right or OK switch; Down goes back. The
-  choice is kept in the settings (`guideFull`), so the Guide opens on whichever was used last.
+**2026-10-17, phase 2 built** (since released):
+- The view is kept in the settings (`guideFull`), so the Guide opens on whichever was used last. The first build had a switch at the
+  top right; since 2026-11-08 the rail at the left edge does this (Left from the list opens it, Up/Down and OK pick a view).
 - The Full guide follows `4-full-guide.jpg`: the focused programme's details on top (channel, title, times, progress, S and AD), then
   two hours across in half-hour columns, seven channels down, a line at now. Up/Down keep the time the focus is at; Left/Right move a
   programme at a time and scroll the grid. It goes back as far as the half hour now is in, and on as far as the schedule was read (8 hours).
@@ -86,23 +86,6 @@ Look in the mocks: same glass, rim lights, focus scale (1.175 on grid tiles) and
 blurred wallpaper. The Guide screen uses the blurred wallpaper with a dark veil (like Settings), rows as faint glass, the focused row as the
 white capsule with dark text.
 
-## Before writing code
-
-1. **Render the current build** and compare it with `0-current-home.jpg` and `1-current-down.jpg`, in case things moved since:
-   `npm --prefix app ci`, then `npx vite --port 5199` in `app/`, then `node tools/screenshots-current.mjs <outdir>` (headless Chromium
-   from `/opt/pw-browsers` in a cloud session; set `CHROME` elsewhere). It saves home, home with the glass bar focused, Down once, Down
-   twice. Look at them before changing the layout.
-2. **One spike at the TV: the now/next query** (read-only). Not tried yet:
-   ```
-   luna-send -n 1 -f luna://com.webos.epgdb/find '{"query":{"from":"com.webos.service.legacybroadcast.programPF:4","limit":4}}'
-   ```
-   Expect the same fields as the schedule kind (`programName`, `signalChannelId`, `startTime`/`endTime` in UTC, `localStartTime`/
-   `localEndTime`, `duration`, `isPresent`; see `docs/research/live-tv.md` Step 1). Then try filtering to one channel:
-   `{"query":{"from":"...programPF:4","where":[{"prop":"signalChannelId","op":"=","val":"16522_17472_9018"}]}}`. db8 only filters on
-   indexed properties; if that is refused, read all PF rows instead (about two per channel, so about 380 for 188 channels; db8 returns at
-   most 500 per page, with a `next` key for more) and group them by `signalChannelId` in the app.
-3. Ask Sam which channels go in the row (see Open questions) before building the Settings part.
-
 ## The calls (all proven on the TV as root, 2026-10-17)
 
 | Need | Call | Notes |
@@ -138,19 +121,3 @@ what the guide rows carry.
 - **Settings.** A "Live TV row" switch, and the channel choice (see Open questions).
 - Keep to the performance rules in `docs/research/RESEARCH.md` section 4: no new live blur, only `transform` animates, the Guide list draws
   only the rows near the focused one.
-
-## Verify on the TV (phase 1)
-
-- The row appears under the glass bar with logos, numbers and progress; a channel with no logo shows a text tile.
-- OK on a tile opens Live TV on that channel, from Home. Also try it after a reboot before Live TV has been opened (logos and guide data
-  may be missing then).
-- The focused tile's now/next is right against Live TV's own banner.
-- Guide tile opens Now and Next; Up/Down, OK and Back work; an off-air channel reads sensibly.
-- Cold start: the row draws from cache without waiting for the TV.
-
-## Open questions (for Sam)
-
-1. Which channels go in the row: the TV's own Favourites list (group A in Live TV), a list picked in Lumen's Settings, or the first N by
-   number? The mock shows the first five.
-2. How many channels before the Guide tile (the mock shows five)?
-3. Radio channels: leave them out of the row and the guide (the plan assumes yes)?

@@ -14,15 +14,15 @@ seen unless something looks wrong.
 
 ---
 
-## Where things stand (2026-11-02)
+## Where things stand (2026-11-08)
 
-- Lumen 2.1.0 is released. It has the design audit (`docs/research/design-audit.md`), Home and Power, and Privacy. Branch
-  `ccr-dba88192-ygl4fc` is three commits past it (Moonlight's tile, the Home preload guard, the screensaver's first photo).
-- Built on 2026-11-02, not committed, not yet on the TV (it was off): Settings > Brightness, the screensaver going back to the app it came
-  up over, the wallpaper fade without the stall, and app names without the store tagline. Each is in Verify below.
-- Other forks were reviewed on 2026-11-02 (`docs/research/prior-art.md`, "Forks of Lumen"). Keep an eye on `codefarm-eu/lumen-webos`.
-- Pick up next: `npm run deploy:home` when the TV is on, then Settings > System > TV scripts > Update (`watch.sh` changed), then the new
-  Verify items. After that, the two Control Center items in Open on the TV.
+- Lumen 2.1.3 is the latest release. Branch `live-tv-preview` is going to `main` next, as 2.1.4. It adds the Guide's rail and
+  placeholder shapes, the live preview (dev builds), the brightness per input, the Home stand-in fix, the Stadia script fixes, and
+  Lumen Guide, the overlay over Live TV (`docs/plans/guide-overlay.md`). Lumen Guide installs only with `npm run deploy:home`; the
+  release workflow does not build it yet, and `watch.sh` does nothing for it when it is not installed.
+- Credits for the forks and projects this work drew on are in `README.md` (Credits) and `THIRD_PARTY_NOTICES.md`.
+- Pick up next: the Verify items below, then Lumen Guide's own (verify) list in `docs/plans/guide-overlay.md` (Status). After that,
+  whether Lumen Guide goes into the Homebrew Channel release as a second package.
 
 ---
 
@@ -30,6 +30,18 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Lumen's Guide has the overlay's rail in place of the switch at the top right (branch `live-tv-preview`, on the TV). Left from
+      Now and Next opens it, and Left past the earliest programme in the Full guide. Up/Down and OK pick a view, Right goes back. Up at
+      the top of the list no longer leaves the list. The rail is 340px open and each item is as wide as its name (tried live; the
+      build with it is not installed yet).
+- [ ] Placeholder blocks while guide data loads (branch `live-tv-preview`, on the TV). In Lumen's Guide, a channel still waiting for
+      its programmes shows blocks for the title, times, progress and Next, and the text fades in over them. In the Full guide (Lumen's
+      and the overlay's) each row shows three blocks while the schedule loads, and the details at the top show blocks, not "No guide data".
+- [ ] Lumen Guide: the (verify) items at the end of `docs/plans/guide-overlay.md` (Status).
+- [ ] The overlay guide survives GUIDE then LIST after the reboot (branch `live-tv-preview`). The keep list took effect at the
+      2026-11-08 reboot; before it the memory manager closed the hidden guide (docs/plans/guide-overlay.md).
+- [ ] Home over Lumen no longer goes black (branch `live-tv-preview`, `tools/tv/home-setup.sh` stand-in, already on the TV). Press Home
+      on the remote from Lumen's screensaver and from Lumen's home screen: Lumen comes back after a short black flash at most.
 - [ ] Stadia reconnect from the remote (branch `claude/stadia-controller-reconnect-iax0gd`, `tools/tv/stadia.sh`). In Moonlight, after a
       drop or a reconnect: the Controller check alert says B on the controller dismisses it, OK on the remote reconnects. OK shows the
       Stadia + Y alert at once, and Stadia + Y pairs it without waiting for the dead link to time out. Check `stadia.log` for "controller
@@ -37,6 +49,15 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       remote closes the alert. After a repair the check alert returns until a button press arrives; "Controller paired." shows then, not
       before. In the log, "controller in the scan after Ns" should come only after Stadia + Y (a "no live scan entry ... pairing anyway"
       line shows the scan guess was wrong).
+- Stadia bridge (`tools/tv/stadia-bridge.py`, uncommitted on `live-tv-preview`): works when LG's GATT client is fresh, fails after a
+  power-cycle because LG's `monitorCharacteristic` stops registering for notifications (`docs/research/spikes.md`, "Bridge built").
+  Cause found: a disconnect while a sign-up is live leaves LG's lower layer stale, and only a Bluetooth service restart has cleared it.
+  Sam dropped the bridge on 2026-11-06: it is unwired from the boot hook, the install list and the README, and parked in `tools/tv/`.
+  Next session: dig into the LG bug itself (where the HID host and the SIL keep their stale state, and whether anything short of a
+  Bluetooth restart clears it). The TV was off before cleanup, so on the TV: install the repo's `60-homehook` (it still starts the
+  bridge, which stays idle while `no-stadia-bridge` exists), then delete `stadia-bridge.py`, `no-stadia-bridge` and the jail node
+  `/var/palm/jail/com.limelight.webos/dev/hidraw1`. HCI snoop and the stack trace are still on (RAM, up to 20 MB each); they help the
+  next session, so turn them off (`bt_stack.conf.orig`) only when the Stadia work ends.
 
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).
@@ -78,6 +99,30 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       dim, and a key press brings back the new level, not the old one. Eye Comfort follows the schedule unless set to As the TV is set.
       Change set to Over 30 minutes or more: from each start time the backlight moves from the last part's level to the new one, a
       little each minute, with a "brightness:" line per change in the log. Check that a 1-point step each minute is not visible.
+      Each input keeps its own backlight (2026-11-06: the night level reached apps but Live TV stayed at the day's 80). Switch from an
+      app to Live TV and back: within about 3 s the log shows "backlight <level> on <input>" for Live TV's input, and it matches.
+      Seen remotely 2026-11-06: "backlight 80 on dtv" 3 s after Live TV opened. It was already 80, so a real change at 18:00 is still to see.
+- [ ] Live preview in the Guide (2026-11-06, dev builds; `components/LivePreview.tsx`, branch `live-tv-preview`). The spike is
+      done (`docs/research/live-tv.md`): it plays in 115 to 335 ms, under the page with no hole needed. Then with Settings > System > Live preview on: stop on a channel and the picture shows in about half a second;
+      flick through and nothing tunes until you stop; Live TV's last channel is unchanged after; leaving the Guide lets the tuner go.
+      Round 2 (2026-11-06, not yet on the TV): Settings > Live TV (dev builds) has Preview in the Guide, Preview on the Live TV row and
+      Sound. Check: the logo holds until the picture shows, with no black gap;
+      with Sound on, the preview plays the channel's sound; on Home, the focused channel tile on the Live TV row fills with the picture,
+      and the lift animation does not misplace it; with Live TV in front, Lumen holds no preview. Also: the Guide button from Live TV
+      opens the Guide on the channel being watched (`root.ts` `currentChannel`). Seen 2026-11-06: it does not, because
+      `apiadapter/tv/getCurrentChannel` gives the last channel Lumen opened, not one changed to inside Live TV.
+      `legacybroadcast.broadcast/getCurrentChannel` needs a `broadcastId` that only Live TV holds. Still to find: a source for Live
+      TV's real channel. The Guide button now reopens the Guide afresh each press. The Guide's first preview waits for two frames and
+      800 ms (`previewTiming.first`), so it does not slow the Guide's opening.
+      Round 3 (2026-11-06): the dwell before tuning is 600 ms, after a 250 ms try made scrolling lag (`docs/research/frame-rate.md`). Sam saw a long black gap after the logo went: the TV keeps the
+      picture muted about 2.5 s past `playing` (`docs/research/live-tv.md`). Installed 2026-11-06: the logo holds until the TV's
+      `listMuteStatus` says the picture is unmuted (4 s fallback), then fades after 200 ms (Sam's pick, live). A spinner sits where the
+      Live tag goes (20 px in on the row tiles) until the picture shows. All seen right live; check the build matches: no black between
+      the logo and the picture, the spinner goes as the picture comes, and scrolling the Guide does not lag. `lumen.preview` on DevTools shows
+      the waits (change them live) and `last` gives the newest tune's ms to `playing` and to first frames.
+      Idea (Sam, 2026-11-06), spike first: when the Guide opens, start Live TV hidden (`applicationManager/launch` with
+      `"preload":"full"`, as `watch.sh` does for Lumen) so OK on a channel opens it faster. Check it does not take the preview's tuner,
+      play sound, or come to the front, and time OK to picture with and without it. Live TV is often still running already.
 - [ ] Screensaver goes back to the app (2026-11-02; `watch.sh` passes `from`, `leaveAmbient` in `app.tsx`). Pause a film in Plex and in
       YouTube, let the screensaver start, press OK: the paused film comes back where it was, not Lumen's home screen. Home over the
       screensaver still goes to Lumen's home screen. If an app restarts instead of resuming, note which (codefarm-eu moved to an overlay
@@ -109,13 +154,10 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
 - [ ] Sound and Picture lists feel slower to open and close than Theme and Clock (Sam, 2026-10-27). Not a speed problem: 50 and 100 ms
       faster did not help. Their lists grow only downward, so the tile's "Sound" or "Picture" text is seen to slide and fade, while Theme
       and Clock grow both ways and their text barely moves. Next: Sam to come back with a direction.
-- [ ] Exiting an app, or pressing Exit on the remote, opens LG Home, not Lumen (Sam, 2026-10-26). Only the Home key is rebound by Input
-      Hook. The likely fix is the Native Home item under "Next" (`setDefaultApp`), so check whether it covers Exit and app close first.
 - [ ] Draw the lower rows one row at a time, not all at once 3.5 s after launch (`docs/research/startup-perf.md`, Still open).
 
 ### Spikes (yes/no answers, noted in `docs/research/spikes.md`)
 - [ ] Recents button: rebind it with Input Hook to launch Lumen with `{"view":"recent"}`.
-- [ ] Guide button: rebind it with Input Hook to launch Lumen with `{"view":"guide"}`.
 - [ ] Colour buttons: which does this remote have, and which key codes reach the app? (Gates the colour-button idea in Later.)
 - [ ] `https://sylvan.apple.com/` videos play directly (then the plain HTTP fallback in `lib/wallpaperVideo.ts` goes).
 - [ ] `hosts-extra`: capture what this TV calls (LG ads and tracking) and fill it in. It is empty now.
@@ -129,14 +171,6 @@ From `docs/research/prior-art.md` and upstream (ammar027/lumen-webos). Build wit
 - [ ] Frigate front door card: over the home screen or the screensaver, a card with the door camera's live view when Frigate sees a person or
       motion. Lumen listens to Home Assistant over its WebSocket API. Test which stream the TV plays (HLS, or JPEG frames from go2rtc).
 - [ ] Home Assistant buttons in Control Center: a short row of chosen entities (for example the lounge lights).
-- [x] Native Home: built as Settings > Home and Power > Home button opens (see Verify). `appCategory: ["home"]` is in appinfo.json. The TV step is `setDefaultApp` (upstream
-      `docs/native-home.md`), so LG's own Home routes open Lumen, not only the remote's Home key that Input Hook rebinds. Restore LG Home
-      before removing Lumen.
-      More reports since (2026-11-01, `docs/research/prior-art.md`): Hearth's `general.defaultApps.home` worked on a G5 on webOS 11.2,
-      with Back out of an app going to Hearth. If it does not cover Exit here, the fallback is the webOS 10 Home takeover (mount over
-      `com.webos.app.home`, then `blockSystemApp` and `releaseBlockSystemApp`) that Glasshouse and lg-luma use.
-- [x] Free memory by stopping LG services: built as Settings > Privacy > Stop LG tracking services (see Verify). `admanager` is left
-      running, as HBO Max and Disney+ wait for it. `ss.apiadapter.pub` (23 MB) is still unknown.
 
 ## Later
 
@@ -153,8 +187,6 @@ In rough order of value:
    sleep timer, picture mode, screensaver, nothing). Optionally Input Hook mappings so they work inside other apps too.
 7. Auto-switch to an HDMI input when its device turns on; power off when idle.
 8. Profiles, and a kids mode with a PIN and allowed hours.
-9. Privacy page: LG ad and Live Plus settings, plus hosts-level blocking of LG ad and tracking hosts (check what the Homebrew Channel's own
-   telemetry and ad blocking already covers before adding to `hosts-extra`).
 
 ## Parked
 
