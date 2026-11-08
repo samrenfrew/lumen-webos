@@ -18,11 +18,10 @@ seen unless something looks wrong.
 
 - Lumen 2.1.3 is the latest release. Branch `live-tv-preview` is going to `main` next, as 2.1.4. It adds the Guide's rail and
   placeholder shapes, the live preview (dev builds), the brightness per input, the Home stand-in fix, the Stadia script fixes, and
-  Lumen Guide, the overlay over Live TV (`docs/plans/guide-overlay.md`). Lumen Guide installs only with `npm run deploy:home`; the
-  release workflow does not build it yet, and `watch.sh` does nothing for it when it is not installed.
+  Lumen Guide, the overlay over Live TV (`docs/plans/guide-overlay.md`). From 2.1.5 the release workflow builds Lumen Guide too and lists it
+  in the Homebrew Channel beside Lumen. `watch.sh` does nothing for it when it is not installed.
 - Credits for the forks and projects this work drew on are in `README.md` (Credits) and `THIRD_PARTY_NOTICES.md`.
-- Pick up next: the Verify items below, then Lumen Guide's own (verify) list in `docs/plans/guide-overlay.md` (Status). After that,
-  whether Lumen Guide goes into the Homebrew Channel release as a second package.
+- Pick up next: the Verify items below, then Lumen Guide's own (verify) list in `docs/plans/guide-overlay.md` (Status).
 
 ---
 

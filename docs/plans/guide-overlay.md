@@ -46,7 +46,7 @@ front). Details in `docs/research/spikes.md`, "Overlay window from a developer a
 - **Data from the TV, not from Lumen.** The channel list and programmes come from the same root calls as Lumen's guide
   (`app/src/lib/root.ts`: `channelList`, `nowNext`, `eventList`, `currentChannel`, `openChannel`). Lumen Guide keeps its own cache (its own
   `localStorage`) so a second LIST draws at once, then refreshes.
-- `npm run deploy:home` installs both apps. The Homebrew Channel release ships Lumen Guide as a second package later, once it works on dev builds.
+- `npm run deploy:home` installs both apps. From 2.1.5 each release also builds Lumen Guide (`tools/build_release.py`), with Lumen's version, attaches it to the GitHub release and lists it in the Homebrew Channel's stable repository beside Lumen (`tools/gen_hbc_repo.py`).
 
 ## The spike (answered 2026-11-07)
 
@@ -61,7 +61,7 @@ Recording, reminders, and the "On Now" picture grid from LG's list.
 
 ## Status
 
-First build installed on 2026-11-07 (dev build only, not in the Homebrew Channel release).
+First build installed on 2026-11-07 (dev build). Since 2.1.5 it is also in the Homebrew Channel release.
 
 - **Where it is:** `app/guide.html` and `app/src/guide/`, styles in `app/src/theme/lguide.css`, appinfo in `app/public-guide/`. `npm --prefix app run build:guide` builds it into `app/dist-guide/`. `npm run deploy:guide` installs it over SSH, and `npm run deploy:home` now installs it after Lumen.
 - **LIST is bound:** `/home/root/.config/lginputhook/keybinds.json` has `"787"` launching the guide beside the `"773"` Home bind. The file before the change is `keybinds.json.pre-guide`. The spike app `com.samrenfrew.overlaytest` is uninstalled.
