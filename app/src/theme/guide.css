@@ -4,17 +4,6 @@
 .guide__head { position: absolute; left: var(--layout-rows-edge); right: var(--layout-rows-edge); top: 50px; height: 84px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
 .guide__title { margin: 0; font-size: 56px; font-weight: 700; letter-spacing: -0.02em; }
 
-/* the Now and Next / Full guide switcher: the chosen half lighter; focused, it grows and the chosen half inverts */
-.guide__switch {
-	display: flex; flex-direction: row; padding: 6px; border-radius: 40px; background: var(--glass-row-switch);
-	box-shadow: inset 0 1.5px 1px -1px rgba(255, 255, 255, 0.45), inset 1.5px 0 1px -1px rgba(255, 255, 255, 0.2);
-	transform-origin: 100% 50%; transition: transform var(--dur-focus) ease-out;
-}
-.guide__seg { padding: 12px 28px; border-radius: 34px; font-size: 26px; font-weight: 500; opacity: 0.75; white-space: nowrap; }
-.guide__seg--on { background: rgba(255, 255, 255, 0.22); font-weight: 600; opacity: 1; }
-.guide__switch--focused { transform: scale(var(--lift-pill)); box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3); }
-.guide__switch--focused .guide__seg--on { background: var(--focus-fill); color: var(--focus-ink); }
-
 /* the channel number being typed: a glass pill in the middle, dimmer while no channel has exactly that number */
 .guide__typed {
 	position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 150px; height: 84px; box-sizing: border-box; padding: 0 34px; border-radius: 42px;
@@ -103,3 +92,90 @@ html.reduce-motion .guide__track, html.reduce-motion .guide__row { transition: n
 .fg__ptime { margin-top: 2px; font-size: 18px; font-weight: 500; opacity: 0.75; white-space: nowrap; }
 .fg__nowline { position: absolute; left: 402px; width: 2px; height: 570px; z-index: 1; pointer-events: none; background: var(--ink-guide); }
 .fg__nowline::before { content: ''; position: absolute; left: -5px; top: 0; width: 12px; height: 12px; border-radius: 6px; background: var(--ink-guide); }
+
+/* ---------- the rail (components/Rail.tsx): icons 96px wide at the left edge; Left opens it to 340px over the list, with names; each item is as wide as its name. Each
+   guide sets --rail-top so its items start beside its rows. ---------- */
+
+.rail { position: absolute; left: 0; top: 0; width: 96px; height: 100%; z-index: 2; }
+.rail__plate {
+	position: absolute; left: 0; top: 0; width: 340px; height: 100%; background: rgba(12, 14, 24, 0.94); box-shadow: inset -1.5px 0 1px -1px rgba(255, 255, 255, 0.3), 18px 0 40px rgba(0, 0, 0, 0.35);
+	transform: translateX(-340px); transition: transform var(--dur-slide) var(--ease-out); will-change: transform;
+}
+.rail--open .rail__plate { transform: translateX(0); }
+.rail__item {
+	position: relative; margin: 0 0 12px 16px; height: 64px; width: 64px; border-radius: 32px; display: flex; flex-direction: row; align-items: center;
+	color: var(--ink-guide); opacity: 0.6; transition: opacity var(--dur-focus) ease-out;
+}
+.rail__plate + .rail__item { margin-top: var(--rail-top, 200px); }
+.rail__item--on { opacity: 1; background: var(--glass-row); box-shadow: var(--glass-row-rim); }
+.rail__item .tile__glyph { position: absolute; left: 16px; top: 16px; width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.rail__label { margin-left: 72px; padding-right: 28px; font-size: 30px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity var(--dur-fade) ease-out; }
+.rail--open .rail__item { width: max-content; min-width: 252px; opacity: 0.85; }
+.rail--open .rail__label { opacity: 1; }
+/* the focused item is a white capsule behind the icon and the name */
+.rail__item::before {
+	content: ''; position: absolute; left: 0; top: 0; width: 100%; height: 64px; z-index: -1; border-radius: 32px; background: var(--focus-fill); opacity: 0; will-change: opacity;
+}
+.rail__item--focused { color: var(--focus-ink); opacity: 1; }
+.rail__item--focused::before { opacity: 1; }
+
+html.reduce-motion .rail * { transition: none; }
+
+/* ---------- placeholders: where data is still loading, blocks the shape of the text it will be, so the screen is drawn at once and the
+   text fades in over them (.reveal) rather than jumping into view ---------- */
+
+.ph { display: block; border-radius: 8px; background: var(--ph-fill); }
+.fg__prog--focused .ph { background: rgba(0, 0, 0, 0.12); }
+.reveal { animation: ph-reveal var(--dur-reveal) ease-out both; }
+@keyframes ph-reveal { from { opacity: 0; } to { opacity: 1; } }
+.guide__ph-title { width: 70%; height: 28px; margin: 5px 0; }
+.guide__ph-next { width: 60%; height: 22px; margin: 4px 0; }
+.guide__ph-time { flex: 0 0 150px; height: 18px; margin: 4px 0; }
+.guide__ph-start { flex: 0 0 70px; height: 18px; margin: 4px 0; }
+.guide__ph-meter { flex: 0 1 220px; height: 5px; margin: 0 16px; border-radius: 3px; }
+.fg__prog--ph { justify-content: center; }
+.fg__ph-title { width: 70%; height: 22px; }
+.fg__ph-time { width: 60px; height: 14px; margin-top: 6px; }
+.fg__ph-headline { width: 520px; height: 50px; margin-top: 14px; border-radius: 12px; }
+.fg__ph-meta { width: 300px; height: 22px; margin-top: 18px; }
+
+/* ---------- Live preview (dev builds, components/LivePreview.tsx): a 16:9 box. In Now and Next it floats at the bottom right, past the rows' edge so it reads as an overlay, over the last two
+   rows, and focus stops on the fourth row (Guide.tsx FOCUS_AT_PREVIEW) so the rows under it are the ones further down; in the Full guide it sits
+   beside the details. ---------- */
+
+.guide__side { position: absolute; right: 64px; bottom: 56px; z-index: 3; width: 448px; }
+.screen--guide-full .guide__side { right: var(--layout-rows-edge); top: 150px; bottom: auto; width: 400px; }
+.screen--guide-preview .fg__detail, .screen--guide-preview .fg__desc { width: 1220px; max-width: 1220px; }
+
+.lpv { position: relative; width: 100%; padding-top: 56.25%; border-radius: var(--radius-card); overflow: hidden; background: #000; box-shadow: var(--glass-row-rim), 0 18px 44px rgba(0, 0, 0, 0.45); }
+.lpv__plate, .lpv__picture { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.lpv__plate {
+	display: flex; flex-direction: column; align-items: center; justify-content: center;
+	background: var(--chan-sweep) var(--chan-bg); color: #fff; font-size: 30px; font-weight: 700; text-align: center;
+	z-index: 1;
+}
+.lpv__plate img { max-width: 50%; max-height: 40%; object-fit: contain; }
+.lpv__none { margin-top: 14px; font-size: 22px; font-weight: 500; opacity: 0.8; }
+/* the plate covers the video, whose hole in the page is black until its first frames: LivePreview.tsx sets --playing once the TV unmutes the picture, and the 200 ms wait lets the first frames settle before the fade (Sam's pick on the TV), and the plate is back at once on the next channel */
+.lpv__picture { object-fit: cover; }
+.lpv--playing .lpv__plate { opacity: 0; transition: opacity var(--dur-fade) ease-out 200ms; }
+/* off the TV the wallpaper stands in for the channel's picture */
+.lpv__picture--mock { background: var(--wp-bg, linear-gradient(135deg, #2b3a55, #11151f)) center / cover no-repeat; }
+.lpv__live {
+	z-index: 2; position: absolute; left: 16px; top: 16px; padding: 3px 12px; border-radius: 10px; background: rgba(0, 0, 0, 0.55); color: #fff;
+	font-size: 18px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0; transition: opacity var(--dur-fade) ease-out;
+}
+.lpv--playing .lpv__live { opacity: 1; }
+/* a spinner where the Live tag goes, from landing on a channel until the picture shows; LivePreview.tsx unmounts it after its fade */
+.lpv__spin {
+	z-index: 2; position: absolute; left: 18px; top: 18px; width: 22px; height: 22px; box-sizing: border-box; border-radius: 50%;
+	border: 3px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: lpv-spin 0.9s linear infinite; will-change: transform;
+	transition: opacity var(--dur-fade) ease-out;
+}
+.lpv__spin--done { opacity: 0; }
+@keyframes lpv-spin { to { transform: rotate(360deg); } }
+/* in a Home channel tile (ChannelTile.tsx) it fills the tile box, under the progress bar; its plate matches the tile's logo (.chan__logo in live-tv.css) */
+.lpv--fill { position: absolute; left: 0; top: 0; width: 100%; height: 100%; padding-top: 0; border-radius: inherit; box-shadow: none; }
+/* clear of the tile's larger corner radius */
+.lpv--fill .lpv__spin { left: 20px; top: 20px; width: 18px; height: 18px; border-width: 2.5px; }
+.lpv--fill .lpv__plate img { position: absolute; left: 10%; top: 16px; width: 80%; height: calc(100% - 62px); max-width: none; max-height: none; }

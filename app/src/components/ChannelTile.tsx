@@ -1,8 +1,12 @@
 import {t as tr} from '../lib/i18n';
-import {channelColor, clockText, progress, timeLeft, type NowNext} from '../lib/livetv';
+import {channelColor, clockText, progress, timeLeft, type Channel, type NowNext} from '../lib/livetv';
+import {LivePreview} from './LivePreview';
 
 /** What a Live TV tile shows (TileModel.live). */
 export interface LiveTile extends NowNext {
+	channel: Channel;
+	/** dev builds: focused, the tile plays the channel's live picture (undefined: off, or Home is not in front) */
+	preview?: {sound: boolean};
 	number: string;
 	name: string;
 	/** data: URI; without one the tile shows the channel's name */
@@ -31,6 +35,7 @@ export function ChannelTile ({live, classes, onHover, onActivate}: Props) {
 				{live.logo
 					? <img class="chan__logo" src={live.logo} alt="" decoding="async" />
 					: <div class="chan__name">{live.name}</div>}
+				{live.preview && classes.indexOf('tile--focused') !== -1 && <LivePreview channel={live.channel} logo={live.logo} active sound={live.preview.sound} fill />}
 				{/* empty with no programme on, so every tile keeps the same shape */}
 				<div class="chan__bar"><span style={{transform: `scaleX(${now ? progress(now, at) : 0})`}} /></div>
 			</div>

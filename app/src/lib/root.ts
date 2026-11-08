@@ -142,6 +142,15 @@ export function eventList (channelIds: string[], localStart: string, localEnd: s
 	return run(luna('luna://com.webos.service.iepg/getEventList', {bFVPChannelId: true, channelId: channelIds, dataType: 0, fepgType: 'Forward', localStartTime: localStart, localEndTime: localEnd, sort: 0}), 12000);
 }
 
+/** The id of Live TV's last channel, or '' when the TV gives none. The page itself may not call this service. `apiadapter/tv/getCurrentChannel`
+ *  only knows channels opened through apiadapter; this one is what Glasshouse reads as Live TV leaves (docs/research/live-tv.md). */
+export function currentChannel (): Promise<string> {
+	return run(luna('luna://com.webos.service.utp.boot/getLastChannelId', {})).then((text) => {
+		const m = /"channelId":"([^"]*)"/.exec(text);
+		return m && CHANNEL_ID.test(m[1]) ? m[1] : '';
+	});
+}
+
 /** Opens Live TV on a channel (from Home too). */
 export function openChannel (channelId: string): Promise<void> {
 	if (!CHANNEL_ID.test(channelId)) return Promise.reject(new Error('refused: channel id'));

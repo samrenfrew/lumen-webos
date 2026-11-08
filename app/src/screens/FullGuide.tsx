@@ -23,9 +23,13 @@ interface Props {
 	at: number;
 	onAt: (i: number) => void;
 	active: boolean;
-	onOpen: (channel: Channel) => void;
+	/** OK: the channel, and the programme the focus is on (Lumen Guide tunes only to one that is on now) */
+	onOpen: (channel: Channel, programme?: Programme) => void;
 	/** Up on the first channel: focus moves to the switcher */
-	onTop: () => void;
+	/** Left past the earliest programme: the Guide opens its rail */
+	onLeft: () => void;
+	/** the Guide's rail is open: no programme shows focused */
+	railOpen?: boolean;
 	onClose: () => void;
 }
 
@@ -41,6 +45,8 @@ const SPAN = 4 * HALF_HOUR;
 const GRID_W = 1298;
 const PX_PER_MS = GRID_W / SPAN;
 const halfHour = (ms: number) => ms - (ms % HALF_HOUR);
+/** placeholder programmes across a row while the schedule loads, as fractions of the grid's width */
+const PH_CELLS: [number, number][] = [[0, 0.3], [0.3, 0.72], [0.72, 1]];
 
 /** "in 40 min", "in 1 hr 5 min" */
 function startsIn (p: Programme, t: number): string {
@@ -55,9 +61,10 @@ function pick (list: Programme[], a: number, winEnd: number): Programme | undefi
 
 /** The Full guide: two hours across, seven channels down, a line at now. The focused programme's details sit above the grid. Up/Down move
  *  between channels and keep the time the focus is at, so the focus stays on what is on now as it moves; Left/Right move between programmes
- *  and scroll the grid half an hour at a time, as far back as the half hour now is in and as far on as the schedule was read. OK opens Live TV
+ *  and scroll the grid half an hour at a time, as far back as the half hour now is in and as far on as the schedule was read, and Left past
+ *  the earliest calls onLeft (the Guide's rail). OK opens Live TV
  *  on the channel. Only the rows near the view are drawn, and only the programmes inside the two hours. */
-export function FullGuide ({channels, listings, from, thin, loading, logos, now, at, onAt, active, onOpen, onTop, onClose}: Props) {
+export function FullGuide ({channels, listings, from, thin, loading, logos, now, at, onAt, active, onOpen, onLeft, railOpen, onClose}: Props) {
 	const base = halfHour(now);
 	const lastWin = Math.max(base, from + SCHEDULE_HOURS * 3600000 - SPAN);
 	const [winState, setWin] = useState(base);
@@ -77,7 +84,7 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 
 	const handleKey = useCallback((key: NavKey): boolean => {
 		if (key === 'back') onClose();
-		else if (key === 'up') { if (at === 0) onTop(); else onAt(at - 1); }
+		else if (key === 'up') onAt(clamp(at - 1, 0, Math.max(0, last)));
 		else if (key === 'down') onAt(clamp(at + 1, 0, Math.max(0, last)));
 		else if (key === 'right' || key === 'left') {
 			const list = listOf(channels[at]);
@@ -88,11 +95,12 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 			if (p && p.end > now && p.start < lastWin + SPAN) focusOn(p);
 			else if (key === 'right' && win < lastWin) { setWin(win + HALF_HOUR); setAnchor(Math.max(anchor, win + 2 * HALF_HOUR)); }
 			else if (key === 'left' && win > base) { setWin(win - HALF_HOUR); setAnchor(Math.max(now, win - HALF_HOUR)); }
+			else if (key === 'left') onLeft();
 		}
 		return true;
-	}, [at, last, focused, anchor, win, base, lastWin, now, channels, listings, onAt, onTop, onClose]);
+	}, [at, last, focused, anchor, win, base, lastWin, now, channels, listings, onAt, onLeft, onClose]);
 	useKeys(handleKey, active);
-	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at]); }, onLongPress: () => undefined}, active);
+	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at], focused); }, onLongPress: () => undefined}, active);
 
 	const {top, from: rowFrom, to: rowTo} = rowWindow(channels.length, at, IN_VIEW, FOCUS_AT, SPARE);
 	const t = Date.now();
@@ -104,7 +112,9 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 		<>
 			<div class="fg__detail">
 				{ch && <div class="fg__chan">{ch.number} · {ch.name}</div>}
-				<div class="fg__title">{focused ? focused.title : tr(thin ? 'Only now and next in the guide data' : 'No guide data')}</div>
+				{!focused && loading
+					? <><i class="ph fg__ph-headline" /><i class="ph fg__ph-meta" /></>
+					: <div class="fg__title reveal" key="title">{focused ? focused.title : tr(thin ? 'Only now and next in the guide data' : 'No guide data')}</div>}
 				{focused && (
 					<div class="fg__meta">
 						<span>{clockText(focused.start)} – {clockText(focused.end)}</span>
@@ -137,7 +147,12 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 									<span class="fg__name">{c.name}</span>
 								</div>
 								<div class="fg__line">
-									{shown.length === 0 && <div class={`fg__prog fg__prog--empty${isAt ? ' fg__prog--focused' : ''}`} style={{left: '0px', width: `${GRID_W - 8}px`}}><div class="fg__ptitle">{tr(loading ? 'Loading…' : 'No guide data')}</div></div>}
+									{shown.length === 0 && loading && PH_CELLS.map(([a, b], k) => (
+										<div key={`ph${k}`} class={`fg__prog fg__prog--ph${isAt && k === 0 ? ' fg__prog--focused' : ''}`} style={{left: `${Math.round(a * GRID_W)}px`, width: `${Math.round((b - a) * GRID_W) - 8}px`}}>
+											<i class="ph fg__ph-title" /><i class="ph fg__ph-time" />
+										</div>
+									))}
+									{shown.length === 0 && !loading && <div class={`fg__prog fg__prog--empty${isAt ? ' fg__prog--focused' : ''}`} style={{left: '0px', width: `${GRID_W - 8}px`}}><div class="fg__ptitle">{tr('No guide data')}</div></div>}
 									{shown.map((p) => {
 										const left = x(p.start);
 										const width = x(p.end) - left - 8;
@@ -145,12 +160,12 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 										return (
 											<div
 												key={p.start}
-												class={`fg__prog${isAt && p === focused ? ' fg__prog--focused' : ''}${p.end <= t ? ' fg__prog--past' : ''}`}
+												class={`fg__prog${isAt && p === focused && !railOpen ? ' fg__prog--focused' : ''}${p.end <= t ? ' fg__prog--past' : ''}`}
 												style={{left: `${left}px`, width: `${Math.max(0, width)}px`}}
 												onMouseEnter={() => { onAt(i); focusOn(p); }}
 												onClick={() => onOpen(c)}
 											>
-												{width > 60 && <><div class="fg__ptitle">{cut ? '‹ ' : ''}{p.title}</div><div class="fg__ptime">{clockText(p.start)}</div></>}
+												{width > 60 && <div class={loading ? 'reveal' : undefined}><div class="fg__ptitle">{cut ? '‹ ' : ''}{p.title}</div><div class="fg__ptime">{clockText(p.start)}</div></div>}
 											</div>
 										);
 									})}

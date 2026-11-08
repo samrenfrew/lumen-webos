@@ -118,6 +118,12 @@ export interface UserConfig {
 	videoHours: string;
 	/** dev builds: show the frame-rate counter (lib/fps.ts) */
 	fpsCounter: boolean;
+	/** dev builds: a live picture of the channel in focus in the Guide (components/LivePreview.tsx) */
+	guidePreview: boolean;
+	/** dev builds: the focused channel tile on Home's Live TV row plays a live preview */
+	homePreview: boolean;
+	/** dev builds: the live preview plays its sound */
+	guideSound: boolean;
 	/** false on a fresh install until the installed apps have been put on the home screen once */
 	seeded: boolean;
 	/** the built-in tiles (Settings, TV Settings, Inputs) have been put on the home screen once; taken off, they stay off */
@@ -188,6 +194,9 @@ export const DEFAULT_CONFIG: UserConfig = {
 	firstRow: 6,
 	videoHours: 'always',
 	fpsCounter: false,
+	guidePreview: false,
+	homePreview: false,
+	guideSound: false,
 	seeded: false,
 	builtinTiles: false,
 	liveTvRow: true,
@@ -272,6 +281,9 @@ export function parseConfig (raw: string): UserConfig {
 		firstRow: parsed.firstRow === 5 || parsed.firstRow === 7 ? parsed.firstRow : 6,
 		videoHours: parsed.videoHours === 'day' || parsed.videoHours === 'evening' || parsed.videoHours === 'night' ? parsed.videoHours : 'always',
 		fpsCounter: parsed.fpsCounter === true,
+		guidePreview: __LUMEN_DEV__ && parsed.guidePreview === true,
+		homePreview: __LUMEN_DEV__ && parsed.homePreview === true,
+		guideSound: __LUMEN_DEV__ && parsed.guideSound === true,
 		seeded: parsed.seeded !== false,
 		builtinTiles: parsed.builtinTiles === true,
 		liveTvRow: parsed.liveTvRow !== false,

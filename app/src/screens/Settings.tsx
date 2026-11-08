@@ -52,6 +52,7 @@ interface Props {
 /** The option pages, in the order the top page lists them (after the grid pages). */
 const GROUPS: {id: OptionGroup; label: string; glyph: GlyphName}[] = [
 	{id: 'home', label: 'Home Screen', glyph: 'house'},
+	{id: 'livetv', label: 'Live TV', glyph: 'guide'},
 	{id: 'wallpaper', label: 'Wallpaper', glyph: 'picture'},
 	{id: 'screensaver', label: 'Screensaver', glyph: 'screensaver'},
 	{id: 'brightness', label: 'Brightness', glyph: 'sun'},

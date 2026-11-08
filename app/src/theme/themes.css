@@ -62,6 +62,7 @@ html.light {
 	--cc-fill-glyph: #fff;
 
 	--glass-row: rgba(255, 255, 255, 0.42);
+	--ph-fill: rgba(0, 0, 0, 0.07);
 	--glass-row-on: rgba(255, 255, 255, 0.42);
 	--glass-row-switch: rgba(255, 255, 255, 0.42);
 	--glass-row-rim: inset 0 0 0 1.5px rgba(255, 255, 255, 0.7);

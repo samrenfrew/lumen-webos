@@ -121,6 +121,8 @@
 
 	/* ---------- glass-row: faint glass for rows on the veil (the Guide, the Full guide, the switcher) ---------- */
 	--glass-row: rgba(255, 255, 255, 0.09);
+	/* placeholder blocks drawn where content is still loading (guide.css .ph) */
+	--ph-fill: rgba(255, 255, 255, 0.07);
 	--glass-row-on: rgba(255, 255, 255, 0.2);
 	--glass-row-switch: rgba(255, 255, 255, 0.1);
 	--glass-row-rim: inset 0 1.5px 1px -1px rgba(255, 255, 255, 0.45), inset 1.5px 0 1px -1px rgba(255, 255, 255, 0.2);
@@ -144,6 +146,8 @@
 	--dur-scroll: 260ms;
 	--dur-fade: 220ms;
 	--dur-slide: 320ms;
+	/* content fading in over shapes already drawn (Lumen Guide's rows) */
+	--dur-reveal: 150ms;
 	/* Up takes 600ms and eases in and out, as a strong ease-out felt snappy; Down moves at once but eases over 675ms, so the glass pane is seen to slide up over the screen */
 	--ease-up: cubic-bezier(0.65, 0, 0.25, 1);
 	--ease-down: cubic-bezier(0.25, 0.1, 0.25, 1);

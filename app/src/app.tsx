@@ -52,7 +52,7 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye'} as const;
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -212,6 +212,8 @@ export function App () {
 	const [inputs, setInputs] = useState<InputSource[]>(() => (isWebOS() && readCache<InputSource[]>(INPUTS_CACHE_KEY)) || []);
 	const [toast, setToast] = useState<ToastMessage | null>(null);
 	const [controls, setControls] = useState(false);
+	/** each press of the Guide button opens the Guide afresh, so it starts on Live TV's channel even when it was left open behind Live TV */
+	const [guideOpens, setGuideOpens] = useState(0);
 	const configRef = useRef(config);
 	configRef.current = config;
 	const toastTimer = useRef(0);
@@ -256,7 +258,7 @@ export function App () {
 			// watch.sh opens Lumen with {"view":"ambient"} when the TV's screensaver starts (Settings > Screensaver), with the app it came up over in from
 			if (p.view === 'ambient' && configRef.current.ambientOn) { ambientOpening.current = null; saverFrom.current = p.from || ''; setScreen('ambient'); }
 			// {"view":"guide"} is the remote's Guide button, rebound with LG Input Hook; the Guide only has data with the Live TV row on
-			if (p.view === 'guide' && configRef.current.liveTvRow) { setScreen('guide'); setControls(false); }
+			if (p.view === 'guide' && configRef.current.liveTvRow) { setScreen('guide'); setControls(false); setGuideOpens((n) => n + 1); }
 			// a plain relaunch is the remote's Home button: back to the home screen from Settings, the Guide, the screensaver or Control Center
 			if (!p.view) { saverFrom.current = ''; setScreen('home'); setControls(false); }
 		};
@@ -471,15 +473,18 @@ export function App () {
 	// (the grid rows are 'dock', 'dock:1', 'dock:2'...)
 	const firstRow = config.firstRow;
 	/** the Live TV row: the Guide tile, then the channels picked in Settings > Channels (or the first few), each with what is on now */
+	// dev builds: the focused channel tile plays a live preview while Home is in front (components/LivePreview.tsx)
+	const homePreview = __LUMEN_DEV__ && config.homePreview && screen === 'home' && !controls ? {sound: config.guideSound} : undefined;
+	const homePreviewKey = homePreview ? String(homePreview.sound) : '';
 	const liveTiles = useMemo((): TileModel[] => {
 		if (!config.liveTvRow || !live.channels.length) return [];
 		const guide: TileModel = {key: LIVE.guide, label: 'Guide', glyph: 'guide', color: 'rgba(255, 255, 255, 0.16)'};
 		return [guide].concat(rowChannels(live.channels, config.liveChannels).map((c): TileModel => ({
 			key: LIVE.prefix + c.id,
 			label: c.name,
-			live: {number: c.number, name: c.name, logo: c.logoPath && live.logos[c.logoPath], at: live.now, loading: !!live.pending[c.signal], ...nowNextAt(live.listings[c.signal], live.now)}
+			live: {channel: c, number: c.number, name: c.name, logo: c.logoPath && live.logos[c.logoPath], at: live.now, loading: !!live.pending[c.signal], preview: homePreview, ...nowNextAt(live.listings[c.signal], live.now)}
 		})));
-	}, [config.liveTvRow, config.liveChannels, live, config.language]);
+	}, [config.liveTvRow, config.liveChannels, live, config.language, homePreviewKey]);
 	/** the furthest along the row a focused channel may sit with its now/next block still on the row (Row's slot) */
 	const liveSlot = useMemo(() => {
 		const t = TILES_FOR[firstRow] || TILES_FOR[6];
@@ -559,6 +564,9 @@ export function App () {
 			[OPTION.ambientBrightness]: {labels: ['As the TV is set', 'Dim', 'Very dim'], values: ['tv', 'dim', 'low'], now: config.ambientBrightness},
 			[OPTION.nightDim]: {labels: ['Off', 'At night', 'Always'], values: ['off', 'night', 'always'], now: config.wallpaperDim},
 			[OPTION.videoHours]: {labels: ['Always', 'Daytime (7 am to 7 pm)', 'Evenings (5 pm to 11 pm)', 'Night (7 pm to 7 am)'], values: ['always', 'day', 'evening', 'night'], now: config.videoHours},
+			[OPTION.guidePreview]: {labels: ['Off', 'On'], values: ['off', 'on'], now: config.guidePreview ? 'on' : 'off'},
+			[OPTION.homePreview]: {labels: ['Off', 'On'], values: ['off', 'on'], now: config.homePreview ? 'on' : 'off'},
+			[OPTION.guideSound]: {labels: ['Muted', 'On'], values: ['off', 'on'], now: config.guideSound ? 'on' : 'off'},
 			[OPTION.blOn]: {labels: ['Off', 'On'], values: ['off', 'on'], now: config.brightnessOn ? 'on' : 'off'},
 			[OPTION.blDayAt]: {labels: halfHours(5, 12), values: halfHours(5, 12), now: config.blDayAt},
 			[OPTION.blEveningAt]: {labels: halfHours(15, 22), values: halfHours(15, 22), now: config.blEveningAt},
@@ -654,6 +662,30 @@ export function App () {
 				value: config.homeForecast,
 				...listed(OPTION.homeCast)
 			},
+
+			// ----- Live TV (dev builds while the live preview is tried) -----
+			...(__LUMEN_DEV__ && config.liveTvRow ? [{
+				id: OPTION.guidePreview,
+				group: 'livetv' as const,
+				label: 'Preview in the Guide',
+				description: 'A live picture of the channel in focus in the Guide. It starts when you stop on a channel for a moment, so flicking through does not tune each one.',
+				value: config.guidePreview,
+				...listed(OPTION.guidePreview)
+			}, {
+				id: OPTION.homePreview,
+				group: 'livetv' as const,
+				label: 'Preview on the Live TV row',
+				description: 'On the home screen, the channel in focus on the Live TV row turns into its live picture after a moment.',
+				value: config.homePreview,
+				...listed(OPTION.homePreview)
+			}, ...(config.guidePreview || config.homePreview ? [{
+				id: OPTION.guideSound,
+				group: 'livetv' as const,
+				label: 'Sound',
+				description: 'Play the channel\'s sound with the preview, or keep it silent.',
+				value: config.guideSound,
+				...listed(OPTION.guideSound)
+			}] : [])] : []),
 
 			// ----- Wallpaper -----
 			{
@@ -1137,6 +1169,9 @@ export function App () {
 		else if (optionId === OPTION.immichDays) updateConfig({...c, immichRecentDays: Number(value)});
 		else if (optionId === OPTION.wpAuto) updateConfig({...c, wpAutoMinutes: Number(value)});
 		else if (optionId === OPTION.wpType) updateConfig({...c, wallpaperType: v});
+		else if (optionId === OPTION.guidePreview) updateConfig({...c, guidePreview: v === 'on'});
+		else if (optionId === OPTION.homePreview) updateConfig({...c, homePreview: v === 'on'});
+		else if (optionId === OPTION.guideSound) updateConfig({...c, guideSound: v === 'on'});
 		else if (optionId === OPTION.dockHide) updateConfig({...c, dockHide: v});
 		else if (optionId === OPTION.ambientOn) {
 			updateConfig({...c, ambientOn: v === 'on'});
@@ -1183,7 +1218,7 @@ export function App () {
 			{/* Home stays mounted under Settings so it keeps its focus position. */}
 			<Home rows={rows} tiles={TILES_FOR[firstRow] || TILES_FOR[6]} perRow={firstRow} topItems={TOP_ITEMS} inputs={shownInputs.map(inputTile)} active={screen === 'home' && !controls} onActivate={onActivate} showPeriod={config.showAmPm} onEdit={onEdit} folders={folderMap} weather={weather} weatherLine={config.showWeather && !(config.homeForecast && config.homeForecastSize === 'large')} forecast={config.homeForecast ? config.homeForecastSize as 'small' | 'large' : undefined} dockHide={config.dockHide} dockDim={config.dockDim} captions={config.wallpaperCaptions} focusRow={focusRow} />
 			{screen === 'ambient' && <Ambient show={config.saverShow} source={config.ambient} pictures={config.wallpaperPicks} seconds={config.ambientSeconds} backlight={AMBIENT_BACKLIGHT[config.ambientBrightness]} weather={weather} weatherLine={config.showWeather && !(config.saverForecast && config.saverForecastSize === 'large')} forecast={config.saverForecast ? config.saverForecastSize as 'small' | 'large' : undefined} showPeriod={config.showAmPm} print={config.ambientPrint} opening={ambientOpening.current} onExit={leaveAmbient} />}
-			{screen === 'guide' && <Guide channels={live.channels} listings={live.listings} logos={live.logos} now={live.now} schedule={live.schedule} pending={live.pending} full={config.guideFull} onMode={(full) => { if (configRef.current.guideFull !== full) updateConfig({...configRef.current, guideFull: full}); }} active={!controls} onOpen={watchChannel} onClose={() => setScreen('home')} />}
+			{screen === 'guide' && <Guide key={guideOpens} channels={live.channels} listings={live.listings} logos={live.logos} now={live.now} schedule={live.schedule} pending={live.pending} full={config.guideFull} preview={__LUMEN_DEV__ && config.guidePreview} sound={config.guideSound} onMode={(full) => { if (configRef.current.guideFull !== full) updateConfig({...configRef.current, guideFull: full}); }} active={!controls} onOpen={watchChannel} onClose={() => setScreen('home')} />}
 			{screen === 'settings' && <Settings tabs={tabs} wallpaper={wallpaper} options={options} active onToggle={onToggle} onReorder={onReorder} onOption={onOption} onChoose={onChoose} onText={onText} onClose={() => setScreen('home')} />}
 			{controls && <ControlCenter
 				darkMode={config.darkMode}

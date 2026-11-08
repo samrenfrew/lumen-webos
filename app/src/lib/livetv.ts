@@ -383,17 +383,24 @@ export function cachedLogos (): Record<string, string> {
 
 /** Reads the logos not in the cache yet, in one shell round-trip, and returns the whole cache. A logo whose file is missing (the TV
  *  clears /tmp on a reboot and fetches them again later) is simply asked for again next time. */
+/** logo files asked for and not found while this page runs, so each guide open does not spawn a shell to ask again */
+const logosNotFound = new Set<string>();
+
 export function readLogos (channels: Channel[]): Promise<Record<string, string>> {
 	const cache = cachedLogos();
-	const missing = channels.map((c) => c.logoPath).filter((p, i, all): p is string => !!p && !cache[p] && all.indexOf(p) === i);
+	const missing = channels.map((c) => c.logoPath).filter((p, i, all): p is string => !!p && !cache[p] && !logosNotFound.has(p) && all.indexOf(p) === i);
 	if (!missing.length || !isWebOS()) return Promise.resolve(cache);
+	missing.forEach((p) => logosNotFound.add(p));
 	return readIcons(missing).then((out) => {
 		const jobs: Promise<void>[] = [];
 		for (const line of out.split('\n')) {
 			const m = /^(\d+) ([A-Za-z0-9+\/=]+)$/.exec(line);
 			const path = m && missing[Number(m[1])];
+			if (m && path) logosNotFound.delete(path);
 			if (m && path) jobs.push(crispLogo(`data:image/png;base64,${m[2]}`).then((uri) => { cache[path] = uri; }));
 		}
+		// a logo whose file is still missing adds nothing: skip the save, since rewriting the 3 MB cache stalls the guide's open by 100 to 370 ms
+		if (!jobs.length) return cache;
 		return Promise.all(jobs).then(() => {
 			try { localStorage.removeItem('lumen-livetv-logos-v1'); } catch { /* the unsharpened logos only take space */ }
 			writeCache(LOGO_CACHE_KEY, cache);
