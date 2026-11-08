@@ -1,15 +1,15 @@
 {
   "id": "com.samrenfrew.lumen.guide",
-  "version": "2.1.6",
+  "version": "2.2.0",
   "type": "web",
   "title": "Lumen Guide",
   "appDescription": "A narrow channel guide over Live TV, opened with LIST.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
   "rootRequired": true,
-  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.1.6/com.samrenfrew.lumen.guide_2.1.6_all.ipk",
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.0/com.samrenfrew.lumen.guide_2.2.0_all.ipk",
   "ipkHash": {
-    "sha256": "8a96a39bd380ff1519d7cf4acb2f519bab62507433152bfecb56087f79d7be49"
+    "sha256": "f7ad6fd416a7dc7f14c8afc732d9c24dcb07589de2306568ef2a2b6fb954675a"
   },
-  "ipkSize": 105992
+  "ipkSize": 105990
 }
