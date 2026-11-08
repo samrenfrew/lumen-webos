@@ -30,9 +30,13 @@ The build still targets `chrome79` and a classic script, not a module. The TV's 
 
 These are the main changes since the fork. [docs/plans/PLAN.md](docs/plans/PLAN.md) has the full list and the status of each item.
 
-- **Live TV.** A row of aerial channels with what is on now, a Now and Next guide, and a full week's guide. The Guide button on the remote can open it. See [docs/research/live-tv.md](docs/research/live-tv.md) and [docs/plans/live-tv-build.md](docs/plans/live-tv-build.md).
+- **Live TV.** A row of aerial channels with what is on now, a Now and Next guide, and a full week's guide. A rail at the left edge of the Guide switches between Now, Next and the Full guide. Rows show grey placeholder shapes while the guide data loads. The Guide button on the remote can open it. See [docs/research/live-tv.md](docs/research/live-tv.md) and [docs/plans/live-tv-build.md](docs/plans/live-tv-build.md).
+- **Lumen Guide (dev builds only).** A second, small app that draws a channel guide over the Live TV picture. In Live TV, LIST opens it on Now and GUIDE opens the Full guide. OK on a channel changes to it. The TV picture keeps playing behind it. It is not in the Homebrew Channel yet. To install it, set up a copy of this repository as in [Set up for development](#set-up-for-development), run `npm run deploy:guide`, then update the TV scripts (Settings > System > TV scripts). It needs LG Input Hook. See [docs/plans/guide-overlay.md](docs/plans/guide-overlay.md).
+- **Live preview (dev builds only).** The channel in focus plays as a small picture in the Guide and on the Live TV row, without a change to Live TV's last channel. Settings > Live TV turns it on. See [docs/research/live-tv.md](docs/research/live-tv.md).
+- **Brightness schedule.** Settings > Brightness sets the backlight and Eye Comfort for each part of the day, with an optional slow change between them. Each input (apps, Live TV, HDMI) gets the level.
+- **Home and Power, and Privacy.** Settings pages that make LG's own Home routes open Lumen, choose what the TV opens when it turns on, and withdraw LG's data agreements and block its ad servers. See [docs/home-and-power-on.md](docs/home-and-power-on.md) and [docs/privacy.md](docs/privacy.md).
 - **Immich photos.** Your own photos from an Immich server as the wallpaper and as a screensaver. Portrait photos show in pairs. See [docs/immich.md](docs/immich.md).
-- **Photo screensaver.** It starts after a set time on the home screen, or from Art mode in the Control Center. It can dim the backlight and has a Print look for paintings.
+- **Photo screensaver.** It starts after a set time on the home screen, or from Art mode in the Control Center. It can dim the backlight and has a Print look for paintings. When it comes up over an app, a key press goes back to that app.
 - **Control Center.** One grid of tvOS-sized glass controls. Sound, Picture, Theme and Clock open a list of choices, as on tvOS 26.
 - **Settings.** A stack of pages in the Apple TV layout, not tabs. See [docs/plans/settings-redesign.md](docs/plans/settings-redesign.md).
 - **Glass.** A light live blur on the dock and the top buttons, a colour fringe on the dock rim, and a highlight that follows focus. Settings > Appearance > Dock blur turns the dock blur on or off.
@@ -152,6 +156,8 @@ After each start, a dev build writes a "boot" line to `/var/lib/homehook/lumen.l
 |---|---|
 | `npm run build:ipk` | Builds an `.ipk` into `build/`. |
 | `npm run release` | Builds the public `.ipk` into `release/`, with no `app/private/`. |
+| `npm --prefix app run build:guide` | Builds Lumen Guide (the overlay) into `app/dist-guide/`. |
+| `npm run deploy:guide` | Installs Lumen Guide on the TV over SSH. `npm run deploy:home` also does this, after Lumen. |
 | `npm run push-font` | Copies the SF font to `/var/lib/homehook/fonts/` on the TV. Lumen copies it into its own folder after each update. |
 | `python3 tools/build_catalog.py` | Turns `tools/catalog.json` into the cloud wallpaper list. |
 | `python3 tools/harvest_open.py [met\|cleveland\|commons]` | Adds paintings and landscapes, with credits, to the catalogue. |
@@ -186,7 +192,7 @@ Do not push only to get a build onto the TV. Use `npm run deploy:home` for that.
 
 The scripts in [tools/tv/](tools/tv/) run on the TV. They go in `/var/lib/homehook/`, and [tools/tv/60-homehook](tools/tv/60-homehook) in `/var/lib/webosbrew/init.d/` starts them at boot.
 
-- [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver, and ends LG's screensaver when Settings > Screensaver is Off.
+- [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver, and runs the Settings > Brightness schedule. When Lumen Guide is installed, it binds LIST and GUIDE to the guide while Live TV is in front, and starts the guide hidden so that it opens at once. In other apps, GUIDE opens Lumen's Guide and LIST is left to the app.
 - [stadia.sh](tools/tv/stadia.sh) pairs a Stadia controller again in Moonlight after a drop, when you hold Stadia + Y.
 
 LG Input Hook owns the Home button on this TV. `watch.sh` takes over LG Home only when `/var/lib/homehook/home-takeover` exists.
@@ -203,7 +209,8 @@ The TV's graphics chip is the main limit on this project. These documents record
 | [docs/research/startup-perf.md](docs/research/startup-perf.md) | The cold-start freeze, its fix, and how to read the boot timeline. |
 | [docs/keep-alive.md](docs/keep-alive.md) | How to keep apps and Lumen open when you change apps. |
 | [docs/research/spikes.md](docs/research/spikes.md) | Short tests on the TV, one for each open question in the plan. |
-| [docs/research/live-tv.md](docs/research/live-tv.md) | How to read the channel list, the logos and the guide, and how to tune a channel. |
+| [docs/research/live-tv.md](docs/research/live-tv.md) | How to read the channel list, the logos and the guide, how to tune a channel, and the live preview. |
+| [docs/research/prior-art.md](docs/research/prior-art.md) | Other custom TV home screens and forks of Lumen, and what this project took from them. |
 
 The main findings:
 
@@ -214,6 +221,21 @@ The main findings:
 
 ## Credits
 
-Lumen was first made by [ammar027](https://github.com/ammar027/lumen-webos), on top of [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) (MIT). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). This project is not affiliated with LG, Apple or any app vendor.
+Lumen was first made by [ammar027](https://github.com/ammar027/lumen-webos), on top of [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) (MIT).
+
+Other projects gave ideas or code to this fork. Thank you to their authors.
+
+| Project | What it gave Lumen |
+|---|---|
+| [codefarm-eu/lumen-webos](https://github.com/codefarm-eu/lumen-webos) (MIT) | Its "Lumen bar", a dock drawn over other apps, showed that an overlay app works. Lumen Guide grew from it. Also the idea that the screensaver goes back to the app it came up over. |
+| [quangtdev/lumen-webos](https://github.com/quangtdev/lumen-webos) (MIT) | The wallpaper fade without the stall (night dimming as a black sheet, and a short head start before each fade), and the idea of a night backlight. |
+| [juanrusch/lumen-webos](https://github.com/juanrusch/lumen-webos) (MIT) | App names without the store tagline. |
+| [rorygallagher2024/glasshouse](https://github.com/rorygallagher2024/glasshouse) (MIT) | The Home takeover in `tools/tv/home-setup.sh`, the Privacy agreement and host lists in `tools/tv/privacy.sh`, the live channel preview, and how to read Live TV's last channel. |
+| [lasharor/cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) | More LG ad and tracking hosts for Settings > Privacy. |
+| [rudra-avatar/Hearth](https://github.com/rudra-avatar/Hearth) | The first approach to Home and Power: LG's default Home app setting and the switch-on app. |
+| [ecklf/lg-luma](https://github.com/ecklf/lg-luma) (MIT) | A second working example of the Home takeover on webOS 25. |
+| [webOS Homebrew](https://www.webosbrew.org/) and [LG Input Hook](https://github.com/Simon34545/lginputhook) | Root access, app installs, and the remote button binds that Lumen and Lumen Guide depend on. |
+
+[docs/research/prior-art.md](docs/research/prior-art.md) has the full review of these projects. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licences. This project is not affiliated with LG, Apple or any app vendor.
 
 Licence: [MIT](LICENSE).

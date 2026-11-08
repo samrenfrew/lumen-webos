@@ -5,6 +5,9 @@ This repository holds the launcher's source (`app/`), build tools, notes and TV-
 | Material | Licence | Used for |
 |---|---|---|
 | [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) | MIT, © webos-launcher contributors | the base of `app/`: forked at upstream commit `1e2c39b9a988ceb1b258e40e3592bda84a2aa076` (2026-09-23), with this project's changes committed on top. Upstream's own licence and notices are kept in `app/LICENSE` and `app/THIRD_PARTY_NOTICES.md` |
+| [rorygallagher2024/glasshouse](https://github.com/rorygallagher2024/glasshouse) | MIT, © 2026 Rory Gallagher | methods adapted into `tools/tv/home-setup.sh` (the Home takeover) and `tools/tv/privacy.sh` (agreement flags and the ads and telemetry host list) |
+| [lasharor/cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) | no licence stated | host names added to the block list in `tools/tv/privacy.sh` |
+| Forks of Lumen: [codefarm-eu](https://github.com/codefarm-eu/lumen-webos), [quangtdev](https://github.com/quangtdev/lumen-webos), [juanrusch](https://github.com/juanrusch/lumen-webos) | MIT | ideas and small changes taken into `app/` and `tools/tv/` (overlay app, wallpaper fade, app names); see `docs/research/prior-art.md` |
 | [Geist](https://github.com/vercel/geist-font) typeface | SIL Open Font License 1.1, © The Geist Project Authors | `app/src/assets/geist-wght.woff2` (and `tools/branding/`) |
 | [Preact](https://preactjs.com) | MIT, © Jason Miller | the UI library (comes with the upstream clone) |
 | [Simple Icons](https://simpleicons.org) glyph paths | CC0 | `tools/glyphs.json`, used to draw some app tiles |
