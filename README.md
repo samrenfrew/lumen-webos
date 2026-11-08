@@ -31,7 +31,7 @@ The build still targets `chrome79` and a classic script, not a module. The TV's 
 These are the main changes since the fork. [docs/plans/PLAN.md](docs/plans/PLAN.md) has the full list and the status of each item.
 
 - **Live TV.** A row of aerial channels with what is on now, a Now and Next guide, and a full week's guide. A rail at the left edge of the Guide switches between Now, Next and the Full guide. Rows show grey placeholder shapes while the guide data loads. The Guide button on the remote can open it. See [docs/research/live-tv.md](docs/research/live-tv.md) and [docs/plans/live-tv-build.md](docs/plans/live-tv-build.md).
-- **Lumen Guide (dev builds only).** A second, small app that draws a channel guide over the Live TV picture. In Live TV, LIST opens it on Now and GUIDE opens the Full guide. OK on a channel changes to it. The TV picture keeps playing behind it. It is not in the Homebrew Channel yet. To install it, set up a copy of this repository as in [Set up for development](#set-up-for-development), run `npm run deploy:guide`, then update the TV scripts (Settings > System > TV scripts). It needs LG Input Hook. See [docs/plans/guide-overlay.md](docs/plans/guide-overlay.md).
+- **Lumen Guide.** A second, small app that draws a channel guide over the Live TV picture. In Live TV, LIST opens it on Now and GUIDE opens the Full guide. OK on a channel changes to it. The TV picture keeps playing behind it. Install it from the Homebrew Channel beside Lumen, then update the TV scripts (Settings > System > TV scripts). It needs LG Input Hook. See [docs/plans/guide-overlay.md](docs/plans/guide-overlay.md).
 - **Live preview (dev builds only).** The channel in focus plays as a small picture in the Guide and on the Live TV row, without a change to Live TV's last channel. Settings > Live TV turns it on. See [docs/research/live-tv.md](docs/research/live-tv.md).
 - **Brightness schedule.** Settings > Brightness sets the backlight and Eye Comfort for each part of the day, with an optional slow change between them. Each input (apps, Live TV, HDMI) gets the level.
 - **Home and Power, and Privacy.** Settings pages that make LG's own Home routes open Lumen, choose what the TV opens when it turns on, and withdraw LG's data agreements and block its ad servers. See [docs/home-and-power-on.md](docs/home-and-power-on.md) and [docs/privacy.md](docs/privacy.md).
@@ -68,8 +68,9 @@ To get the builds on the TV:
 2. Open the Channel's settings.
 3. Add this repository URL: `https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json`
 4. Install Lumen from the Channel's app list.
+5. Optional: install Lumen Guide from the same list, for the channel guide over Live TV. It does not show in the TV's app list; LIST and GUIDE open it in Live TV once the TV scripts are installed (below).
 
-The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
+The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`, for Lumen and for Lumen Guide. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
 
 The public build does not include third-party app logos, private wallpapers or the SF font. Apps without an icon get a plain tile.
 
