@@ -167,7 +167,10 @@ EOF
 <!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;background:#000}</style></head><body><script>
 function lumen () { try { var b = new PalmServiceBridge(); b.onservicecallback = function () {}; b.call("luna://com.webos.applicationManager/launch", JSON.stringify({id: "$1"})); } catch (e) {} }
 // a hidden launch opens nothing; the preload manager's launches of Home still show, so watch.sh keeps Home off its list
-function shown () { if (!document.hidden) lumen(); }
+// Home over Lumen: the first launch lands before this window shows, so it covers Lumen; ask again while still on top
+var tries = 0, timer = 0;
+function again () { timer = 0; if (document.hidden || ++tries > 6) return; lumen(); timer = setTimeout(again, 500); }
+function shown () { if (document.hidden) return; lumen(); tries = 0; if (!timer) timer = setTimeout(again, 500); }
 shown(); document.addEventListener("webOSRelaunch", shown, true); document.addEventListener("visibilitychange", shown);
 </script></body></html>
 EOF

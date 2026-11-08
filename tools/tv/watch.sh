@@ -13,6 +13,9 @@
 #    into each standby, and the first Home press after switch-on is warm too. Switch both off with /var/lib/homehook/no-boot-preload.
 #  - Keeps LG's preload manager stopped: checked at start, after each wake and every 30 ticks. It opens LG Home in front every few minutes, and
 #    the stand-in then opens Lumen over the app you are watching. Its config file did not stop it: the TV turns Home back on by itself.
+#  - Lumen Guide (the overlay, docs/plans/guide-overlay.md), when installed: while Live TV is in front, LIST and GUIDE open it (Input Hook binds),
+#    and it is started hidden as Live TV comes up, so the first LIST shows it at once. Elsewhere LIST is left to the app, GUIDE opens Lumen on
+#    its Guide, and the guide is closed to free its memory. Input Hook reloads keybinds.json by itself when it changes.
 #  - Keeps /var/lib/homehook/recent: the last eight apps that were in front (not Lumen, not LG Home), newest first, one id per line. Lumen reads
 #    it for its Recent row, so apps opened from anywhere show there.
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/no-screensaver exists (the old Settings > Screensaver > Off; Lumen now removes it): ends LG's
@@ -26,7 +29,8 @@
 #    backlight and Eye Comfort when each part of the day starts, then leaves them, so a change by hand stays until the next one. Checked once a
 #    minute with the screen on, so a TV switched on later catches up. With a "ramp <minutes>" line, each part of the day starts at the last
 #    one's backlight and moves to its own a little each minute over that time. While Lumen's screensaver is up the backlight waits: the
-#    screensaver puts back the level for now when it ends, and this sets it again a minute later if not.
+#    screensaver puts back the level for now when it ends, and this sets it again a minute later if not. The TV keeps a backlight per input
+#    (apps, Live TV, each HDMI), so the level is set again on the first switch to each input since it last changed.
 # Never spins: reacts only when the app changes, and at most once every 3 s. Does nothing if the app is not installed.
 # ME lists every Lumen build (stable, dev). Home opens the one that was last in front, or the first installed one in this list. The flag files in
 # /var/lib/homehook/ are shared by all of them, which is fine while only one is in front at a time.
@@ -52,6 +56,9 @@ NOPRELOAD_FLAG=/var/lib/homehook/no-boot-preload
 RECENT=/var/lib/homehook/recent
 BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
+GUIDE=com.samrenfrew.lumen.guide
+LIVETV=com.webos.app.livetv
+KEYBINDS=/home/root/.config/lginputhook/keybinds.json
 prev=""
 prevapp=""
 last=0
@@ -72,8 +79,11 @@ preloadat=$((tick + 60))   # once, after the boot rush; 0 when done
 STANDBY_PRELOAD_SECS=10
 standbyat=0                # when to preload in standby; -1 once done for this standby
 blmin=""                   # the minute the brightness schedule was last checked
-blset=""                   # the schedule step whose backlight was last set
+blset=""                   # the schedule step and level last set
+blinputs=""                # the inputs that have had that level (the TV keeps a backlight per input)
 eyeset=""                  # the schedule step whose Eye Comfort was last set
+eyeinputs=""               # the inputs that have had it
+blsoon=0                   # when to check the schedule again after a switch of app, so a new input gets the level
 # prints the Lumen build in front, if any
 me_in_front() {
   for id in $ME; do case "$1" in *'"appId":"'$id'"'*) echo "$id"; return 0 ;; esac; done
@@ -109,6 +119,45 @@ note_recent() {
   for id in $ME; do [ "$1" = "$id" ] && return; done
   printf '%s' "$1" | grep -qE '^[A-Za-z0-9._-]+$' || return
   { echo "$1"; [ -f "$RECENT" ] && grep -vxF "$1" "$RECENT"; } | head -n 8 > "$RECENT.tmp" && mv "$RECENT.tmp" "$RECENT"
+}
+
+# rewrites the LIST (787) and GUIDE (362) binds for $1 = live (both open the guide, GUIDE on its Full guide) or away (GUIDE opens Lumen's Guide, LIST unbound), keeping
+# every other bind; the file is written only when it changes
+guide_binds() {
+  python3 - "$KEYBINDS" "$1" "$GUIDE" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
+import json, sys
+path, mode, guide, lumen = sys.argv[1:5]
+try:
+    with open(path) as f: binds = json.load(f)
+except Exception:
+    binds = {}
+want = dict(binds)
+if mode == 'live':
+    want['787'] = {'action': 'launch', 'id': guide}
+    want['362'] = {'action': 'launch', 'id': guide, 'params': {'view': 'full'}}
+else:
+    want.pop('787', None)
+    if lumen:
+        want['362'] = {'action': 'exec', 'command': 'luna-send -n 1 luna://com.webos.applicationManager/launch \'{"id":"%s","params":{"view":"guide"}}\'' % lumen}
+    else:
+        want.pop('362', None)
+if want != binds:
+    with open(path + '.tmp', 'w') as f: json.dump(want, f)
+    import os; os.rename(path + '.tmp', path)
+PY
+}
+# the app in front changed from $2 to $1: into Live TV, the binds for it and the guide started hidden; out of it, the other binds and the guide closed
+guide_follow() {
+  [ -d "$APPS/$GUIDE" ] || return
+  if [ "$1" = "$LIVETV" ]; then
+    guide_binds live
+    ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$GUIDE\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
+      echo "$(date +%T) guide: start hidden: $r" >> /tmp/homehook.log ) &
+  elif [ "$2" = "$LIVETV" ] || [ -z "$2" ]; then
+    guide_binds away
+    luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$GUIDE\"}" </dev/null >/dev/null 2>&1
+    [ -n "$2" ] && echo "$(date +%T) guide: closed, left Live TV for $1" >> /tmp/homehook.log
+  fi
 }
 
 # with power-on set to last input, a switch-on leaves the TV's own app in front
@@ -153,24 +202,38 @@ STEPS
   echo "$cur $level"
 }
 
-# sets the backlight whenever the schedule's level for now changes (once per step, or each minute of a ramp), and Eye Comfort once per step
+# prints the input whose picture settings are in use now ("default" for apps, the tuner for Live TV, "hdmi1"...), else the app in front
+bl_input() {
+  r=$(luna-send -n 1 luna://com.webos.settingsservice/getSystemSettings '{"category":"picture","keys":["backlight"]}' </dev/null 2>/dev/null)
+  i=$(printf '%s' "$r" | sed -n 's/.*"input":"\([A-Za-z0-9_]*\)".*/\1/p')
+  echo "${i:-$app}"
+}
+
+# sets the backlight and Eye Comfort when the schedule's level for now changes (once per step, or each minute of a ramp), on the input in use,
+# and again on the first switch to each other input until it changes; a change by hand on an input stays until then
 bl_apply() {
-  out=$(bl_step) || { blset=""; eyeset=""; return; }
+  out=$(bl_step) || { blset=""; blinputs=""; eyeset=""; eyeinputs=""; return; }
   set -- $out
-  step="$1 $2 $3"
   [ "$4" -le 100 ] || return
-  if [ "$step $4" != "$blset" ] && [ ! -f "$AMBIENT_ON" ]; then
-    luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$4\"}}" </dev/null >/dev/null 2>&1
-    blset="$step $4"
-    echo "$(date +%T) brightness: backlight $4 (from $1)" >> /tmp/homehook.log
-  fi
-  if [ "$step" != "$eyeset" ]; then
-    if [ "$3" != keep ]; then
-      luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"eyeComfortMode\":\"$3\"}}" </dev/null >/dev/null 2>&1
-      echo "$(date +%T) brightness: Eye Comfort $3 (from $1)" >> /tmp/homehook.log
-    fi
-    eyeset=$step
-  fi
+  [ "$1 $2 $3 $4" != "$blset" ] && { blset="$1 $2 $3 $4"; blinputs=""; }
+  [ "$1 $2 $3" != "$eyeset" ] && { eyeset="$1 $2 $3"; eyeinputs=""; }
+  inp=$(bl_input)
+  case " $blinputs " in
+    *" $inp "*) ;;
+    *) if [ ! -f "$AMBIENT_ON" ]; then
+         luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$4\"}}" </dev/null >/dev/null 2>&1
+         blinputs="$blinputs $inp"
+         echo "$(date +%T) brightness: backlight $4 on $inp (from $1)" >> /tmp/homehook.log
+       fi ;;
+  esac
+  case " $eyeinputs " in
+    *" $inp "*) ;;
+    *) eyeinputs="$eyeinputs $inp"
+       if [ "$3" != keep ]; then
+         luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"eyeComfortMode\":\"$3\"}}" </dev/null >/dev/null 2>&1
+         echo "$(date +%T) brightness: Eye Comfort $3 on $inp (from $1)" >> /tmp/homehook.log
+       fi ;;
+  esac
 }
 
 stop_preload
@@ -195,7 +258,7 @@ while true; do
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
   app=$(printf '%s' "$out" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p')
-  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then prevapp=$app; note_recent "$app"; fi
+  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then guide_follow "$app" "$prevapp"; prevapp=$app; note_recent "$app"; blsoon=$((now + 3)); fi
   # wake: Lumen in front as soon as the screen is on, whatever the TV opened
   if [ -n "$front" ]; then [ "$mesince" -eq 0 ] && mesince=$now; else mesince=0; fi
   if [ "$now" -lt "$wakeuntil" ] && wake_wanted && [ "$pwstate" = Active ]; then
@@ -283,7 +346,11 @@ while true; do
   fi
   # Settings > Brightness, once a minute with the screen on; a minute missed in standby is caught up at the first one after
   case "$pwstate" in
-    Active|"Screen Saver") m=$((now / 60)); [ "$m" != "$blmin" ] && { blmin=$m; bl_apply; } ;;
+    Active|"Screen Saver")
+      m=$((now / 60))
+      # a switch of app may bring another input; 3 s on, so the TV has moved its picture settings to it
+      if [ "$m" != "$blmin" ] || { [ "$blsoon" -gt 0 ] && [ "$now" -ge "$blsoon" ]; }; then blmin=$m; blsoon=0; bl_apply; fi
+      ;;
   esac
   # boot: start Lumen hidden once, so the first Home press is warm. Tried once only, and only with the screen on.
   if [ "$preloadat" -gt 0 ] && [ "$now" -ge "$preloadat" ] && [ "$pwstate" = Active ]; then

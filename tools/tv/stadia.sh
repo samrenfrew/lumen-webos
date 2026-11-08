@@ -9,6 +9,8 @@
 #    so there is no wait for SILENT_SECS or for the dead link to time out. OK is read from the remote's input device (the alert's own
 #    buttons cannot start a root command, tried 2026-11-04). It is ignored once the controller has sent input.
 # Log: /var/lib/homehook/stadia.log. Off: /var/lib/homehook/no-stadia. In any app, not only Moonlight: /var/lib/homehook/stadia-any-app.
+# A dead reconnect is usually rescued first by stadia-bridge.py, which feeds its input into a gamepad of its own; this script counts that as
+# working, and with the bridge running it waits BRIDGE_SECS before the check alert.
 # While watching, it also copies the Bluetooth lines from LG's system log to /var/lib/homehook/bt.log (times in UTC), so a drop can be read later.
 B=luna://com.webos.service.bluetooth2
 MOON=com.limelight.webos
@@ -17,6 +19,8 @@ LOG=$DIR/stadia.log
 ADDR_FILE=$DIR/stadia-address
 RAW=/tmp/stadia-raw
 SILENT_SECS=30
+# with the bridge running, how long a connection may stay without input before the check alert
+BRIDGE_SECS=15
 REPAIR_SECS=180
 FIND_TRIES=10
 
@@ -55,15 +59,20 @@ start_ok() {
 }
 stop_ok() { [ -n "$okpid" ] && kill "$okpid" 2>/dev/null; okpid=""; }
 present() { grep -q '^N: Name="Stadia' /proc/bus/input/devices; }
-# the input device's instance (9400.0003); it changes at every reconnect, so a drop that comes back within one poll still shows
-inst() { grep -A3 '^N: Name="Stadia' /proc/bus/input/devices | sed -n 's/^S: Sysfs=.*\(9400\.[0-9a-f]*\).*/\1/p' | head -1; }
-# the controller's hidraw node (Google 18d1:9400)
+# the input device's instance (9400.000E, hex in capitals); it changes at every reconnect, so a drop that comes back within one poll still shows
+inst() { grep -A3 '^N: Name="Stadia' /proc/bus/input/devices | sed -n 's/^S: Sysfs=.*\(9400\.[0-9a-fA-F]*\).*/\1/p' | head -1; }
+# the controller's hidraw node (Google 18d1:9400), not the bridge's own gamepad, which has the same IDs
 hidraw() {
   for x in /sys/class/hidraw/hidraw*; do
-    readlink "$x" 2>/dev/null | grep -qi '18d1:9400' && { echo "/dev/${x##*/}"; return 0; }
+    readlink "$x" 2>/dev/null | grep -qi '18d1:9400' && grep -q '^HID_NAME=Stadia' "$x/device/uevent" 2>/dev/null \
+      && { echo "/dev/${x##*/}"; return 0; }
   done
   return 1
 }
+# stadia-bridge.py feeds a dead reconnect's input into a gamepad of its own; it names the connection it serves in BRIDGED
+BRIDGED=/tmp/stadia-bridged
+bridge_on() { [ ! -f "$DIR/no-stadia-bridge" ] && [ -f /tmp/stadia-bridge.pid ] && kill -0 "$(cat /tmp/stadia-bridge.pid)" 2>/dev/null; }
+bridged() { [ -n "$1" ] && grep -q "$1" "$BRIDGED" 2>/dev/null; }
 # the controller's address: read from the paired list while it is there, else the last one seen (it is gone from the list once forgotten)
 addr() {
   # one line per device (each starts with classOfDevice); the name and the address are far apart in it
@@ -128,7 +137,7 @@ repair_once() {
 
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-up=0; ok=0; since=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0; repaired=0
+up=0; ok=0; since=0; checked=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0; repaired=0
 rm -f "$ASK"
 while true; do
   sleep 2
@@ -155,16 +164,20 @@ while true; do
       up=1; since=$now; ok=0; seen=$cur
       log "controller connected ($([ "$ok" -eq 1 ] && echo "paired here, working" || echo "checking for input"))"
       # a reconnect has always been dead so far, so offer the fix now rather than after SILENT_SECS; while a repair is already running,
-      # its Stadia + Y alert stays up instead
-      [ "$ok" -eq 0 ] && [ "$repair_until" -le "$now" ] && check_alert
+      # its Stadia + Y alert stays up instead. With the bridge running, it gets BRIDGE_SECS to take over first.
+      checked=0
+      [ "$ok" -eq 0 ] && [ "$repair_until" -le "$now" ] && ! bridge_on && { check_alert; checked=1; }
       : > "$RAW"
     fi
     if [ "$ok" -eq 0 ]; then
       # the hidraw node can show up a moment after the input device
       if [ -z "$rawpid" ] && h=$(hidraw); then cat "$h" >> "$RAW" 2>/dev/null & rawpid=$!; fi
-      if [ -s "$RAW" ]; then
-        ok=1; repair_until=0; alert_shown=0; stop_raw; close_alert; log "input seen: working"
+      if [ -s "$RAW" ] || bridged "$cur"; then
+        ok=1; repair_until=0; alert_shown=0; stop_raw; close_alert
+        if [ -s "$RAW" ]; then log "input seen: working"; else log "input seen: through the bridge"; fi
         [ "$repaired" -eq 1 ] && { repaired=0; toast "Controller paired."; }
+      elif [ "$checked" -eq 0 ] && [ $((now - since)) -ge "$BRIDGE_SECS" ] && [ "$repair_until" -le "$now" ]; then
+        checked=1; log "no input after ${BRIDGE_SECS}s, bridge or not: asking"; check_alert
       elif [ $((now - since)) -ge "$SILENT_SECS" ] && [ "$repair_until" -le "$now" ]; then
         repair_until=$((now + REPAIR_SECS)); log "no input for ${SILENT_SECS}s: broken, re-pairing on Stadia + Y"
         alert "Controller not responding" "$HOLD_MSG"
@@ -172,8 +185,14 @@ while true; do
     fi
   elif [ "$up" -eq 1 ]; then
     up=0; ok=0; stop_raw
-    repair_until=$((now + REPAIR_SECS)); log "controller dropped: re-pairing on Stadia + Y"
-    alert "Controller disconnected" "$HOLD_MSG"
+    if bridge_on; then
+      # 2026-11-06: the re-pair starts by forgetting the controller, so it could not reconnect when switched back on; with the bridge, a
+      # reconnect works, and the connected branch above asks after BRIDGE_SECS if it does not
+      log "controller dropped: waiting for it to reconnect"
+    else
+      repair_until=$((now + REPAIR_SECS)); log "controller dropped: re-pairing on Stadia + Y"
+      alert "Controller disconnected" "$HOLD_MSG"
+    fi
   fi
   if [ -f "$ASK" ]; then
     rm -f "$ASK"
