@@ -94,3 +94,34 @@ From an idea in Glasshouse: build the other screens while Home is still, so they
 - `drawn` made closing Settings worse: the return to Home gained gaps of 117 to 167 ms, where off had none.
 
 Not worth it: building Settings is not where the time goes. The Guide was not tried; it fetches its data when it opens, so it is a different case. The time left is the app's render when the screen changes and the first frame's raster.
+
+## The Guide with the live preview (2026-11-06)
+
+`guide.mjs` on Now and Next, 6 rows, 900 ms between keys, the logo box on screen both times. "On" tunes each channel 250 ms after focus lands on it; "off" never tunes.
+
+| Median per key | Preview on | Preview off |
+|---|---|---|
+| Down: key to first frame | 220 ms | 191 ms |
+| Up: key to first frame | 233 ms | 115 ms |
+| Down: main thread | 330 ms | 142 ms |
+| Down: paint | 67 ms | 25 ms |
+| Down: GPU draw per frame | 19 ms | 7 ms |
+
+What costs what:
+
+- The page's own calls are cheap: a tune 3 to 8 ms, a release 3 to 21 ms, one `listMuteStatus` check 3 to 12 ms.
+- A playing preview adds about 4 ms of GPU draw to every frame (`probe.mjs`: 12 ms against 8 ms, 42 ms frame gap against 36 ms).
+- The biggest cost is outside Lumen. Each tune makes the TV store that channel's guide data: `legacy-broadcast` writes to the guide database (`mojodb-luna -c /etc/palm/db8/epgdb.conf`) about 7 times a second. That process went to about 140 to 150% CPU after a few tunes, and about 55% a minute after the last one. With `ss.apiadapter` (about 38% all the time), the CPU was down to about 15% free during a tune. Free memory fell from 97 MB to 37 MB while a preview played.
+
+So each channel the preview tunes slows Lumen for a while after it, not only while it plays. Fewer tunes is the lever: a longer dwell, so that normal scrolling does not tune each channel it passes.
+
+Then at a normal scrolling pace, one key every 450 ms, with a 45 s rest before each run (medians, Now and Next):
+
+| Per key | Dwell 250 ms | Dwell 600 ms | No tuning |
+|---|---|---|---|
+| Down: main thread | 223 ms | 109 ms | 117 ms |
+| Up: main thread | 303 ms | 99 ms | 115 ms |
+| Up: worst frame gap | 156 ms | 112 ms | 128 ms |
+| Full guide Down: main thread | 254 ms | 90 ms | 163 ms |
+
+A 600 ms dwell scrolls like no preview at all. It is now the default (`previewTiming.dwell` in `LivePreview.tsx`).

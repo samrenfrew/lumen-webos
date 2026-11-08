@@ -191,6 +191,47 @@ All commands so far are read-only and run as root over SSH on the TV.
 Still unknown: whether `openChannel` works without root; whether the guide data stays filled when Live TV hasn't been used for a while, and the `epgdb` query syntax for one
 channel and a time window (db8 `where` on `signalChannelId` and `startTime` needs an index on those fields; check `getProfile` or try it).
 
+## Live preview in a page (from Glasshouse, 2026-11-06; untested on this TV)
+
+Glasshouse (rorygallagher2024/glasshouse, MIT) shows a silent live picture of the channel in focus on its Home and guide.
+Its notes (`docs/development/TV-RESEARCH.md`) and code (`server/assets/home.html`, `startPreview`) say, for a G3 on webOS 9.2.2:
+
+- A muted `<video>` with one `<source type="service/webos-broadcast-preview" src="tv://<channelId>">` tunes that channel in about
+  120 ms and leaves the TV's last channel as it was. `service/webos-broadcast` with the same source also plays, but makes it the
+  last channel. The channel id is the full one, as `iepg/getChannelList` gives it ("1_41_1_101_16522_17546_9018").
+- The picture's format shows a moment after `playing`. A channel off air plays with no format and a black picture.
+- To let the tuner go: remove the `<source>` children and any `src`, then `load()`. Hiding the element keeps the tuner.
+- Timing: it waits 400 ms (600 ms for an internet stream) on a tile before it starts, and gives up after 4 s with no `playing`.
+- Moving the playing `<video>` to another parent lost its picture on webOS 9.2.2, so it keeps one element and moves it with
+  `left`/`top`/`width`/`height`.
+
+To find out on this TV: whether `webos-broadcast-preview` plays at all on webOS 25, how long it takes, whether it stops Live TV or a
+recording, and whether it plays on the hardware video layer under the page (as the video wallpaper does), so the guide needs a clear
+hole in its backdrop where the box is.
+
+Spike on this TV, 2026-11-06, over DevTools from Lumen's home screen (a fixed 640x360 muted `<video>` added to the page):
+
+- It plays on webOS 25. In the first try, BBC Two reached `playing` at 1920x1080 about 1.45 s after `load()`, and a retune to ITV1
+  took about 0.73 s. Lumen's screensaver started during that try, which is the likely cause of the delay.
+- Two timed runs later the same day, with nothing else running, matched Glasshouse. Twelve tunes, half in the same multiplex and half to
+  another (the fifth part of the channel id), took 113 to 334 ms to `playing`. The first, from cold, was the slowest. Six more tunes,
+  each after emptying the video and calling `load()` (as `release` in `LivePreview.tsx` does), took 115 to 156 ms. Neither a change of
+  multiplex nor the release step costs anything that can be measured.
+- A `stalled` event comes about 3 s after `playing`, but the picture keeps moving. Do not treat `stalled` as a failure.
+- The box is black in a DevTools screenshot, the same as the video wallpaper, so the picture is on the hardware layer under the page.
+  Sam saw a moving picture in a box laid over the Full guide, with no change to the guide's backdrop: the `<video>` cuts its own
+  hole through the page.
+- The picture shows about 2.5 s after `playing`, not with it (2026-11-06). `playing` came at about 340 ms, but the TV kept the video
+  muted until about 2.9 s, and Sam saw black for that whole time. After `playing` the page sees no change: `currentTime` stays 0,
+  `webkitDecodedFrameCount` stays 0 and `requestVideoFrameCallback` never fires. The real sign is the TV's mute state:
+  `luna://com.webos.service.avmutemanager/listMuteStatus {}` answers from Lumen's page with no root, and `videoMute[].videoMuteStatus`
+  turns false when the picture appears. It does not take `subscribe`, so poll it. Between tunes the list is empty.
+  `ls-monitor` shows `legacybroadcast.avmute` setting the mute when the tune starts and clearing it when the picture is ready.
+  The wait changes per channel: 1.96 s (5), 2.12 s (6), 2.88 s (7) and 3.45 s (10) from the tune to the unmute. Sam watched through a
+  half see-through logo and saw the picture appear just as the unmute came, so the mute state is a true sign of the picture.
+- Live TV's last channel is unchanged: after a BBC One preview, Live TV still opened on 202 (CBeebies HD), the channel Sam had been
+  watching. `com.webos.service.tv.channel` and `tv.broadcast` do not exist on this TV, so the check was by eye.
+
 ## Plan (do in order, stop when one works)
 
 1. **Check `ls-monitor` sees anything at all.** Save the raw output and look at it unfiltered:
@@ -217,3 +258,21 @@ channel and a time window (db8 `where` on `signalChannelId` and `startTime` need
    one from Lumen (launching Live TV with a channel id is a guess until tried). Then tick the Live TV spike in docs/plans/PLAN.md.
 
 If none of these returns the aerial channels, the Freeview tiles idea goes to Not doing in docs/plans/PLAN.md, with the reason.
+
+## Reading Live TV's channel (2026-11-06)
+
+For the Guide to open on the channel being watched. Tested over SSH on this TV.
+
+- `apiadapter/tv/getCurrentChannel {}` gives the last channel opened through apiadapter (Lumen's `openChannel`), not one changed to with
+  the remote inside Live TV. With Live TV closed it gave nothing. Lumen's page may not call apiadapter; the root path can.
+- `/mnt/lg/cmn_data/lastchannel.json` (`lastMajorNum`) and the call above both updated only when Live TV next opened and tuned.
+- `utp.boot/getLastChannelId {}` gives `{"channelId": "1_44_10_10_..."}`. Glasshouse (`server/lib/home.js:938`, `:1011`) reads it
+  as Live TV leaves, and its comment says a change inside Live TV is not seen until then. That is the Guide button's case.
+- `legacybroadcast.broadcast/getCurrentChannel` and `utp.broadcast/getCurrentChannel` need a `broadcastId` that only Live TV holds;
+  a forum post finds it with `ls-monitor`. `{"subscribe":true}` without one fails. `apiadapter/tv/channelUp` does not exist here.
+- `getLastChannelId` and `lastchannel.json` follow a channel changed with the remote while Live TV is in front, within a second or
+  two (a watcher polling every 0.5 s saw 6, 5 and 4 as Sam changed them from Home Assistant). An earlier miss was the old Guide left
+  open behind Live TV, which never asked again.
+- With the build using `getLastChannelId`, a `{"view":"guide"}` launch (the Guide button) opened the Guide on channel 4, the one
+  Live TV was on.
+

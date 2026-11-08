@@ -27,6 +27,39 @@ The overlay comes from Settings' appinfo.json: `"transparent": true`, `"defaultW
 `"usePrerendering": true`. Other values in use on the TV: `card`, `popup`, `home` (Senior Home), `screenSaver`, `minimal`, `system_ui`.
 No store or developer app sets `defaultWindowType`, so it is unknown whether the app manager honours it for Lumen.
 
+## Overlay window from a developer app (2026-11-07)
+Answer: yes. The app manager honours `"defaultWindowType": "overlay"` for a developer app on webOS 25.
+Test app `com.samrenfrew.overlaytest` (one HTML file, a translucent pink bar at the bottom, closes itself after 20 s). Its appinfo.json
+copies codefarm-eu's Lumen bar: `"transparent": true`, `"defaultWindowType": "overlay"`, `"handlesRelaunch": true`,
+`"noSplashOnLaunch": true`, `"spinnerOnLaunch": false`, `"disableBackHistoryAPI": true`, `"visible": false`. No `trustLevel`.
+Installed over SSH with the dev install service, then launched over YouTube (on its browse screen, no video playing):
+- `running` listed YouTube as `card` and the test app as `overlay`. `getForegroundAppInfo` still gave YouTube.
+- `luna://com.webos.service.capture/executeOneShot` (`"method":"DISPLAY"`) showed the bar drawn over YouTube, with YouTube visible through it.
+  `com.webos.service.tv.capture` (the webOS 4 name) does not exist on webOS 25.
+- Over DevTools, the overlay page had `document.hasFocus()` true, and YouTube had false but stayed `visible`. After the overlay closed
+  itself (`window.close()`), it left `running` and YouTube had focus again.
+- Over a playing YouTube video, Sam pressed Back on the remote. The overlay closed about 4 s after launch (its own timer is 20 s), so the
+  key reached it, and YouTube had focus again. The video's `currentTime` rose about 1.1 s per second the whole time and it never paused.
+- Over Live TV (2026-11-07, BBC One): the bar drew over the picture, `running` listed Live TV as `card` and the bar as `overlay`, and Live TV
+  stayed in front. The TV's screenshot showed the picture under the bar.
+Not checked yet: HDMI underneath.
+
+## Lumen Guide spike (2026-11-07)
+The four questions in `docs/plans/guide-overlay.md`, answered with the overlay test app (a dark 880px panel on the left that runs root
+calls and writes each key it gets to `/tmp/ot-keys.log` through the Homebrew Channel).
+1. **Root from a second app: yes.** `org.webosbrew.hbchannel.service/exec` ran `id -u` as `0` for `com.samrenfrew.overlaytest`. Over
+   Live TV, the aerial channel list (323 KB) came back in about 1.0 s and Now and Next (`epgdb` `programPF`, 66 KB) in about 0.7 s.
+2. **Open time: 0.7 to 2.5 s, cold**, from `NL_APP_LAUNCH_BEGIN` to the overlay's `NL_VSC` visible in `/var/log/messages`. The slowest
+   was the first launch after an install. Most of it is before the page starts (navigation start came 2.2 s after the launch on the slow
+   one; the page painted 0.25 s later). A launch while the app is already open is a relaunch and costs nothing visible. So keeping the
+   guide running between uses is the lever to try first. Memory at the time: about 160 MB available, 450 MB of swap in use.
+3. **LIST is code 787 for Input Hook** (`IR_KEY_PRLIST` = 795 in `/usr/share/X11/xkb/keycodes/lg`, minus 8). Input Hook 1.5.1 reads
+   `/home/root/.config/lginputhook/keybinds.json`. `"787":{"action":"launch","id":"…"}` opened the test app over Live TV and LG's own list
+   did not open. Each further LIST while it was up arrived as a relaunch (`webOSRelaunch`).
+4. **The remote goes back to Live TV: yes.** While the panel was up it got every key (Up 38, Back 461) with focus. After Back closed it,
+   Channel Up changed channel. The up arrow never changes channel on Live TV, open panel or not; testing with it first looked like a fault.
+LIST was bound back to nothing after the spike (`keybinds.json.pre-list`). The test app is still installed (hidden).
+
 ## Memory manager (2026-10-22)
 Read only, with the TV in use. The memory manager is `/usr/sbin/memchute` (`com.webos.memorymanager`). Its policy is in the config service
 too: `python3` over `/var/preferences/configd_db.json`, keys starting `com.webos.memorymanager.`. The ones that bear on app switching:
@@ -156,6 +189,93 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   paired." while the controller was still orange and sent nothing. `tools/tv/stadia-repair-test.sh` in pairing mode fixed it (2112 bytes).
   Now a try needs a scan entry with data (a guess that a live one has it; after 20 s it pairs anyway and logs the entry), and a repair no
   longer counts as working until a report arrives: the check alert comes back after it, and B on the controller confirms.
+- HCI snoop on (2026-11-06): `BtSnoopLogOutput=true` and `BtSnoopMaxLogFileSize=20000000` in
+  `/mnt/lg/cmn_data/btsvc/fluoride-mtk/conf/bt_stack.conf` (original kept as `.orig`, survives a reboot), then
+  `systemctl restart webos-bluetooth-service`. The log is `/var/log/bt_snoop_hci.cfa_MTK` (in RAM, `/tmp/var/log`), standard btsnoop, and
+  `tshark` on the Mac decodes it down to ATT (`brew install wireshark`). A working link shows as a stream of Handle Value Notifications on
+  handle 0x0040. The service restart drops the controller. The first capture missed a clean reconnect: `stadia.sh` unpaired the controller
+  4.5 s after the drop, before the TV had reconnected. Capture a reconnect with `touch /var/lib/homehook/no-stadia` first.
+- Reconnect captured (2026-11-06 21:37, watcher paused, power-cycle with no re-pair). This overturns "the controller stops sending" above:
+  - The TV reconnects on its own, the controller asks for security, the TV turns on encryption with the stored key, and it works.
+  - The controller then sends button reports as ATT notifications on handle 0x0040 (real D-pad and button values, about 230 in 10 s of
+    presses). Over the same seconds `/dev/hidraw0` got 0 bytes. So the TV receives the input and drops it inside its own stack.
+  - The kernel made the uhid input device at 21:38:01.205, before any GATT traffic, so the HID host set it up from its cache.
+  - The controller sends a Service Changed indication (handle 0x0003) on every connection, fresh pairings too. On a fresh pairing the TV
+    then re-reads every service and writes the HID report CCCD (0x0041). On the reconnect its re-read stops after Device Information
+    (last request 0x0032..0x0037, "Attribute Not Found") and never reaches the HID service (0x0038 on) or writes 0x0041. Notifications flow
+    anyway, since the controller kept its CCCD. Working guess: the Service Changed indication makes LG's HID host drop its handle map and
+    wait for a re-discovery that never ends, so it throws away every report.
+  - `bluetooth2/gatt/discoverServices {address}` on the dead link answered "GATT service discovery failed" (168) and sent nothing over the air.
+  - LG's system log has only the kernel's uhid lines for this.
+- Stack trace on (2026-11-06 21:41): `BtStackLog2File=true`, `BtStackMaxLogFileSize=20000000`, log at `/var/log/bt_stack.log_MTK` (in RAM).
+  It shows the cause, in LG's Fluoride (`bta_hh` is the HID host, `bta_gattc` the GATT client):
+  - On a reconnect, the HID host loads its saved report list ("Loaded 2 reports"), skips discovery ("discovery has been done"),
+    registers for report ID 3 notifications, and opens the uhid device. All within 0.1 s of encryption.
+  - About 1.7 s later the controller's Service Changed indication arrives for 0x0001..0xffff. `bta_gattc` throws away its cache and
+    re-discovers the whole controller. The HID host gets the Service Changed (event 15) and discovery-done (event 8) callbacks and does
+    nothing with them ("Unhandled event: 15"). It never registers again.
+  - From then on each report reaches `gatt_client_handle_server_rsp opcode: 0x1b` and stops. Working: the same line, and the report reaches
+    hidraw. Status 0x8d on those lines is only the link's encryption state ("encrypted, no MITM"), the same in both.
+  - Working guess: the Service Changed clears the GATT client's notification registrations, as AOSP does, so the reports have no listener.
+    On a fresh pairing (LG settings, 21:48) there was no cache, the HID host ran its own discovery and registered last, and it works.
+  - So it is an ordering bug: a Service Changed that lands after the HID host registers kills input until something makes it register again.
+    A re-pair does that. Other hosts with the same Stadia fault (Samsung, Android TV) are likely the same Fluoride code.
+  - Next test: on a dead reconnect, subscribe to handle 0x0040 afresh through `bluetooth2/gatt/monitorCharacteristic` and see if values
+    arrive. The 2026-10-21 try may have hit 0x0044, the other 2a4d (output) report. If they arrive, a TV-side bridge can feed them into a
+    uhid device, and a reconnect needs nothing from Sam.
+- Bridge test (2026-11-06 21:55, passed). LG's GATT API delivers the reports on a dead reconnect:
+  - Calls: `gatt/discoverServices {address}`, then `gatt/connect {address}` (gives `clientId`, "009"), then
+    `gatt/monitorCharacteristic {clientId, service:"00001812-…", characteristic:"00002a4d-…", subscribe:true}` with `luna-send -i`.
+    The `address` form fails the schema, and `instanceId` gives error 285. `getServices` lists one 2a4d with `instanceId:"064"` (handle
+    0x0040, the input report), so the plain call picks the right one. Each report comes as `changed.value.bytes`, 10 bytes without the
+    report ID (ID 3), for example `[8,0,0,128,128,128,128,0,0,0]` (byte 0 is the D-pad, 8 at rest; then buttons and four stick axes).
+  - Working link: 1355 reports in 25 s. Dead link, after a power-cycle: 102 reports in 20 s of D-pad presses, while hidraw got 0 bytes.
+  - `discoverServices` fails ("GATT service discovery failed") while the stack's own re-scan after Service Changed is still running; 4 s
+    after the reconnect it failed, 50 s after it worked. A bridge must retry it.
+  - The TV has `/dev/uhid` (root only), `node` 16.20.2 and `python3`. The report map (182 bytes) can be read from the dead device's
+    `/sys/class/hidraw/hidrawN/device/report_descriptor`. Open question: the dead uhid device stays, so a bridge device is a second
+    Stadia; whether Moonlight (it reads `/dev/hidraw0`) picks the live one is unknown.
+- Bridge built (2026-11-06 22:00 on, `tools/tv/stadia-bridge.py`, started by `60-homehook`; not yet reliable):
+  - It worked twice on a live dead link (22:06 and 22:09): it made its gamepad, and Moonlight used it once the node was in its jail.
+    Moonlight's jail (`/var/palm/jail/com.limelight.webos/dev`) has a fixed copy of `hidraw0` only; with `hidraw1` added by `mknod`,
+    Moonlight opened it within 3 s. The bridge now adds its node to each jail that has hidraw nodes. Sam confirmed input in Moonlight.
+  - `gatt/discoverServices` fails until `gatt/connect` has run for the address, so the order is connect, discover, monitor.
+  - It failed on fresh power-cycles (22:12, 22:18). A sign-up at 0 s comes before the controller's Service Changed. With a 4 s wait and
+    renewals every 5 s, still nothing. The stack trace shows why: in the sign-up that worked (21:57) LG's service called
+    `btif_gattc_reg_for_notification_impl` and then `notify_cb` per report. In the failing ones it only called `get_gatt_db`, never
+    register. On disconnect the stack drops LG's client (`GATT_Deregister gatt_if=9`); LG re-registers it on `gatt/connect`, but its
+    `monitorCharacteristic` then does not register for notifications. Guess: LG keeps its own "already monitoring" state per client.
+  - `gatt/disconnect {clientId}` closed the client in the stack, but `gatt/connect` then returned the same "009" without opening it,
+    and discovery failed from then on. A Bluetooth service restart resets LG's state, but also drops the controller.
+  - LG's service is webOS OSE's `com.webos.service.bluetooth2` (`src/bluetoothgattprofileservice.cpp` on GitHub, `webosose`).
+    `monitorCharacteristic` keeps a list of watched characteristics, each marked registered once the lower layer (LG's closed "SIL",
+    `changeCharacteristicWatchStatus`) says yes, and skips any watch already marked. A watch is dropped, with an unregister call, only
+    when its last subscriber goes. Nothing in the service clears the mark on a disconnect.
+  - But no subscriber was left running (checked in `/proc`), so the service's list should have been empty at each new sign-up, and the
+    stack log shows no unregister when a sign-up was cancelled either. So the stale state is probably below the service, in the SIL,
+    which keeps its own record and does not register again. Not proven.
+  - Next (needs the controller switched on and connected, no presses): one sign-up, then read `bt_stack.log_MTK` for
+    `reg_for_notification`. Try `monitorCharacteristics` (plural, its own code path), a sign-up with `instanceId` only (error 285 so far),
+    and `gatt/disconnect` followed by a fresh `gatt/connect` after a long wait. A Bluetooth service restart (drops the controller) is the
+    fallback reset of the SIL.
+  - The bridge is left off (`no-stadia-bridge`) until this is solved, so `stadia.sh` behaves as before it.
+- Sign-up trigger found (2026-11-06 22:57). After `systemctl restart webos-bluetooth-service`, every sign-up registers
+  (`btif_gattc_reg_for_notification_impl`) and each cancel unregisters (`BTA_GATTC_DeregisterForNotifications deregistered`); the
+  client id changed from 009 to 004, so never hard-code it. Then a sign-up was held open while Sam power-cycled the controller: at the
+  disconnect the stack logged "DeregisterForNotifications registration not found", and every sign-up after that answered "subscribed"
+  without registering. So a disconnect while a sign-up is live leaves LG's lower layer believing it is still registered. Only a
+  Bluetooth service restart has cleared it so far, and that drops the controller (it came back in 20 s, dead as usual) and the Magic Remote.
+  - So a bridge that works needs either a restart of the Bluetooth service per dead reconnect (about 30 s without input, no Stadia + Y),
+    or a way to clear that record without one. A bridge that holds its sign-up while bridging always crosses the next disconnect.
+  - The HID host's own cache is the `HidReport` line (`4d2a03013c404d2a05023c44`: report IDs 3 and 5 and their handles) in the
+    controller's section of `/mnt/lg/cmn_data/btsvc/fluoride-mtk/rec/bluedroid/bt_config.conf`. Without it the HID host runs its own
+    discovery on connect, as on a fresh pairing. But the stack holds the config in memory and saves the line again after each discovery,
+    so removing it needs a restart too. Not tried.
+  - `stadia.sh` changes that go with it: a drop no longer starts a re-pair while the bridge runs (the re-pair forgot the controller, so it
+    could not reconnect); with the bridge, the check alert waits `BRIDGE_SECS` (15 s); `inst()` matched only digits, so reconnects to
+    instance `000A` to `000F` and the like were missed. That last one predates the bridge.
+- The manual re-pair on 2026-11-06 went wrong: `adapter/unpair` returned true but left the bond, and the controller stuck "already
+  connecting". LG settings remove and pair fixed it. Use `stadia.sh` for re-pairs, not hand-run luna calls.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.

@@ -8,7 +8,7 @@ upstream `docs/native-home.md`, Glasshouse).
 
 The first try set `general.defaultApps.home` to Lumen with `setDefaultApp`. On this TV the setting took, but Exit and Back out of an app still opened LG Home, before and after a restart (tested 2026-11-01). So `native-home on` now uses the Home takeover from Glasshouse (`server/lib/home-takeover.js`, MIT) and lg-luma (`tv-helper/src/home.rs`, MIT):
 
-1. Write a stand-in app to `/var/lib/homehook/home-app`. It has LG Home's id (`com.webos.app.home`), `appCategory: ["home"]`, and a blank page that opens Lumen when it starts and on each relaunch.
+1. Write a stand-in app to `/var/lib/homehook/home-app`. It has LG Home's id (`com.webos.app.home`), `appCategory: ["home"]`, and a blank page that opens Lumen when it starts and on each relaunch. Home pressed while Lumen is already in front (its screensaver included) used to leave a black screen: the stand-in asked for Lumen before its own window showed, so the window then covered Lumen. Seen twice on 2026-11-07, after Sam removed the Input Hook bind that sent Home straight to Lumen. Since then the page asks again every 500 ms, up to 6 times, while it is still on top. A launch of Home over Lumen on the TV showed the stand-in for about 0.4 s, then Lumen.
 2. Bind-mount it over `/usr/palm/applications/com.webos.app.home`.
 3. Make the app manager read it again: `blockSystemApp`, then `releaseBlockSystemApp` (with `forceBlockSystemApp: false` where the TV's schema asks for it).
 4. Stop LG's Home process (`flutter-client -i com.webos.app.home`). The next Home, Exit or Back out of an app starts the stand-in, and the stand-in opens Lumen.
