@@ -92,7 +92,7 @@ export function Guide ({channels, listings, logos, now, schedule, pending, full,
 		return true;
 	}, [at, last, onRail, openRail, onClose]);
 	useKeys(handleKey, active && !gridKeys);
-	useOkPress({onPress: () => { if (onRail) { onMode(railAt === 1); setOnRail(false); } else if (channels[at]) onOpen(channels[at]); }, onLongPress: () => undefined}, active && !gridKeys);
+	useOkPress({onPress: () => { if (onRail) { onMode(railAt === 1); setOnRail(false); } else if (channels[at]) onOpen(channels[at]); }}, active && !gridKeys);
 
 	const [typed, setTyped] = useState('');
 	const typedRef = useRef('');

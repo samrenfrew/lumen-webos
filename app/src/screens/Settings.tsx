@@ -294,7 +294,8 @@ export function Settings ({tabs, wallpaper, options, active, onToggle, onReorder
 		if (tab) setMode(!reordering);
 	};
 
-	useOkPress({onPress, onLongPress}, active);
+	// a hold only does something on the grid pages (Apps, Sources, Channels): everything else acts on key down
+	useOkPress({onPress, onLongPress, canHold: () => !!tab}, active);
 
 	const handleKey = (key: NavKey): boolean => {
 		if (key === 'enter') return true;           // handled by useOkPress (press vs hold)

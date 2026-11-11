@@ -67,6 +67,20 @@
         "app/dist"
       ],
       "port": 5201
+    },
+    {
+      "name": "quick-dist",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5197",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "app/dist-quick"
+      ],
+      "port": 5197
     }
   ]
 }

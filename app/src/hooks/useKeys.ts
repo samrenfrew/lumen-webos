@@ -19,7 +19,8 @@ export function useKeys (handler: (key: NavKey, event: KeyboardEvent) => boolean
 			if (!key) return;
 			// a held key repeats 15-30 times a second: skip repeats that come faster than the screen can use
 			const now = Date.now();
-			if (e.repeat && now - lastAt < 90) { e.preventDefault(); return; }
+			// a held OK never repeats: it now acts on key down, so a repeat would press whatever the first press opened
+			if (e.repeat && (key === 'enter' || now - lastAt < 90)) { e.preventDefault(); return; }
 			lastAt = now;
 			if (handler(key, e) !== false) e.preventDefault();
 		};

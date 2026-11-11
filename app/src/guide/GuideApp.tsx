@@ -109,8 +109,7 @@ export function GuideApp ({data, startView, onView, onClose: close}: {data: Guid
 		onPress: () => {
 			if (onRail) { setView(RAIL[railAt].key); setOnRail(false); }
 			else if (channels[at]) tune(channels[at]);
-		},
-		onLongPress: () => undefined
+		}
 	}, panelKeys);
 
 	const openFromGrid = (c: Channel, p?: Programme) => {

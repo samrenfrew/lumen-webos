@@ -100,7 +100,7 @@ export function FullGuide ({channels, listings, from, thin, loading, logos, now,
 		return true;
 	}, [at, last, focused, anchor, win, base, lastWin, now, channels, listings, onAt, onLeft, onClose]);
 	useKeys(handleKey, active);
-	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at], focused); }, onLongPress: () => undefined}, active);
+	useOkPress({onPress: () => { if (channels[at]) onOpen(channels[at], focused); }}, active);
 
 	const {top, from: rowFrom, to: rowTo} = rowWindow(channels.length, at, IN_VIEW, FOCUS_AT, SPARE);
 	const t = Date.now();

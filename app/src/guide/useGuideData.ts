@@ -59,7 +59,7 @@ export function useGuideData (): GuideData {
 					latest.current.channels = list;
 					return readListings().then((l) => { setPf(l); latest.current.pf = l; save(); return list; });
 				})
-				.then((list) => readLogos(list).then((l) => setLogos((was) => (Object.keys(l).length === Object.keys(was).length ? was : {...l}))))
+				.then((list) => readLogos(list).then((l) => setLogos((was) => (JSON.stringify(l) === JSON.stringify(was) ? was : l))))
 				.catch((e: Error) => logError('lguide', `now and next failed: ${e.message}`))
 				.then(() => { busy.current = false; });
 	};

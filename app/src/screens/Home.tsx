@@ -315,7 +315,18 @@ export function Home ({rows, topItems, inputs, active, onActivate, showPeriod, o
 		if (!row || !editable(row.id) || !held || held.key.indexOf(FOLDER_PREFIX) === 0) return;
 		n.moving = held.key; setLate(true); render();
 	};
-	useOkPress({onPress: press, onLongPress: longPress}, active);
+	/** a hold does something only on an app in the bar or grid (lift, then its menu) and on an app in a folder (its menu); a resting screen keeps key up, so the OK that brings the focus up is swallowed as before */
+	const canHold = () => {
+		const n = nav.current;
+		if (!n.engaged || n.zone === 'folder') return true;
+		if (n.zone !== 'rows') return false;
+		if (n.moving) return true;
+		const {rows: allRows} = latest.current;
+		const row = allRows[clamp(n.rowIndex, 0, allRows.length - 1)];
+		const item = row && row.items[columnOf(row)];
+		return !!row && editable(row.id) && !!item && item.key.indexOf(FOLDER_PREFIX) !== 0;
+	};
+	useOkPress({onPress: press, onLongPress: longPress, canHold}, active);
 
 	const holdTimer = useRef(0);
 	const holdStart = () => {

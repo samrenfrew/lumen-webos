@@ -29,6 +29,19 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] A wake leaves an app you opened by hand (2026-11-10, branch `live-tv-preview`, watcher on the TV; `tools/tv/watch.sh`, `opened_by_hand`). The wake reads the TV's log for who launched the app in front. Check: switch the TV on, open an app from Lumen within 30 s, and it stays; `/tmp/homehook.log` has "was opened by hand, left in front". Then a TV that wakes into its last app (not opened by hand) still goes to Lumen. Not known: how the log marks the app the TV restores at a cold boot, and a launch from a remote's app button.
+- [ ] OK acts on key down where a hold does nothing (2026-11-10, branch `live-tv-preview`, on the TV; `hooks/useOkPress.ts`). Check: OK
+      in the Guide, the Full guide and Lumen Guide, on the top buttons, the Inputs list, a channel tile and Settings rows feels quicker,
+      and nothing opens twice. A long OK on Control Center's button must not also press its first control. Hold OK on an app still lifts
+      it, a second hold opens its menu, and hold OK in Settings > Apps still starts reordering. The first OK on a resting home screen only
+      brings the focus up.
+- [ ] Channel logos are files (2026-11-10, on the TV; `lib/livetv.ts`, `lib/root.ts` `syncLogos` and `writeLogos`). Seen remotely: 152
+      files in `/var/lib/homehook/logos` and in Lumen's `logos/` folder, the old 3 MB value gone from `localStorage`, the row's logos
+      loaded, `live-cache` 3 ms (was 38 to 99). Check: logos look as sharp as before on the Live TV row, the Guide and Settings >
+      Channels. Lumen Guide shows logos on its first open after this install (it copies the files, and should not read them again).
+      After the next install or Channel update the logos come back within a few seconds of launch.
+- [ ] Reads on return wait 1.5 s (2026-11-10, on the TV; `RETURN_READ_MS` in `app.tsx`). Coming back from an app, the open-app dots
+      and the inputs update about 1.5 s later than before. Not yet measured with `tools/tv/perf/return.mjs`.
 - [ ] Lumen's Guide has the overlay's rail in place of the switch at the top right (branch `live-tv-preview`, on the TV). Left from
       Now and Next opens it, and Left past the earliest programme in the Full guide. Up/Down and OK pick a view, Right goes back. Up at
       the top of the list no longer leaves the list. The rail is 340px open and each item is as wide as its name (tried live; the
@@ -37,26 +50,18 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       its programmes shows blocks for the title, times, progress and Next, and the text fades in over them. In the Full guide (Lumen's
       and the overlay's) each row shows three blocks while the schedule loads, and the details at the top show blocks, not "No guide data".
 - [ ] Lumen Guide: the (verify) items at the end of `docs/plans/guide-overlay.md` (Status).
+- [ ] Lumen Quick Settings, the gear button's overlay (dev build, 2026-11-10): the (verify) items in `docs/plans/quick-settings.md`
+      (Status). In Lumen the gear opens Control Center; in other apps it opens Quick Settings over the picture.
 - [ ] The overlay guide survives GUIDE then LIST after the reboot (branch `live-tv-preview`). The keep list took effect at the
       2026-11-08 reboot; before it the memory manager closed the hidden guide (docs/plans/guide-overlay.md).
 - [ ] Home over Lumen no longer goes black (branch `live-tv-preview`, `tools/tv/home-setup.sh` stand-in, already on the TV). Press Home
       on the remote from Lumen's screensaver and from Lumen's home screen: Lumen comes back after a short black flash at most.
-- [ ] Stadia reconnect from the remote (branch `claude/stadia-controller-reconnect-iax0gd`, `tools/tv/stadia.sh`). In Moonlight, after a
-      drop or a reconnect: the Controller check alert says B on the controller dismisses it, OK on the remote reconnects. OK shows the
-      Stadia + Y alert at once, and Stadia + Y pairs it without waiting for the dead link to time out. Check `stadia.log` for "controller
-      reconnected on its own" (a drop that came back inside one 2 s poll) and "OK on the remote: re-pairing". Also whether Back on the
-      remote closes the alert. After a repair the check alert returns until a button press arrives; "Controller paired." shows then, not
-      before. In the log, "controller in the scan after Ns" should come only after Stadia + Y (a "no live scan entry ... pairing anyway"
-      line shows the scan guess was wrong).
-- Stadia bridge (`tools/tv/stadia-bridge.py`, uncommitted on `live-tv-preview`): works when LG's GATT client is fresh, fails after a
-  power-cycle because LG's `monitorCharacteristic` stops registering for notifications (`docs/research/spikes.md`, "Bridge built").
-  Cause found: a disconnect while a sign-up is live leaves LG's lower layer stale, and only a Bluetooth service restart has cleared it.
-  Sam dropped the bridge on 2026-11-06: it is unwired from the boot hook, the install list and the README, and parked in `tools/tv/`.
-  Next session: dig into the LG bug itself (where the HID host and the SIL keep their stale state, and whether anything short of a
-  Bluetooth restart clears it). The TV was off before cleanup, so on the TV: install the repo's `60-homehook` (it still starts the
-  bridge, which stays idle while `no-stadia-bridge` exists), then delete `stadia-bridge.py`, `no-stadia-bridge` and the jail node
-  `/var/palm/jail/com.limelight.webos/dev/hidraw1`. HCI snoop and the stack trace are still on (RAM, up to 20 MB each); they help the
-  next session, so turn them off (`bt_stack.conf.orig`) only when the Stadia work ends.
+- [ ] Stadia pairing popup (`tools/tv/stadia.sh`, rewritten 2026-11-08, on the TV). Each time Moonlight comes to the front, a popup asks
+      to pair. OK starts it, Back skips it. Hold Stadia + Y at any time after OK; it retries for 5 minutes and restarts the TV's Bluetooth
+      service after 3 failed tries. "Controller paired." shows once a button press arrives. To try again: Home, then Moonlight. First run
+      paired on try 7, right after a Bluetooth restart. The bridge and its files are gone from the TV. The script also copies the
+      controller's hidraw node into Moonlight's jail. Sam saw it work on 2026-11-08 (paired on try 1). Still to see: the Bluetooth
+      restart after 3 failed tries, and Back on the popup.
 
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).

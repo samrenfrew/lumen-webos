@@ -67,6 +67,7 @@ const TILES_FOR: Record<number, {size: number; height: number; gap: number}> = {
 /** the backlight the screensaver lowers the TV to, by Settings > Screensaver > Brightness */
 const AMBIENT_BACKLIGHT: Record<string, number> = {dim: 30, low: 10};
 const PREPARE_SAVER_MS = 8000;   // after the home screen shows, so the screensaver's photo loads clear of the boot and the way back from an app
+const RETURN_READ_MS = 1500;     // after Lumen comes back, the inputs and open apps are read once the redraw is over (docs/keep-alive.md)
 const RECENT_MAX = 8;
 /** what the last launch showed, drawn at once on a cold start (lib/boot.ts) */
 const INPUTS_CACHE_KEY = 'lumen-boot-inputs-v1';
@@ -259,6 +260,8 @@ export function App () {
 			if (p.view === 'ambient' && configRef.current.ambientOn) { ambientOpening.current = null; saverFrom.current = p.from || ''; setScreen('ambient'); }
 			// {"view":"guide"} is the remote's Guide button, rebound with LG Input Hook; the Guide only has data with the Live TV row on
 			if (p.view === 'guide' && configRef.current.liveTvRow) { setScreen('guide'); setControls(false); setGuideOpens((n) => n + 1); }
+			// {"view":"controls"} is the remote's gear button, bound by watch.sh while Lumen is in front: it opens Control Center on home, or closes it
+			if (p.view === 'controls') { saverFrom.current = ''; setScreen('home'); setControls((c) => !c); }
 			// a plain relaunch is the remote's Home button: back to the home screen from Settings, the Guide, the screensaver or Control Center
 			if (!p.view) { saverFrom.current = ''; setScreen('home'); setControls(false); }
 		};
@@ -306,26 +309,30 @@ export function App () {
 			}).catch(() => showToast('Could not read the inputs', 'error'));
 		};
 		const cancel = isWebOS() ? afterFirstFrame(refresh) : (refresh(), () => undefined);
-		const onVisibility = () => { if (!document.hidden) refresh(); };
+		let timer = 0;
+		const onVisibility = () => { window.clearTimeout(timer); if (!document.hidden) timer = window.setTimeout(refresh, RETURN_READ_MS); };
 		document.addEventListener('visibilitychange', onVisibility);
-		return () => { cancel(); document.removeEventListener('visibilitychange', onVisibility); };
+		return () => { cancel(); window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisibility); };
 	}, [showToast]);
 
 	// the apps still open in the background (docs/keep-alive.md), read again 5 s after Lumen comes to the front: the TV may close some just then
 	const [running, setRunning] = useState<string[]>([]);
 	useEffect(() => {
 		if (!isWebOS()) { setRunning(['youtube.leanback.v4', 'com.beb.plxnative']); return undefined; }
+		let first = 0;
 		let again = 0;
 		const read = () => runningApps().then((ids) => ids.sort()).then((ids) => setRunning((now) => (now.join() === ids.join() ? now : ids))).catch(() => undefined);
-		const onVisibility = () => {
+		const readSoon = (wait: number) => {
+			window.clearTimeout(first);
 			window.clearTimeout(again);
 			if (document.hidden) return;
-			read();
+			first = window.setTimeout(read, wait);
 			again = window.setTimeout(read, 5000);
 		};
-		const cancel = afterFirstFrame(onVisibility);
+		const cancel = afterFirstFrame(() => readSoon(0));
+		const onVisibility = () => readSoon(RETURN_READ_MS);
 		document.addEventListener('visibilitychange', onVisibility);
-		return () => { cancel(); window.clearTimeout(again); document.removeEventListener('visibilitychange', onVisibility); };
+		return () => { cancel(); window.clearTimeout(first); window.clearTimeout(again); document.removeEventListener('visibilitychange', onVisibility); };
 	}, []);
 
 	useEffect(() => { setPicks(config.wallpaperPicks, config.wpNewOnLaunch); setWallpaper(config.wallpaper); }, [config.wallpaper]);
@@ -484,7 +491,7 @@ export function App () {
 			label: c.name,
 			live: {channel: c, number: c.number, name: c.name, logo: c.logoPath && live.logos[c.logoPath], at: live.now, loading: !!live.pending[c.signal], preview: homePreview, ...nowNextAt(live.listings[c.signal], live.now)}
 		})));
-	}, [config.liveTvRow, config.liveChannels, live, config.language, homePreviewKey]);
+	}, [config.liveTvRow, config.liveChannels, live.channels, live.listings, live.logos, live.now, live.pending, config.language, homePreviewKey]);
 	/** the furthest along the row a focused channel may sit with its now/next block still on the row (Row's slot) */
 	const liveSlot = useMemo(() => {
 		const t = TILES_FOR[firstRow] || TILES_FOR[6];

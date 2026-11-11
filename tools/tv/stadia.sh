@@ -1,67 +1,60 @@
 #!/bin/sh
-# Stadia controller watcher, for Moonlight. After the controller is switched off and on it reconnects but sends no input until it is paired
-# again (docs/research/spikes.md). While Moonlight is in front, this notices that and pairs it again as soon as you hold Stadia + Y (orange light).
-#  - A connection counts as working once a report arrives on its hidraw node, also one this script just paired (an input device alone is no proof).
-#  - Broken: a connection sends nothing for SILENT_SECS, or a connection drops (it always comes back broken).
-#  - Repair: forget the controller, scan, pair, connect. Tried again and again until its input device appears, for up to REPAIR_SECS.
-#    A try counts only if the old input device went away first, since a pair made outside pairing mode "succeeds" and changes nothing.
-#  - A connection that is not known to work shows an alert: B on the controller dismisses it, OK on the remote starts the repair at once,
-#    so there is no wait for SILENT_SECS or for the dead link to time out. OK is read from the remote's input device (the alert's own
-#    buttons cannot start a root command, tried 2026-11-04). It is ignored once the controller has sent input.
-# Log: /var/lib/homehook/stadia.log. Off: /var/lib/homehook/no-stadia. In any app, not only Moonlight: /var/lib/homehook/stadia-any-app.
-# A dead reconnect is usually rescued first by stadia-bridge.py, which feeds its input into a gamepad of its own; this script counts that as
-# working, and with the bridge running it waits BRIDGE_SECS before the check alert.
-# While watching, it also copies the Bluetooth lines from LG's system log to /var/lib/homehook/bt.log (times in UTC), so a drop can be read later.
+# Stadia controller pairing, for Moonlight. A reconnect never sends input on this TV (docs/research/spikes.md), so the fix is a fresh pairing.
+# Each time Moonlight comes to the front, a popup asks to pair. OK on the remote starts it, Back (or 60 s with no answer) skips it.
+# After OK it forgets the controller and tries to pair again and again, for up to PAIR_SECS, so Stadia + Y can be held at any time.
+# A pairing counts only once the controller sends a report, so a pair made before Stadia + Y is undone and tried again.
+# After RESTART_AFTER failed tries in a row it restarts the TV's Bluetooth service, which unsticks a pairing the stack has hung on.
+# To try again at any time: go Home, then back to Moonlight.
+# Log: /var/lib/homehook/stadia.log. Off: /var/lib/homehook/no-stadia.
 B=luna://com.webos.service.bluetooth2
 MOON=com.limelight.webos
 DIR=/var/lib/homehook
 LOG=$DIR/stadia.log
 ADDR_FILE=$DIR/stadia-address
-RAW=/tmp/stadia-raw
-SILENT_SECS=30
-# with the bridge running, how long a connection may stay without input before the check alert
-BRIDGE_SECS=15
-REPAIR_SECS=180
-FIND_TRIES=10
+KEYS=/tmp/stadia-keys
+ASK_SECS=60
+PAIR_SECS=300
+INPUT_SECS=20
+# failed tries in a row before the Bluetooth service restart; the restart drops the remote for about 20 s
+RESTART_AFTER=3
 
 log() { echo "$(date '+%F %T') $*" >> "$LOG"; }
-ls1() { luna-send -n 1 "$@" </dev/null 2>/dev/null; }
-# an LG toast; Lumen is named as the source because the notification service wants an installed app id
-toast() { ls1 luna://com.webos.notification/createToast "{\"sourceId\":\"com.samrenfrew.lumen\",\"message\":\"$1\"}" >/dev/null; }
-# an LG alert stays up until closed, so it is the one place that says what to do; LG's own toasts already cover connect and disconnect
+# every bus call has a time limit: on 2026-11-08 an unanswered hid/connect froze the old script for good
+ls1() { t=$1; shift; timeout "$t" luna-send -n 1 "$@" </dev/null 2>/dev/null; }
+toast() { ls1 5 luna://com.webos.notification/createToast "{\"sourceId\":\"com.samrenfrew.lumen\",\"message\":\"$1\"}" >/dev/null; }
 alert_id=""
 alert() {
   close_alert
-  alert_id=$(ls1 luna://com.webos.notification/createAlert "{\"sourceId\":\"com.samrenfrew.lumen\",\"title\":\"$1\",\"message\":\"$2\",\"buttons\":[{\"label\":\"OK\"}]}" \
+  alert_id=$(ls1 5 luna://com.webos.notification/createAlert "{\"sourceId\":\"com.samrenfrew.lumen\",\"title\":\"$1\",\"message\":\"$2\",\"buttons\":[{\"label\":\"OK\"}]}" \
     | sed -n 's/.*"alertId": *"\([^"]*\)".*/\1/p')
 }
 close_alert() {
-  [ -n "$alert_id" ] && ls1 luna://com.webos.notification/closeAlert "{\"alertId\":\"$alert_id\"}" >/dev/null
+  [ -n "$alert_id" ] && ls1 5 luna://com.webos.notification/closeAlert "{\"alertId\":\"$alert_id\"}" >/dev/null
   alert_id=""
 }
-HOLD_MSG="Hold Stadia + Y until the light flashes orange."
-# an OK press on the remote (key 28, from the "LGE RCU" node) while the check alert is up starts the repair; the alert's own buttons cannot
-ASK=/tmp/stadia-reconnect
-RCU=/dev/input/event1
-check_alert() {
-  alert "Controller check" "Press B on the controller to dismiss. If nothing happens, press OK on the remote to reconnect it."
-  alert_shown=1
+front() {
+  [ -f "$DIR/no-stadia" ] && return 1
+  case "$(ls1 5 luna://com.webos.applicationManager/getForegroundAppInfo '{}')" in *'"appId":"'$MOON'"'*) return 0 ;; esac
+  return 1
 }
-# the node is opened once and read one 16-byte event at a time, so no press is missed between reads
-start_ok() {
-  [ -n "$okpid" ] && return
-  ( exec 3<"$RCU" || exit
+
+# the alert's own button cannot start a root command (tried 2026-11-04), so OK and Back are read from the remote's input node
+rcu() { grep -A4 '^N: Name="LGE RCU"' /proc/bus/input/devices | sed -n 's/^H: Handlers=.*\(event[0-9]*\).*/\/dev\/input\/\1/p' | head -1; }
+keypid=""
+start_keys() {
+  stop_keys; : > "$KEYS"
+  node=$(rcu); [ -n "$node" ] || node=/dev/input/event1
+  # one 16-byte event at a time (32-bit timeval): type 1 is a key, value 1 a press; 28 is OK, 412 is Back
+  ( exec 3<"$node" || exit
     while ev=$(dd bs=16 count=1 <&3 2>/dev/null | od -An -t x2 -v); do
       [ -n "$ev" ] || break
-      case "$ev" in *"0001 001c 0001 0000"*) : > "$ASK" ;; esac
+      case "$ev" in *"0001 001c 0001 0000"*) echo ok >> "$KEYS" ;; *"0001 019c 0001 0000"*) echo back >> "$KEYS" ;; esac
     done ) &
-  okpid=$!
+  keypid=$!
 }
-stop_ok() { [ -n "$okpid" ] && kill "$okpid" 2>/dev/null; okpid=""; }
+stop_keys() { [ -n "$keypid" ] && kill "$keypid" 2>/dev/null; keypid=""; }
+
 present() { grep -q '^N: Name="Stadia' /proc/bus/input/devices; }
-# the input device's instance (9400.000E, hex in capitals); it changes at every reconnect, so a drop that comes back within one poll still shows
-inst() { grep -A3 '^N: Name="Stadia' /proc/bus/input/devices | sed -n 's/^S: Sysfs=.*\(9400\.[0-9a-fA-F]*\).*/\1/p' | head -1; }
-# the controller's hidraw node (Google 18d1:9400), not the bridge's own gamepad, which has the same IDs
 hidraw() {
   for x in /sys/class/hidraw/hidraw*; do
     readlink "$x" 2>/dev/null | grep -qi '18d1:9400' && grep -q '^HID_NAME=Stadia' "$x/device/uevent" 2>/dev/null \
@@ -69,14 +62,9 @@ hidraw() {
   done
   return 1
 }
-# stadia-bridge.py feeds a dead reconnect's input into a gamepad of its own; it names the connection it serves in BRIDGED
-BRIDGED=/tmp/stadia-bridged
-bridge_on() { [ ! -f "$DIR/no-stadia-bridge" ] && [ -f /tmp/stadia-bridge.pid ] && kill -0 "$(cat /tmp/stadia-bridge.pid)" 2>/dev/null; }
-bridged() { [ -n "$1" ] && grep -q "$1" "$BRIDGED" 2>/dev/null; }
-# the controller's address: read from the paired list while it is there, else the last one seen (it is gone from the list once forgotten)
+# the controller's address from the paired list, else the last one seen (it leaves the list once forgotten)
 addr() {
-  # one line per device (each starts with classOfDevice); the name and the address are far apart in it
-  a=$(ls1 $B/device/getStatus '{}' | tr -d ' \n' | sed 's/{"classOfDevice"/\n&/g' | grep '"name":"Stadia' | grep '"paired":true' \
+  a=$(ls1 10 $B/device/getStatus '{}' | tr -d ' \n' | sed 's/{"classOfDevice"/\n&/g' | grep '"name":"Stadia' | grep '"paired":true' \
     | sed -n 's/.*"address":"\([0-9a-f:]*\)".*/\1/p' | head -1)
   if printf '%s' "$a" | grep -qE '^([0-9a-f]{2}:){5}[0-9a-f]{2}$'; then
     [ "$a" = "$(cat "$ADDR_FILE" 2>/dev/null)" ] || echo "$a" > "$ADDR_FILE"
@@ -85,128 +73,96 @@ addr() {
     grep -E '^([0-9a-f]{2}:){5}[0-9a-f]{2}$' "$ADDR_FILE" 2>/dev/null
   fi
 }
-stop_raw() { [ -n "$rawpid" ] && kill "$rawpid" 2>/dev/null; rawpid=""; }
-BTLOG=$DIR/bt.log
-BT_PAT='webos-bluetooth|bthidmanager|btmtk|bt_time|[[]BT[]]|xhci|ehci|usb [0-9]|hidraw|Stadia|18D1:9400'
-# LG rotates its system log about hourly, too soon to read a drop the next day; awk flushes each line so none is lost when it is stopped
-start_bt() {
-  [ -n "$btpid" ] && return
-  [ -f "$BTLOG" ] && [ "$(wc -c < "$BTLOG")" -gt 4000000 ] && tail -n 20000 "$BTLOG" > "$BTLOG.tmp" && mv "$BTLOG.tmp" "$BTLOG"
-  echo "$(date -u '+%FT%TZ') --- Moonlight in front" >> "$BTLOG"
-  tail -n 0 -F /var/log/legacy-log 2>/dev/null | awk -v p="$BT_PAT" '$0 ~ p { print; fflush() }' >> "$BTLOG" &
-  btpid=$!
+# Moonlight's jail has a fixed copy of hidraw0 only; a controller on another number is invisible to it until its node is copied in
+JAIL=/var/palm/jail/com.limelight.webos/dev
+jail_node() {
+  h=$(hidraw) || return
+  mm=$(cat "/sys/class/hidraw/${h##*/}/dev" 2>/dev/null); [ -n "$mm" ] && [ -d "$JAIL" ] || return
+  j=$JAIL/${h##*/}
+  [ -c "$j" ] && [ "$(stat -c '%t:%T' "$j" 2>/dev/null)" = "$(printf '%x:%x' "${mm%:*}" "${mm#*:}")" ] && return
+  rm -f "$j"; mknod "$j" c "${mm%:*}" "${mm#*:}" && chown root:jailer "$j" && chmod 660 "$j" && log "added ${h##*/} to Moonlight's jail"
 }
-# tail ends on its own at its next write once awk is gone
-stop_bt() { [ -n "$btpid" ] && kill "$btpid" 2>/dev/null; btpid=""; }
-trap 'stop_bt; stop_raw; stop_ok; exit' TERM INT
-# the scan's entry for this address while it is not paired (one line per device, as in addr)
-unpaired_line() {
-  ls1 $B/device/getStatus '{}' | tr -d ' \n' | sed 's/{"classOfDevice"/\n&/g' | grep "\"address\":\"$1\"" | grep '"paired":false' | head -1
-}
-# one forget, scan, pair, connect; true when the input device came back
-repair_once() {
-  a=$(addr) || return 1
-  [ -n "$a" ] || return 1
-  stop_raw; up=0
-  ls1 $B/adapter/unpair "{\"address\":\"$a\"}" >/dev/null
-  sleep 2
-  # a connected controller can outlast the unpair; drop the link too, and give up this try if its input device is still there
-  if present; then ls1 $B/hid/disconnect "{\"address\":\"$a\"}" >/dev/null; sleep 3; fi
-  if present; then log "re-pair try skipped: the old connection is still up after unpair and disconnect"; return 1; fi
-  # luna-send -i keeps the scan open while its stdin is open
-  sleep 40 | luna-send -i $B/adapter/startDiscovery '{}' >/dev/null 2>&1 &
-  # the controller shows up in the scan only while it is in pairing mode, so pair the moment it does (2026-11-04: a fixed 4 s wait paired too early)
-  # 2026-11-04: the entry left from before the unpair has an empty scanRecord and matched at once; a live one is taken to have data (a guess)
-  n=0; line=""; last=""
-  while [ "$n" -lt "$FIND_TRIES" ]; do
-    last=$(unpaired_line "$a")
-    if printf '%s' "$last" | grep -q '"scanRecord":\[[0-9]'; then line=$last; break; fi
-    sleep 2; n=$((n + 1))
+# true once the controller sends a report; a bonded but silent link is not a pairing
+input_within() {
+  end=$(( $(date +%s) + $1 ))
+  while [ "$(date +%s)" -lt "$end" ]; do
+    if h=$(hidraw); then
+      got=$(timeout 3 dd if="$h" bs=64 count=1 2>/dev/null | wc -c)
+      [ "${got:-0}" -gt 0 ] && return 0
+    else sleep 1; fi
   done
-  if [ -n "$line" ]; then log "controller in the scan after $((n * 2))s: $(printf '%s' "$line" | cut -c1-400)"
-  else log "no live scan entry after $((n * 2))s, pairing anyway: $(printf '%s' "$last" | cut -c1-400)"; fi
-  r=$(timeout 15 luna-send -n 2 $B/adapter/pair "{\"address\":\"$a\",\"subscribe\":true}" </dev/null 2>&1 | tr -d ' \n')
-  sleep 2
-  present || { ls1 $B/hid/connect "{\"address\":\"$a\"}" >/dev/null; sleep 3; }
-  ls1 $B/adapter/cancelDiscovery '{}' >/dev/null
-  # an input device is not proof (2026-11-04: it existed while the controller was still waiting in pairing mode), so the loop waits for a report
-  if present; then log "paired $a, waiting for input"; return 0; fi
-  log "re-pair try failed (controller not in pairing mode yet?): $(printf '%s' "$r" | cut -c1-160)"
   return 1
 }
+# one forget, scan, pair, connect; true when the controller's input device is there afterwards
+attempt() {
+  a=$(addr); [ -n "$a" ] || { log "no controller address known: pair it once in LG settings"; sleep 5; return 1; }
+  ls1 10 $B/adapter/unpair "{\"address\":\"$a\"}" >/dev/null
+  sleep 1
+  present && { ls1 10 $B/hid/disconnect "{\"address\":\"$a\"}" >/dev/null; sleep 2; }
+  # luna-send -i keeps the scan open while its stdin is open; timeout ends it whatever happens
+  ( sleep 30 | timeout 32 luna-send -i $B/adapter/startDiscovery '{}' >/dev/null 2>&1 ) &
+  scan=$!
+  sleep 4
+  r=$(timeout 20 luna-send -n 2 $B/adapter/pair "{\"address\":\"$a\",\"subscribe\":true}" </dev/null 2>&1 | tr -d ' \n')
+  sleep 2
+  present || { ls1 10 $B/hid/connect "{\"address\":\"$a\"}" >/dev/null; sleep 2; }
+  ls1 5 $B/adapter/cancelDiscovery '{}' >/dev/null
+  kill "$scan" 2>/dev/null
+  if present; then log "try $n: paired, waiting for input"; return 0; fi
+  log "try $n: no pairing: $(printf '%s' "$r" | cut -c1-160)"
+  return 1
+}
+HOLD="Hold Stadia + Y until the light flashes orange. It pairs by itself, however long you take."
+pair() {
+  log "OK pressed: pairing"
+  alert "Pairing the controller" "$HOLD"
+  until=$(( $(date +%s) + PAIR_SECS )); n=0; fails=0
+  while [ "$(date +%s)" -lt "$until" ]; do
+    front || { log "Moonlight left the front: pairing stopped"; close_alert; return; }
+    # 2026-11-08: pairs hung in the TV's stack (SMP never finished) until a Bluetooth service restart, then the next try worked
+    if [ "$fails" -ge "$RESTART_AFTER" ]; then
+      fails=0; log "$RESTART_AFTER tries failed: restarting the TV's Bluetooth service"
+      timeout 30 systemctl restart webos-bluetooth-service; sleep 10
+      alert "Pairing the controller" "$HOLD"
+    fi
+    n=$((n + 1))
+    fails=$((fails + 1))
+    if attempt; then
+      jail_node
+      alert "Almost there" "Press any button on the controller."
+      if input_within "$INPUT_SECS"; then
+        log "try $n: input seen, done"; close_alert; toast "Controller paired."; return
+      fi
+      log "try $n: paired but no input in ${INPUT_SECS}s, trying again"
+      alert "Pairing the controller" "$HOLD"
+    fi
+    sleep 1
+  done
+  log "gave up after ${PAIR_SECS}s"
+  close_alert; toast "Could not pair the controller.<br>Go Home and back to Moonlight to try again."
+}
 
+trap 'stop_keys; close_alert; exit' TERM INT
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-up=0; ok=0; since=0; checked=0; repair_until=0; rawpid=""; btpid=""; active=0; seen=""; okpid=""; alert_shown=0; repaired=0
-rm -f "$ASK"
+was=0; asking=0
 while true; do
-  sleep 2
-  now=$(date +%s)
-  on=1
-  [ -f "$DIR/no-stadia" ] && on=0
-  if [ "$on" -eq 1 ] && [ ! -f "$DIR/stadia-any-app" ]; then
-    case "$(ls1 luna://com.webos.applicationManager/getForegroundAppInfo '{}')" in *'"appId":"'$MOON'"'*) ;; *) on=0 ;; esac
+  sleep 1
+  if ! front; then
+    [ "$was" -eq 1 ] && { log "Moonlight left the front"; stop_keys; close_alert; asking=0; }
+    was=0; continue
   fi
-  if [ "$on" -eq 0 ]; then
-    [ "$active" -eq 1 ] && log "Moonlight left the front: watching paused"
-    active=0; repair_until=0; up=0; stop_raw; stop_bt; stop_ok; close_alert; alert_shown=0; repaired=0; rm -f "$ASK"
-    continue
+  jail_node
+  if [ "$was" -eq 0 ]; then
+    was=1; asking=1; asked=$(date +%s)
+    log "Moonlight in front: asking"
+    start_keys
+    alert "Pair the controller?" "Press OK to pair the Stadia controller. Press Back to skip."
   fi
-  [ "$active" -eq 0 ] && log "Moonlight in front: watching" && start_bt && start_ok
-  active=1
-  if present; then
-    cur=$(inst)
-    if [ "$up" -eq 1 ] && [ -n "$cur" ] && [ "$cur" != "$seen" ]; then
-      # 2026-11-03: the link dropped and came back inside one poll, dead, and nothing was shown
-      up=0; stop_raw; log "controller reconnected on its own ($seen to $cur)"
-    fi
-    if [ "$up" -eq 0 ]; then
-      up=1; since=$now; ok=0; seen=$cur
-      log "controller connected ($([ "$ok" -eq 1 ] && echo "paired here, working" || echo "checking for input"))"
-      # a reconnect has always been dead so far, so offer the fix now rather than after SILENT_SECS; while a repair is already running,
-      # its Stadia + Y alert stays up instead. With the bridge running, it gets BRIDGE_SECS to take over first.
-      checked=0
-      [ "$ok" -eq 0 ] && [ "$repair_until" -le "$now" ] && ! bridge_on && { check_alert; checked=1; }
-      : > "$RAW"
-    fi
-    if [ "$ok" -eq 0 ]; then
-      # the hidraw node can show up a moment after the input device
-      if [ -z "$rawpid" ] && h=$(hidraw); then cat "$h" >> "$RAW" 2>/dev/null & rawpid=$!; fi
-      if [ -s "$RAW" ] || bridged "$cur"; then
-        ok=1; repair_until=0; alert_shown=0; stop_raw; close_alert
-        if [ -s "$RAW" ]; then log "input seen: working"; else log "input seen: through the bridge"; fi
-        [ "$repaired" -eq 1 ] && { repaired=0; toast "Controller paired."; }
-      elif [ "$checked" -eq 0 ] && [ $((now - since)) -ge "$BRIDGE_SECS" ] && [ "$repair_until" -le "$now" ]; then
-        checked=1; log "no input after ${BRIDGE_SECS}s, bridge or not: asking"; check_alert
-      elif [ $((now - since)) -ge "$SILENT_SECS" ] && [ "$repair_until" -le "$now" ]; then
-        repair_until=$((now + REPAIR_SECS)); log "no input for ${SILENT_SECS}s: broken, re-pairing on Stadia + Y"
-        alert "Controller not responding" "$HOLD_MSG"
-      fi
-    fi
-  elif [ "$up" -eq 1 ]; then
-    up=0; ok=0; stop_raw
-    if bridge_on; then
-      # 2026-11-06: the re-pair starts by forgetting the controller, so it could not reconnect when switched back on; with the bridge, a
-      # reconnect works, and the connected branch above asks after BRIDGE_SECS if it does not
-      log "controller dropped: waiting for it to reconnect"
-    else
-      repair_until=$((now + REPAIR_SECS)); log "controller dropped: re-pairing on Stadia + Y"
-      alert "Controller disconnected" "$HOLD_MSG"
-    fi
-  fi
-  if [ -f "$ASK" ]; then
-    rm -f "$ASK"
-    # only while the check alert is up, so an OK press used to drive Moonlight's menus does nothing
-    if [ "$alert_shown" -eq 1 ] && [ "$ok" -eq 0 ] && [ "$repair_until" -le "$now" ] && present; then
-      log "OK on the remote: re-pairing on Stadia + Y"
-      alert_shown=0; repair_until=$((now + REPAIR_SECS))
-      alert "Reconnecting the controller" "$HOLD_MSG"
-    fi
-  fi
-  if [ "$repair_until" -gt "$now" ] && [ "$ok" -eq 0 ]; then
-    if repair_once; then repaired=1; repair_until=0; fi
-  elif [ "$repair_until" -gt 0 ] && [ "$repair_until" -le "$now" ]; then
-    repair_until=0; log "gave up re-pairing after ${REPAIR_SECS}s; switch the controller off and on to try again"
-    close_alert; toast "Stopped waiting for the controller.<br>Switch it off and on to try again."
+  [ "$asking" -eq 1 ] || continue
+  if grep -q ok "$KEYS" 2>/dev/null; then
+    asking=0; stop_keys; pair
+  elif grep -q back "$KEYS" 2>/dev/null || [ $(( $(date +%s) - asked )) -ge "$ASK_SECS" ]; then
+    asking=0; stop_keys; close_alert; log "skipped"
   fi
 done

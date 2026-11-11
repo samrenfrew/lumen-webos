@@ -86,7 +86,7 @@ To install the scripts, run these commands from a copy of this repository. Repla
 
 ```sh
 ssh root@<tv-ip> 'mkdir -p /var/lib/homehook /var/lib/webosbrew/init.d'
-scp tools/tv/watch.sh tools/tv/stadia.sh tools/tv/home-setup.sh root@<tv-ip>:/var/lib/homehook/
+scp tools/tv/watch.sh tools/tv/stadia.sh tools/tv/home-setup.sh tools/tv/gear.sh root@<tv-ip>:/var/lib/homehook/
 scp tools/tv/60-homehook root@<tv-ip>:/var/lib/webosbrew/init.d/
 ssh root@<tv-ip> 'chmod +x /var/lib/homehook/*.sh /var/lib/webosbrew/init.d/60-homehook && /var/lib/webosbrew/init.d/60-homehook'
 ```
@@ -194,7 +194,7 @@ Do not push only to get a build onto the TV. Use `npm run deploy:home` for that.
 The scripts in [tools/tv/](tools/tv/) run on the TV. They go in `/var/lib/homehook/`, and [tools/tv/60-homehook](tools/tv/60-homehook) in `/var/lib/webosbrew/init.d/` starts them at boot.
 
 - [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver, and runs the Settings > Brightness schedule. When Lumen Guide is installed, it binds LIST and GUIDE to the guide while Live TV is in front, and starts the guide hidden so that it opens at once. In other apps, GUIDE opens Lumen's Guide and LIST is left to the app.
-- [stadia.sh](tools/tv/stadia.sh) pairs a Stadia controller again in Moonlight after a drop, when you hold Stadia + Y.
+- [stadia.sh](tools/tv/stadia.sh) asks to pair a Stadia controller each time Moonlight opens. Press OK, then hold Stadia + Y.
 
 LG Input Hook owns the Home button on this TV. `watch.sh` takes over LG Home only when `/var/lib/homehook/home-takeover` exists.
 

@@ -1,4 +1,4 @@
-// Launch parameters: {"view":"recent"} opens Lumen on its Recent row and {"view":"guide"} on the Guide (buttons rebound with LG Input Hook). watch.sh opens the
+// Launch parameters: {"view":"recent"} opens Lumen on its Recent row and {"view":"guide"} on the Guide (buttons rebound with LG Input Hook), and {"view":"controls"} opens or closes Control Center (the gear button). watch.sh opens the
 // screensaver with {"view":"ambient","from":"<app id>"}, the app it came up over. webOS hands them over
 // in webOSSystem.launchParams (PalmSystem on older firmware) on a cold start and in a webOSRelaunch event when Lumen is already running. Untested on webOS 25 (PLAN Phase 2).
 

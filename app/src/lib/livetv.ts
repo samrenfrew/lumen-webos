@@ -2,7 +2,8 @@
 // (lib/root.ts). A cold start draws the last answer from localStorage at once (lib/boot.ts); the TV is asked again after the first frame.
 
 import {isWebOS} from './luna';
-import {channelList, eventList, EVENT_BATCH, nowNext, readIcons, schedule} from './root';
+import {channelList, eventList, EVENT_BATCH, LOGO_BATCH_BYTES, nowNext, readIcons, schedule, syncLogos, writeLogos} from './root';
+import {appDir} from './tvsetup';
 import {logError} from './log';
 import {readCache, writeCache} from './boot';
 import {timeParts} from './clock';
@@ -339,8 +340,12 @@ export function timeLeft (p: Programme, t: number): string {
 
 // ---------- logos ----------
 
-/** Logos as data: URIs, by their path on the TV. Kept apart from the channel list, so a full localStorage loses only the logos. */
-const LOGO_CACHE_KEY = 'lumen-livetv-logos-v2';
+/** The logos are files in the app's own folder (logos/<name>.png), sharpened once and written through the root shell: the browser loads and
+ *  decodes them off the page's thread, and nothing large sits in localStorage. This holds only each logo's file name, by its path on the TV.
+ *  The files are also kept under /var/lib/homehook/logos, so an update (which empties the app's folder) and Lumen Guide get them by a copy. */
+const LOGO_FILES_KEY = 'lumen-livetv-logo-files-v1';
+/** the logos as data: URIs in one 3 MB value, as they were kept before: v2's are sharpened, so they are written out as files once, not read again */
+const OLD_LOGO_KEY = 'lumen-livetv-logos-v2';
 
 /** How far a logo is scaled up once, on load: the TV's are as small as 133 x 100, and a focused tile shows them larger than that. */
 const LOGO_SCALE = 3;
@@ -377,36 +382,97 @@ function crispLogo (src: string): Promise<string> {
 	});
 }
 
-export function cachedLogos (): Record<string, string> {
-	return readCache<Record<string, string>>(LOGO_CACHE_KEY) || {};
+/** a logo's file name: a short hash of its path on the TV, the same in Lumen and Lumen Guide */
+function logoName (path: string): string {
+	let h = 5381;
+	for (let i = 0; i < path.length; i++) h = ((h << 5) + h + path.charCodeAt(i)) >>> 0;
+	return 'l' + h.toString(36);
 }
 
-/** Reads the logos not in the cache yet, in one shell round-trip, and returns the whole cache. A logo whose file is missing (the TV
- *  clears /tmp on a reboot and fetches them again later) is simply asked for again next time. */
+/** added to each logo's address once files were put back while the page runs, so a logo that failed to load before is asked for again */
+let logoBust = '';
+/** the logo files in the app's folder, once the TV has been asked */
+const logoFilesThere = new Set<string>();
+
+function logoFiles (): Record<string, string> {
+	return readCache<Record<string, string>>(LOGO_FILES_KEY) || {};
+}
+
+/** Each logo's address for an <img>, by its path on the TV. */
+export function cachedLogos (): Record<string, string> {
+	const files = logoFiles();
+	const out: Record<string, string> = {};
+	for (const path in files) out[path] = `logos/${files[path]}.png${logoBust}`;
+	return out;
+}
+
+let logosSynced: Promise<void> | null = null;
+/** Once per page: put back the logo files the app's folder lacks, and forget any the TV no longer has, so they are read again. */
+function syncLogoFiles (): Promise<void> {
+	if (!logosSynced) {
+		logosSynced = syncLogos(appDir()).then(({files: there, restored}) => {
+			there.forEach((f) => logoFilesThere.add(f.replace(/\.png$/, '')));
+			const files = logoFiles();
+			let dropped = false;
+			for (const path in files) if (!logoFilesThere.has(files[path])) { delete files[path]; dropped = true; }
+			if (dropped) writeCache(LOGO_FILES_KEY, files);
+			if (restored) logoBust = `?${Date.now() % 100000}`;
+		}).catch((e: Error) => { logosSynced = null; logError('guide', `logo files: ${e.message}`); });
+	}
+	return logosSynced;
+}
+
 /** logo files asked for and not found while this page runs, so each guide open does not spawn a shell to ask again */
 const logosNotFound = new Set<string>();
 
+/** Makes a file of each logo that has none yet, and returns every logo's address. A new logo is read from the TV in one shell round-trip,
+ *  sharpened, and written back a batch at a time. A logo whose file is missing on the TV (it clears /tmp on a reboot and fetches them
+ *  again later) is asked for again the next time the page starts. */
 export function readLogos (channels: Channel[]): Promise<Record<string, string>> {
-	const cache = cachedLogos();
-	const missing = channels.map((c) => c.logoPath).filter((p, i, all): p is string => !!p && !cache[p] && !logosNotFound.has(p) && all.indexOf(p) === i);
-	if (!missing.length || !isWebOS()) return Promise.resolve(cache);
-	missing.forEach((p) => logosNotFound.add(p));
-	return readIcons(missing).then((out) => {
-		const jobs: Promise<void>[] = [];
-		for (const line of out.split('\n')) {
-			const m = /^(\d+) ([A-Za-z0-9+\/=]+)$/.exec(line);
-			const path = m && missing[Number(m[1])];
-			if (m && path) logosNotFound.delete(path);
-			if (m && path) jobs.push(crispLogo(`data:image/png;base64,${m[2]}`).then((uri) => { cache[path] = uri; }));
-		}
-		// a logo whose file is still missing adds nothing: skip the save, since rewriting the 3 MB cache stalls the guide's open by 100 to 370 ms
-		if (!jobs.length) return cache;
-		return Promise.all(jobs).then(() => {
-			try { localStorage.removeItem('lumen-livetv-logos-v1'); } catch { /* the unsharpened logos only take space */ }
-			writeCache(LOGO_CACHE_KEY, cache);
-			return cache;
-		});
-	});
+	if (!isWebOS()) return Promise.resolve(cachedLogos());
+	return syncLogoFiles().then(() => {
+		const files = logoFiles();
+		const paths = channels.map((c) => c.logoPath).filter((p, i, all): p is string => !!p && all.indexOf(p) === i);
+		let changed = false;
+		// a file the other app (or an older install) already made
+		paths.forEach((p) => { if (!files[p] && logoFilesThere.has(logoName(p))) { files[p] = logoName(p); changed = true; } });
+		const missing = paths.filter((p) => !files[p] && !logosNotFound.has(p));
+		const done = () => {
+			if (changed) writeCache(LOGO_FILES_KEY, files);
+			try { localStorage.removeItem('lumen-livetv-logos-v1'); localStorage.removeItem(OLD_LOGO_KEY); } catch { /* they only take space */ }
+		};
+		if (!missing.length) { done(); return; }
+		const old = readCache<Record<string, string>>(OLD_LOGO_KEY) || {};
+		const ask = missing.filter((p) => !old[p]);
+		ask.forEach((p) => logosNotFound.add(p));
+		const made: {path: string; uri: string}[] = missing.filter((p) => old[p]).map((path) => ({path, uri: old[path]}));
+		const fresh = !ask.length ? Promise.resolve() : readIcons(ask).then((out) => {
+			const jobs: Promise<void>[] = [];
+			for (const line of out.split('\n')) {
+				const m = /^(\d+) ([A-Za-z0-9+\/=]+)$/.exec(line);
+				const path = m && ask[Number(m[1])];
+				if (!m || !path) continue;
+				logosNotFound.delete(path);
+				jobs.push(crispLogo(`data:image/png;base64,${m[2]}`).then((uri) => { made.push({path, uri}); }));
+			}
+			return Promise.all(jobs).then(() => undefined);
+		}).catch((e: Error) => logError('guide', `logos not read: ${e.message}`));
+		return fresh.then(() => {
+			// batches the shell will take, one after the other to keep the TV's CPU free
+			const batches: {path: string; name: string; b64: string}[][] = [[]];
+			let size = 0;
+			made.forEach(({path, uri}) => {
+				const b64 = uri.slice(uri.indexOf(',') + 1);
+				if (b64.length > LOGO_BATCH_BYTES) return;
+				if (size + b64.length > LOGO_BATCH_BYTES) { batches.push([]); size = 0; }
+				batches[batches.length - 1].push({path, name: logoName(path), b64});
+				size += b64.length;
+			});
+			return batches.reduce((before, batch) => before.then(() => batch.length ? writeLogos(appDir(), batch).then((names) => {
+				batch.forEach((l) => { if (names.indexOf(l.name) !== -1) { files[l.path] = l.name; logoFilesThere.add(l.name); changed = true; } });
+			}, (e: Error) => logError('guide', `logos not written: ${e.message}`)) : undefined), Promise.resolve() as Promise<void>);
+		}).then(done);
+	}).then(cachedLogos, cachedLogos);
 }
 
 // ---------- what the last launch showed ----------

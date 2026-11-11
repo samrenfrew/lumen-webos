@@ -4,7 +4,7 @@ import {Glyph, type GlyphName} from './Glyph';
 import {useKeys, clamp, type NavKey} from '../hooks/useKeys';
 import {PICTURE_LABEL, PICTURE_MODES, SOUND_LABEL, SOUND_MODES, setSoundMode, readBacklight, readControls, setBacklight, setEyeComfort, restartTv, screenOff, setPictureMode, type Controls} from '../lib/tvcontrols';
 
-export type CenterAction = 'lg-home' | 'art';
+export type CenterAction = 'lg-home' | 'art' | 'settings';
 
 interface Props {
 	onClose: () => void;
@@ -17,16 +17,21 @@ interface Props {
 	clockFormat: string;
 	onDarkMode: (mode: string) => void;
 	onClockFormat: (format: string) => void;
+	/** the controls to show; Lumen's own when left out (Lumen Quick Settings passes a shorter one) */
+	layout?: ControlLayout;
+	/** Up past the top row; closes the panel when left out */
+	onCloseUp?: () => void;
 }
 
-type CellId = 'sound' | 'picture' | 'art' | 'home' | 'screenoff' | 'restart' | 'backlight' | 'eye' | 'dark' | 'clock';
+export type CellId = 'sound' | 'picture' | 'art' | 'home' | 'settings' | 'screenoff' | 'restart' | 'backlight' | 'eye' | 'dark' | 'clock';
+export type ControlLayout = {id: CellId; span: number}[][];
 /** the tiles that open a list of choices in place of the grid, as tvOS does for Sleep Timer */
 type MenuCell = 'sound' | 'picture' | 'dark' | 'clock';
 const MENU_CELLS: CellId[] = ['sound', 'picture', 'dark', 'clock'];
 const MENU_GLYPH: Record<MenuCell, GlyphName> = {sound: 'speaker', picture: 'picture', dark: 'screensaver', clock: 'timer'};
 
 /** The layout, like the tvOS Control Center: a grid four squares wide, where a tile spans two squares and the backlight bar three. */
-const GRID: {id: CellId; span: number}[][] = [
+const GRID: ControlLayout = [
 	[{id: 'sound', span: 2}, {id: 'picture', span: 2}],
 	[{id: 'dark', span: 2}, {id: 'clock', span: 2}],
 	[{id: 'art', span: 1}, {id: 'home', span: 1}, {id: 'screenoff', span: 1}, {id: 'restart', span: 1}],
@@ -34,12 +39,12 @@ const GRID: {id: CellId; span: number}[][] = [
 ];
 
 /** The cell in a row that covers grid column x (0 to 3), and the column it starts at. */
-const cellAt = (row: number, x: number) => {
+const cellAt = (rows: ControlLayout, row: number, x: number) => {
 	let start = 0;
-	for (const c of GRID[row]) { if (x < start + c.span) return {cell: c.id, start}; start += c.span; }
-	return {cell: GRID[row][GRID[row].length - 1].id, start: 4 - GRID[row][GRID[row].length - 1].span};
+	for (const c of rows[row]) { if (x < start + c.span) return {cell: c.id, start}; start += c.span; }
+	return {cell: rows[row][rows[row].length - 1].id, start: 4 - rows[row][rows[row].length - 1].span};
 };
-const startOf = (row: number, i: number) => GRID[row].slice(0, i).reduce((n, c) => n + c.span, 0);
+const startOf = (rows: ControlLayout, row: number, i: number) => rows[row].slice(0, i).reduce((n, c) => n + c.span, 0);
 
 /** how soon a second Down at the bottom row must follow the first to close the panel */
 export const DOUBLE_DOWN_MS = 1000;
@@ -107,7 +112,8 @@ export function growFrom (panel: HTMLElement | null, key: string, ms = 260): voi
 /** Control Center (opened from the round button top right): sound, picture mode, appearance, clock, the screensaver (Lumen's), LG Home, screen off,
  *  restart, backlight and Eye Comfort. Volume is left to the remote's own buttons. Arrows move between controls, OK presses one, Left/Right on
  *  the backlight bar change it, Back closes, and Down twice on the bottom row closes and goes to the glass bar. */
-export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMode, clockFormat, onDarkMode, onClockFormat}: Props) {
+export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMode, clockFormat, onDarkMode, onClockFormat, layout, onCloseUp}: Props) {
+	const rows = layout || GRID;
 	const outer = useRef({darkMode, clockFormat, onDarkMode, onClockFormat});
 	outer.current = {darkMode, clockFormat, onDarkMode, onClockFormat};
 	const [values, setValues] = useState<Controls>(lastValues);
@@ -170,6 +176,7 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 		else if (MENU_CELLS.indexOf(cell) >= 0) openMenu(cell as MenuCell);
 		else if (cell === 'art') onAction('art');
 		else if (cell === 'home') onAction('lg-home');
+		else if (cell === 'settings') onAction('settings');
 		else if (cell === 'screenoff') { onClose(); screenOff().catch(() => onError("Couldn't turn the screen off (it needs the Homebrew Channel)")); }
 		else if (cell === 'restart') {
 			if (!state.current.confirm) { setConfirm(true); return; }
@@ -336,32 +343,32 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 			else if (key === 'up' || key === 'down') setMenu({cell: m.cell, idx: clamp(m.idx + (key === 'up' ? -1 : 1), 0, options(m.cell).length - 1)});
 			return true;
 		}
-		const {cell, start} = cellAt(p.row, p.x);
+		const {cell, start} = cellAt(rows, p.row, p.x);
 		if (key === 'back') { onClose(); return true; }
 		if (key === 'enter') { press(cell); return true; }
 		if (cell === 'backlight' && (key === 'left' || key === 'right')) { backlight(v.backlight + (key === 'left' ? -5 : 5)); return true; }
 		if (key === 'left' || key === 'right') {
-			const i = GRID[p.row].map((c) => c.id).indexOf(cell);
-			const j = clamp(i + (key === 'left' ? -1 : 1), 0, GRID[p.row].length - 1);
-			if (j !== i) move(p.row, startOf(p.row, j));
+			const i = rows[p.row].map((c) => c.id).indexOf(cell);
+			const j = clamp(i + (key === 'left' ? -1 : 1), 0, rows[p.row].length - 1);
+			if (j !== i) move(p.row, startOf(rows, p.row, j));
 		}
-		else if (key === 'up' && p.row === 0) onClose();   // Up past the top row closes, back to the top buttons
-		else if (key === 'down' && p.row === GRID.length - 1) {
+		else if (key === 'up' && p.row === 0) (onCloseUp || onClose)();   // Up past the top row closes, back to the top buttons
+		else if (key === 'down' && p.row === rows.length - 1) {
 			// someone heading for the glass bar may not see the panel is open, so a second Down here soon after the first takes them there
 			const now = Date.now();
 			if (now - bottomDown.current < DOUBLE_DOWN_MS) onCloseDown();
 			else bottomDown.current = now;
 		}
-		else if (key === 'up' || key === 'down') move(clamp(p.row + (key === 'up' ? -1 : 1), 0, GRID.length - 1), start);
+		else if (key === 'up' || key === 'down') move(clamp(p.row + (key === 'up' ? -1 : 1), 0, rows.length - 1), start);
 		return true;
 	}, []);
 	useKeys(handleKey, true);
 
-	const current = cellAt(pos.row, pos.x).cell;
+	const current = cellAt(rows, pos.row, pos.x).cell;
 	const focus = (cell: CellId) => () => {
 		// the pointer can still reach the grid behind an open list, which is hidden by its fades, not pointer-events
 		if (state.current.phase !== 'grid') return;
-		for (let r = 0; r < GRID.length; r++) { const i = GRID[r].map((c) => c.id).indexOf(cell); if (i >= 0) { setPos({row: r, x: startOf(r, i)}); return; } }
+		for (let r = 0; r < rows.length; r++) { const i = rows[r].map((c) => c.id).indexOf(cell); if (i >= 0) { setPos({row: r, x: startOf(rows, r, i)}); return; } }
 	};
 
 	/** What a list tile shows: icon, name, current choice, and whether it shows as on. */
@@ -390,7 +397,7 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 	};
 	// icon-only circles, as on tvOS; the focused one is named in the caption under the panel
 	const CIRCLES: {cell: CellId; glyph: GlyphName; label: string}[] = [
-		{cell: 'home', glyph: 'house', label: 'LG Home'}, {cell: 'art', glyph: 'image', label: 'Screensaver'},
+		{cell: 'home', glyph: 'house', label: 'LG Home'}, {cell: 'settings', glyph: 'gear', label: 'All settings'}, {cell: 'art', glyph: 'image', label: 'Screensaver'},
 		{cell: 'screenoff', glyph: 'power', label: 'Screen off'}, {cell: 'restart', glyph: 'restart', label: 'Restart'},
 		{cell: 'eye', glyph: 'eye', label: 'Eye Comfort'}
 	];
@@ -403,31 +410,28 @@ export function ControlCenter ({onClose, onCloseDown, onError, onAction, darkMod
 	// the backlight label, drawn twice: light over the glass, dark over the filled part, so it reads at any level
 	const sliderText = <div class="cc__slidertext"><Glyph name="sun" /><span>{tr('Backlight')}</span><span class="cc__num">{values.backlight}</span></div>;
 
+	const slider = (
+		<div
+			key="backlight"
+			class={`cc__mod cc__slider${current === 'backlight' ? ' cc__mod--focused' : ''}`}
+			onMouseEnter={focus('backlight')}
+			onClick={(e: MouseEvent) => { if (state.current.phase !== 'grid') return; const box = (e.currentTarget as HTMLElement).getBoundingClientRect(); backlight(Math.round(((e.clientX - box.left) / box.width) * 100)); }}
+		>
+			{sliderText}
+			<div class="cc__fill" style={`width:${values.backlight}%`}>{sliderText}</div>
+		</div>
+	);
+
 	return (
 		<>
 			<div class="panel-backdrop panel-backdrop--clear" onClick={onClose} />
 			<div class="panel panel--cc" ref={panel}>
 				<div ref={gridEl} class="cc__grid">
-				<div class="cc__row">
-					{wide('sound')}
-					{wide('picture')}
-				</div>
-				<div class="cc__row">
-					{wide('dark')}
-					{wide('clock')}
-				</div>
-				<div class="cc__row">{circle('art')}{circle('home')}{circle('screenoff')}{circle('restart')}</div>
-				<div class="cc__row">
-					<div
-						class={`cc__mod cc__slider${current === 'backlight' ? ' cc__mod--focused' : ''}`}
-						onMouseEnter={focus('backlight')}
-						onClick={(e: MouseEvent) => { if (state.current.phase !== 'grid') return; const box = (e.currentTarget as HTMLElement).getBoundingClientRect(); backlight(Math.round(((e.clientX - box.left) / box.width) * 100)); }}
-					>
-						{sliderText}
-						<div class="cc__fill" style={`width:${values.backlight}%`}>{sliderText}</div>
+				{rows.map((row, r) => (
+					<div key={r} class="cc__row">
+						{row.map(({id}) => (MENU_CELLS.indexOf(id) >= 0 ? wide(id as MenuCell) : id === 'backlight' ? slider : circle(id, id === 'eye' && values.eyeComfort)))}
 					</div>
-					{circle('eye', values.eyeComfort)}
-				</div>
+				))}
 				<div class="cc__caption">{caption}</div>
 				</div>
 				{morph && morph.kind === 'open' && (() => {

@@ -14,7 +14,9 @@ const pages = await fetch(`http://127.0.0.1:${PORT}/json`).then((r) => r.json())
 	process.exit(2);
 });
 // the page id changes on every relaunch, so it is looked up each time
-const page = pages.find((p) => /lumen/i.test(p.url)) || pages.find((p) => p.title === 'Launcher');
+// Lumen's own page by default; LUMEN_CDP_PAGE=guide or quick picks an overlay app's page (guide.html, quick.html)
+const want = process.env.LUMEN_CDP_PAGE ? new RegExp(`lumen.*/${process.env.LUMEN_CDP_PAGE}\\.html`, 'i') : /lumen[^/]*\/index\.html/i;
+const page = pages.find((p) => want.test(p.url)) || (process.env.LUMEN_CDP_PAGE ? undefined : pages.find((p) => p.title === 'Launcher'));
 if (!page) { console.error('Lumen is not running on the TV:', pages.map((p) => p.url).join(', ')); process.exit(2); }
 
 const ws = new WebSocket(page.webSocketDebuggerUrl);

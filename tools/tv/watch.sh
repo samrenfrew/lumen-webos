@@ -4,7 +4,7 @@
 #    come up, opens the launcher instead (polling, because luna-send buffers a subscription's output when it is piped). The launcher's own
 #    "LG Home" button touches /tmp/allow_lg_home first, so LG Home can still be opened on purpose (it then stays until you leave it).
 #  - After the TV wakes (power state back to Active, or a gap in this loop's once-a-second ticks, which means it was suspended) and after a boot:
-#    opens Lumen as soon as the screen is on, whatever the TV opened: every switch-on opens Lumen. resume.sh acts first, at "Prepare Resume";
+#    opens Lumen as soon as the screen is on, whatever the TV opened: every switch-on opens Lumen. An app opened by hand since the wake stays. resume.sh acts first, at "Prepare Resume";
 #    this is the fallback. During a wake the loop ticks every 0.5 s and retries each tick until Lumen has stayed in front for WAKE_SETTLE
 #    seconds, or WAKE_SECS have passed; after that, apps are left alone. Only while Settings > Home and Power opens Lumen at power-on
 #    (home-setup.sh power-on on leaves POWERON_SUM); also switched off by /var/lib/homehook/no-wake-launch.
@@ -16,6 +16,9 @@
 #  - Lumen Guide (the overlay, docs/plans/guide-overlay.md), when installed: while Live TV is in front, LIST and GUIDE open it (Input Hook binds),
 #    and it is started hidden as Live TV comes up, so the first LIST shows it at once. Elsewhere LIST is left to the app, GUIDE opens Lumen on
 #    its Guide, and the guide is closed to free its memory. Input Hook reloads keybinds.json by itself when it changes.
+#  - The gear button, when Lumen Quick Settings (the second overlay, docs/plans/quick-settings.md) is installed: bound to gear.sh, which
+#    opens Lumen's Control Center in Lumen and Quick Settings in other apps. Quick Settings is kept started hidden: it is started as the
+#    app in front changes and after each wake, if it is not open.
 #  - Keeps /var/lib/homehook/recent: the last eight apps that were in front (not Lumen, not LG Home), newest first, one id per line. Lumen reads
 #    it for its Recent row, so apps opened from anywhere show there.
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/no-screensaver exists (the old Settings > Screensaver > Off; Lumen now removes it): ends LG's
@@ -57,6 +60,8 @@ RECENT=/var/lib/homehook/recent
 BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
 GUIDE=com.samrenfrew.lumen.guide
+QUICK=com.samrenfrew.lumen.quick
+GEAR=/var/lib/homehook/gear.sh
 LIVETV=com.webos.app.livetv
 KEYBINDS=/home/root/.config/lginputhook/keybinds.json
 prev=""
@@ -72,6 +77,7 @@ mesince=0
 launchpid=0
 tick=$(date +%s)
 wakeuntil=$((tick + 90))   # a boot counts as a wake; LG Home may take a while to come up
+wakefrom=0   # when the wake began, as YYYYMMDDHHMMSS in UTC; 0 for a boot, since the TV's log starts empty at each boot
 # a restart of the scripts (TV up over 5 minutes) is not a boot, so it leaves the app in front alone
 up=$(cut -d. -f1 /proc/uptime 2>/dev/null)
 [ "${up:-0}" -gt 300 ] && wakeuntil=0
@@ -84,6 +90,8 @@ blinputs=""                # the inputs that have had that level (the TV keeps a
 eyeset=""                  # the schedule step whose Eye Comfort was last set
 eyeinputs=""               # the inputs that have had it
 blsoon=0                   # when to check the schedule again after a switch of app, so a new input gets the level
+QUICK_WAKE_SECS=8
+quickat=0                  # when to start Quick Settings hidden after a wake (standby closes it); 0 when done
 # prints the Lumen build in front, if any
 me_in_front() {
   for id in $ME; do case "$1" in *'"appId":"'$id'"'*) echo "$id"; return 0 ;; esac; done
@@ -160,8 +168,52 @@ guide_follow() {
   fi
 }
 
+# the gear button (139): bound to gear.sh while Lumen Quick Settings is installed, and left to the TV when it is not. gear.sh asks which
+# app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
+# Lumen over the app.) Every other bind is kept; the file is written only when it changes.
+gear_bind() {
+  quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
+  python3 - "$KEYBINDS" "$quick" <<'PY' 2>>/tmp/homehook.log
+import json, os, sys
+path, gear = sys.argv[1:3]
+try:
+    with open(path) as f: binds = json.load(f)
+except Exception:
+    binds = {}
+want = dict(binds)
+if gear:
+    want['139'] = {'action': 'exec', 'command': 'sh ' + gear}
+else:
+    want.pop('139', None)
+if want != binds:
+    with open(path + '.tmp', 'w') as f: json.dump(want, f)
+    os.rename(path + '.tmp', path)
+PY
+}
+# starts Lumen Quick Settings hidden if it is installed and not open, so a gear press shows it at once; $1 names the reason in the log.
+# Called as the app in front changes (Lumen too), a while after the scripts start and after each wake.
+quick_start() {
+  [ -d "$APPS/$QUICK" ] || return
+  run=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)
+  case "$run" in *'"id":"'$QUICK'"'*) return ;; esac
+  ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$QUICK\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
+    echo "$(date +%T) quick settings: start hidden ($1): $r" >> /tmp/homehook.log ) &
+}
+
 # with power-on set to last input, a switch-on leaves the TV's own app in front
 wake_wanted () { [ ! -f "$NOWAKE_FLAG" ] && [ -f "$POWERON_SUM" ]; }
+# true if app $1 was opened by hand since the wake began: the TV's log has a launch of it that the TV's own last-input restore did not make.
+# One of LG's own apps counts only when Lumen opened it, since the TV opens those by itself too.
+opened_by_hand() {
+  [ -n "$1" ] || return 1
+  line=$(grep "NL_APP_LAUNCH_BEGIN {\"app_id\":\"$1\"" /var/log/messages 2>/dev/null | grep -v '"mode":"last_input"' | tail -n 1)
+  [ -n "$line" ] || return 1
+  at=$(printf '%s' "$line" | cut -c1-19 | tr -dc 0-9)
+  [ "${at:-0}" -ge "$wakefrom" ] || return 1
+  case "$1" in com.webos.*|com.lge.*) ;; *) return 0 ;; esac
+  for id in $ME; do case "$line" in *'"caller_id":"'$id'"'*) return 0 ;; esac; done
+  return 1
+}
 # opens Lumen without waiting (a launch can take seconds right after a wake), unless the last one is still in flight; $1 is the app in front
 wake_open() {
   [ "$launchpid" -gt 0 ] && [ -d "/proc/$launchpid" ] && return
@@ -249,7 +301,8 @@ while true; do
   if [ "$pwstate" = Active ] && [ -n "$pwlast" ] && [ "$pwlast" != Active ] && [ "$pwlast" != "Screen Saver" ]; then woke=1; fi
   [ -n "$pwstate" ] && pwlast=$pwstate
   if [ "$woke" -eq 1 ]; then
-    wakeuntil=$((now + WAKE_SECS)); last=0
+    wakeuntil=$((now + WAKE_SECS)); last=0; wakefrom=$(date -u +%Y%m%d%H%M%S)
+    quickat=$((now + QUICK_WAKE_SECS))
     echo "$(date +%T) wake (gap ${gap}s, power $pwstate)" >> /tmp/homehook.log
     # before the foreground query: right after a wake each query can take seconds
     wake_wanted && [ "$pwstate" = Active ] && wake_open ""
@@ -258,7 +311,8 @@ while true; do
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
   app=$(printf '%s' "$out" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p')
-  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then guide_follow "$app" "$prevapp"; prevapp=$app; note_recent "$app"; blsoon=$((now + 3)); fi
+  if [ -n "$app" ] && [ "$app" != "$prevapp" ]; then guide_follow "$app" "$prevapp"; gear_bind; quick_start "$app in front"; prevapp=$app; note_recent "$app"; blsoon=$((now + 3)); fi
+  if [ "$quickat" -gt 0 ] && [ "$now" -ge "$quickat" ]; then quickat=0; [ "$pwstate" = Active ] && quick_start "after a wake"; fi
   # wake: Lumen in front as soon as the screen is on, whatever the TV opened
   if [ -n "$front" ]; then [ "$mesince" -eq 0 ] && mesince=$now; else mesince=0; fi
   if [ "$now" -lt "$wakeuntil" ] && wake_wanted && [ "$pwstate" = Active ]; then
@@ -267,7 +321,10 @@ while true; do
       [ $((now - mesince)) -ge "$WAKE_SETTLE" ] && wakeuntil=0
     elif [ "$app" != "$LGHOME" ] || ! grep -q " $APPS_HOME " /proc/mounts; then
       # LG Home's id is the stand-in while the takeover is mounted, and the stand-in opens Lumen itself
-      wake_open "$app"
+      if opened_by_hand "$app"; then
+        wakeuntil=0
+        echo "$(date +%T) wake: $app was opened by hand, left in front" >> /tmp/homehook.log
+      else wake_open "$app"; fi
     fi
   fi
   case "$out" in

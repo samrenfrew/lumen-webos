@@ -277,6 +277,16 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
 - The manual re-pair on 2026-11-06 went wrong: `adapter/unpair` returned true but left the bond, and the controller stuck "already
   connecting". LG settings remove and pair fixed it. Use `stadia.sh` for re-pairs, not hand-run luna calls.
 
+- Rewrite (2026-11-08): the old watcher froze for good on an `hid/connect` call that never answered (`luna-send -n 1` has no time
+  limit), and its "live scan entry" test matched every entry, because `manufacturerData` holds a second `scanRecord` with data. After
+  that, `adapter/pair` started SMP (`WAIT_AUTH_COMPLETE`) on every try and never finished, with the controller in pairing mode. A
+  `systemctl restart webos-bluetooth-service` fixed it: the next try paired and sent input within 14 s. `stadia.sh` is now a popup on each
+  Moonlight open, OK to pair, every bus call under `timeout`, pair tries in a loop checked by a hidraw report, and a Bluetooth restart
+  after 3 failed tries. The mid-game drop detection, the check alert, the bridge and the `bt.log` copy are gone.
+- Same day, 16:17: a pairing worked (input on `hidraw2`) but Moonlight saw nothing. Each reconnect or pairing can take a new hidraw
+  number while `bthidmanager` still holds the old ones, and Moonlight's jail has only a fixed `hidraw0`. `stadia.sh` now copies the
+  controller's node into `/var/palm/jail/com.limelight.webos/dev` each second; Moonlight opened `hidraw2` as soon as it was there.
+
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
 - Who closes the app: watched with `ls-monitor` during Lumen, Plex, Lumen. When an app launches, the app manager tells the memory manager
@@ -312,6 +322,7 @@ The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 m
 - A changed copy works: copy the file to `/tmp`, edit it, `mount --bind` it over the original, then `systemctl restart surface-manager-daemon.service`. The panel turned purple. The mount also shows in each app jail, and it is gone after a reboot.
 - The compositor reads the file only at start, so each change needs that restart. The restart blanks the screen for a few seconds and closes Lumen. To make a change permanent, the boot hook would add the mount. The compositor probably starts before the hook runs, so the hook would also restart it once (not tested).
 - 2026-10-26: Lumen's glass on the gear menu's buttons works (a sheen and rims from `LinearGradient` in `QtGraphicalEffects`, which the TV has, and a 1.08x grow on focus). Sam: looks good, needs tweaks. Five files changed; the main one is `Component/BaseControlPanelButton.qml`. LG's QML is not kept in this repo.
+- 2026-11-10: **the gear button is code 139 for Input Hook** (`IR_KEY_MENU` = 147 in `/usr/share/X11/xkb/keycodes/lg`, minus 8). Bound to an `exec` that wrote a log line, five presses logged 139 and LG's gear menu did not open (Sam, with Lumen in front). `IR_KEY_QMENU` (801, so 793) was bound too and never fired. So an overlay app can take the key, as Lumen Guide takes LIST. Not tested: the key in Game mode, where it opens LG's Game Dashboard. The test binds were removed.
 - The whole screen, the gear menu included, can be captured with `luna://com.webos.service.capture/executeOneShot` (`"method":"DISPLAY"`). Opening the gear menu over SSH is not solved: `com.webos.app.quicksettings` is not an app id.
 
 ## Power-on and the Local Control Panel (2026-10-24)

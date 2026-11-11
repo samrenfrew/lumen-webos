@@ -34,6 +34,7 @@ curl -s -m 3 http://127.0.0.1:19998/json >/dev/null || ssh -o BatchMode=yes -o L
 
 If the tunnel goes stale, run `pkill -f 19998:127.0.0.1:9998` and open it again. Then use `node tools/tv/cdp.mjs`:
 
+- `cdp.mjs` talks to Lumen's own page. Set `LUMEN_CDP_PAGE=guide` or `LUMEN_CDP_PAGE=quick` to talk to an overlay app's page instead.
 - First, find out where Sam is: `eval 'JSON.stringify(lumen.where())'`. It gives the screen (`home`, `settings`, `guide`, `full guide`, `ambient`), whether Control Center is open, and each focused part with its label, its index and the row it sits in. The last entry is what OK presses. Read it before and after a key press instead of guessing from a screenshot. It exists on dev builds only (`npm run deploy:home`); if `lumen` is undefined, the TV runs a Channel release.
 - `eval '<expr>'` runs in the live page. Wrap objects in `JSON.stringify(...)`. Use it to check a **(verify)** item from page state (classes, `getComputedStyle`, `getBoundingClientRect`) before you ask Sam to look.
 - `css '<css>'` sets a `<style id="live">` block, and `css ''` clears it.

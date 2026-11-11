@@ -7,7 +7,7 @@ export interface LiveTv {
 	channels: Channel[];
 	/** what the guide service read, with the TV's now and next table where it has nothing */
 	listings: Listings;
-	/** logos as data: URIs, by path on the TV */
+	/** each logo's address (a file in the app's folder), by its path on the TV */
 	logos: Record<string, string>;
 	/** the current minute (ms), for progress and what is on now */
 	now: number;
@@ -159,7 +159,7 @@ export function useLiveTv (enabled: boolean, guideOpen: boolean, rowIds: string[
 				const next = {channels: list, listings: keepUnfinished(read, latest.current.data.listings, t)};
 				if (JSON.stringify(next) !== JSON.stringify(latest.current.data)) { setData(next); latest.current.data = next; save(next, schLatest.current); }
 				readGuide();
-				return readLogos(list).then((l) => setLogos((was) => (Object.keys(l).length === Object.keys(was).length ? was : {...l})));
+				return readLogos(list).then((l) => setLogos((was) => (JSON.stringify(l) === JSON.stringify(was) ? was : l)));
 			}))
 			.catch((e: Error) => logError('guide', `now and next failed: ${e.message}`))
 			.then(() => { busy.current = false; bootMark('live-read'); });

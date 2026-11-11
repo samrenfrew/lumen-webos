@@ -265,8 +265,8 @@ export function immichStackIds (base: string, key: string): Promise<string> {
 	return run(`${curl} ${shellQuote(base + '/api/stacks')} | grep -oE '"(primaryAssetId|id)":"[0-9a-f-]{36}"' | sed -e 's/^"primaryAssetId":"//' -e 's/^"id":"/=/' -e 's/"$//'`, 20000);
 }
 
-/** Lumen's own install folder: the only place the app may read files from, and the only one copyFontIn writes to. */
-const APP_DIR = /^\/media\/developer\/apps\/usr\/palm\/applications\/com\.samrenfrew\.lumen(\.dev)?$/;
+/** Lumen's or Lumen Guide's own install folder: the only place the app may read files from, and the only one copyFontIn and the logo commands write to. */
+const APP_DIR = /^\/media\/developer\/apps\/usr\/palm\/applications\/com\.samrenfrew\.lumen(\.dev|\.guide)?$/;
 
 /** Copies the SF font that tools/push_sf_font.sh put on the TV into the app's folder (each Channel update replaces the folder). True when copied. */
 export function copyFontIn (appDir: string): Promise<boolean> {
@@ -274,9 +274,36 @@ export function copyFontIn (appDir: string): Promise<boolean> {
 	return run(`[ -f ${HOMEHOOK}/fonts/sf.woff2 ] && mkdir -p ${appDir}/fonts && cp ${HOMEHOOK}/fonts/sf.woff2 ${appDir}/fonts/sf.woff2 && echo ok; true`).then((out) => out.trim() === 'ok');
 }
 
+/** The sharpened channel logos, kept as files (lib/livetv.ts): here so they outlast an update, and copied into each app's own folder, which is all a page may load from. */
+const LOGOS = `${HOMEHOOK}/logos`;
+const LOGO_NAME = /^[a-z0-9]{1,14}$/;
+/** the shell takes one command of at most 128 KB, so the logos travel a batch at a time */
+export const LOGO_BATCH_BYTES = 90 * 1024;
+
+/** Copies into the app's folder each stored logo it lacks (an update empties the folder; Lumen Guide starts with none). Returns the logo files now there, and how many were copied. */
+export function syncLogos (appDir: string): Promise<{files: string[]; restored: number}> {
+	if (!APP_DIR.test(appDir)) return Promise.reject(new Error('refused: app folder'));
+	const dst = `${appDir}/logos`;
+	return run(`mkdir -p ${LOGOS} ${dst}; n=0; for f in ${LOGOS}/*.png; do [ -f "$f" ] || continue; d=${dst}/\${f##*/}; [ -f "$d" ] || { cp "$f" "$d" && n=$((n+1)); }; done; echo "restored $n"; ls ${dst}`, 15000).then((out) => {
+		const lines = out.split('\n').map((l) => l.trim()).filter(Boolean);
+		const m = /^restored (\d+)$/.exec(lines[0] || '');
+		return {files: lines.slice(1).filter((f) => /^[a-z0-9]{1,14}\.png$/.test(f)), restored: m ? Number(m[1]) : 0};
+	});
+}
+
+/** Writes logos (PNG bytes as base64) to the store and into the app's folder. Returns the names written. A bad name or bad base64 is left out; a batch over LOGO_BATCH_BYTES is refused. */
+export function writeLogos (appDir: string, logos: {name: string; b64: string}[]): Promise<string[]> {
+	if (!APP_DIR.test(appDir)) return Promise.reject(new Error('refused: app folder'));
+	const ok = logos.filter((l) => LOGO_NAME.test(l.name) && l.b64.length > 0 && BASE64.test(l.b64));
+	if (!ok.length) return Promise.resolve([]);
+	if (ok.reduce((n, l) => n + l.b64.length, 0) > LOGO_BATCH_BYTES) return Promise.reject(new Error('refused: logo batch too large'));
+	const one = (l: {name: string; b64: string}) => `echo ${l.b64} | base64 -d > ${LOGOS}/${l.name}.tmp && mv ${LOGOS}/${l.name}.tmp ${LOGOS}/${l.name}.png && cp ${LOGOS}/${l.name}.png ${appDir}/logos/${l.name}.png && echo ${l.name}`;
+	return run(`mkdir -p ${LOGOS} ${appDir}/logos; ${ok.map(one).join('; ')}; true`, 15000).then((out) => out.split('\n').map((l) => l.trim()).filter((l) => LOGO_NAME.test(l)));
+}
+
 /** The TV-side scripts shipped in the app's tv/ folder (vite.config.ts TV_SCRIPTS) and installed under HOMEHOOK; 60-homehook goes in the
  *  Homebrew Channel's boot folder, and hosts-extra is copied only when the TV has none (it is yours to edit). */
-const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh'] as const;
+const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh', 'gear.sh'] as const;
 const BOOT_DIR = '/var/lib/webosbrew/init.d';
 const BOOT_HOOK = `${BOOT_DIR}/60-homehook`;
 
