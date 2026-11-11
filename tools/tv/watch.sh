@@ -26,6 +26,8 @@
 #  - When the TV's power state becomes "Screen Saver" and /var/lib/homehook/ambient-screensaver exists (Settings > Screensaver > Enabled):
 #    opens Lumen with {"view":"ambient"} (wallpaper pictures or Immich photos) and ends LG's screensaver. The video wallpaper, when on and in front, wins.
 #    Over another app, "from" names it, so a key that ends the screensaver goes back to that app rather than to Lumen's home screen.
+#    With Lumen Screensaver installed (the third overlay, docs/plans/side-apps.md), over another app it launches that instead: the photos come
+#    up over the app, which is left as it was. Lumen in front still gets Lumen's own.
 #  - When the TV's power state becomes "Screen Saver" (LG's screensaver is not a foreground app, so the power state is what shows it) and
 #    /var/lib/homehook/frame-screensaver exists: opens Frame in screensaver mode, then ends LG's screensaver (turnOnScreen) so Frame is what shows.
 #  - Settings > Brightness: with /var/lib/homehook/backlight-schedule holding "HH:MM <backlight> on|off|keep" lines (Lumen writes it), sets the
@@ -61,6 +63,7 @@ BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
 GUIDE=com.samrenfrew.lumen.guide
 QUICK=com.samrenfrew.lumen.quick
+SAVER=com.samrenfrew.lumen.saver
 GEAR=/var/lib/homehook/gear.sh
 LIVETV=com.webos.app.livetv
 KEYBINDS=/home/root/.config/lginputhook/keybinds.json
@@ -192,6 +195,12 @@ PY
 }
 # starts Lumen Quick Settings hidden if it is installed and not open, so a gear press shows it at once; $1 names the reason in the log.
 # Called as the app in front changes (Lumen too), a while after the scripts start and after each wake.
+# true while Lumen Screensaver (the overlay) is open
+saver_running() {
+  case "$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)" in *'"id":"'$SAVER'"'*) return 0 ;; esac
+  return 1
+}
+
 quick_start() {
   [ -d "$APPS/$QUICK" ] || return
   run=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)
@@ -365,15 +374,22 @@ while true; do
     # is pressed), so it is only ended, not answered by opening Lumen again.
     case "$pw" in
       *'"Screen Saver"'*)
-        if [ -n "$front" ] && [ -f "$AMBIENT_ON" ]; then
+        if [ -f "$AMBIENT_ON" ] && { [ -n "$front" ] || saver_running; }; then
           luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
         elif [ "$pwprev" != "saver" ] && [ $((now - saverlast)) -ge 5 ]; then
           saverlast=$now
           # the app it came up over, so a key that ends the screensaver goes back to it (plain app ids only; not Lumen, LG Home or Frame)
           from=""
           case "$app" in ''|$LGHOME|$FRAME) ;; *) [ -z "$front" ] && printf '%s' "$app" | grep -qE '^[A-Za-z0-9._-]+$' && from=",\"from\":\"$app\"" ;; esac
-          r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$target\",\"params\":{\"view\":\"ambient\"$from}}" </dev/null 2>&1)
-          echo "$(date +%T) screensaver: ambient ($target) over ${app:-nothing}: $r" >> /tmp/homehook.log
+          if [ -n "$from" ] && [ -d "$APPS/$SAVER" ]; then
+            # over the app, as an overlay: the app stays the card in front, so it is where you left it after a key
+            who=$SAVER
+            r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$SAVER\",\"params\":{${from#,}}}" </dev/null 2>&1)
+          else
+            who=$target
+            r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$target\",\"params\":{\"view\":\"ambient\"$from}}" </dev/null 2>&1)
+          fi
+          echo "$(date +%T) screensaver: ambient ($who) over ${app:-nothing}: $r" >> /tmp/homehook.log
           sleep 1
           luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
         fi

@@ -3,7 +3,7 @@ import {useCallback, useEffect, useRef, useState} from 'preact/hooks';
 import {ControlCenter, prefetchControls, type CenterAction, type ControlLayout} from '../components/ControlCenter';
 import {applyTokens} from '../theme/tokens';
 import {startLog, logError} from '../lib/log';
-import {launchApp} from '../lib/launch';
+import {appExists, launchApp} from '../lib/launch';
 import {setWhere} from '../lib/where';
 import '../theme/tokens.css';
 import '../theme/panels.css';
@@ -48,6 +48,10 @@ const LAYOUT: ControlLayout = [
 /** LG's full Settings app, which the gear button no longer reaches by itself */
 const LG_SETTINGS = 'com.palm.app.settings';
 const LUMEN = 'com.samrenfrew.lumen';
+/** Lumen Screensaver (docs/plans/side-apps.md): the photos over the app underneath, so it is left as it was */
+const SAVER = 'com.samrenfrew.lumen.saver';
+/** the screensaver over the app underneath, or Lumen's own when Lumen Screensaver is not installed */
+const openScreensaver = () => appExists(SAVER).then((yes) => (yes ? launchApp(SAVER) : launchApp(LUMEN, {view: 'ambient'})));
 
 /** Hide rather than close, so the app stays running and the next gear press shows it at once (a relaunch). Off the TV it closes. */
 function hideWindow (): void {
@@ -96,7 +100,7 @@ function QuickRoot () {
 	useEffect(() => setWhere('lumen quick settings', shown), [shown]);
 	const act = (a: CenterAction) => {
 		hide();
-		const go = a === 'settings' ? launchApp(LG_SETTINGS) : a === 'art' ? launchApp(LUMEN, {view: 'ambient'}) : Promise.resolve();
+		const go = a === 'settings' ? launchApp(LG_SETTINGS) : a === 'art' ? openScreensaver() : Promise.resolve();
 		go.catch((e: Error) => logError('lquick', `${a} failed: ${e.message}`));
 	};
 	if (!shown) return null;

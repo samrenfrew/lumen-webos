@@ -75,8 +75,9 @@ function toHomeClock (clock: HTMLElement | null): string {
  *  stays still. The clock sits bottom left, the weather and date bottom right, and the weather widget (when on) between them; a large widget takes the right side instead, with the date under the clock. Any key or a click goes back to the home screen.
  *  Started from the home screen (Control Center, or the idle timer), it opens on the wallpaper already there (`opening`): the home screen fades away, the clock
  *  slides from its place top left to bottom left, and the first new photo comes only after that, so nothing heavy runs while the screen changes. The home screen
- *  makes that photo ready beforehand (prepareAmbient), and each next one is made ready while the one before it shows. */
-export function Ambient ({show, source, pictures, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, print, opening, onExit}: {show: string; source: string; pictures: string[]; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; print?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void}) {
+ *  makes that photo ready beforehand (prepareAmbient), and each next one is made ready while the one before it shows.
+ *  `onShown` is told once, when the first photo is on screen and decoded (Lumen Screensaver fades in then, docs/plans/side-apps.md). */
+export function Ambient ({show, source, pictures, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, print, opening, onExit, onShown}: {show: string; source: string; pictures: string[]; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; print?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void; onShown?: () => void}) {
 	// each layer holds one photo's URL, or two for a portrait pair shown side by side, and where they sit (placed on their faces)
 	const [last] = useState(() => (opening ? null : readCache<{id: string; urls: string[]}>(LAST_KEY)));
 	const first = opening || last;
@@ -89,6 +90,21 @@ export function Ambient ({show, source, pictures, seconds = 30, backlight, weath
 	const exitRef = useRef(onExit);
 	exitRef.current = onExit;
 	const closing = useRef(false);
+	const shownRef = useRef(onShown);
+	shownRef.current = onShown;
+	/** tells onShown once */
+	const told = useRef(false);
+	const tell = () => { if (told.current || !shownRef.current) return; told.current = true; shownRef.current(); };
+
+	// the photo it opens on (the last one shown, from the browser cache) counts as shown once it is decoded
+	useEffect(() => {
+		if (!first || !first.urls.length || !onShown) return;
+		Promise.all(first.urls.map((url) => {
+			const img = new Image();
+			img.src = url;
+			return typeof img.decode === 'function' ? img.decode() : Promise.resolve();
+		})).then(tell, () => undefined);
+	}, []);
 
 	// the clock slides from where the home screen shows it to its place here (transform only)
 	useLayoutEffect(() => {
@@ -127,7 +143,7 @@ export function Ambient ({show, source, pictures, seconds = 30, backlight, weath
 					const back = 1 - s.front;
 					setLayers((l) => { const n: [Layer, Layer] = [l[0], l[1]]; n[back] = {urls: pic.urls, pos: pic.pos}; return n; });
 					// two frames so the hidden layer has its picture before it becomes the visible one
-					window.requestAnimationFrame(() => window.requestAnimationFrame(() => { s.front = back; setFront(back); }));
+					window.requestAnimationFrame(() => window.requestAnimationFrame(() => { s.front = back; setFront(back); window.requestAnimationFrame(tell); }));
 					window.clearTimeout(s.prep);
 					s.prep = window.setTimeout(() => { if (s.alive) prepareAmbient(show, source, pictures, pic.id); }, PREPARE_DELAY_MS);
 				})

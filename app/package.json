@@ -9,6 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "build:guide": "tsc --noEmit && LUMEN_TARGET=guide vite build",
     "build:quick": "tsc --noEmit && LUMEN_TARGET=quick vite build",
+    "build:saver": "tsc --noEmit && LUMEN_TARGET=saver vite build",
     "package": "sh scripts/package.sh",
     "manifest": "node scripts/gen-manifest.mjs"
   },

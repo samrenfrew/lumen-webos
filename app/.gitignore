@@ -8,3 +8,4 @@ build/
 src/config/catalog.local.ts
 dist-guide/
 dist-quick/
+dist-saver/

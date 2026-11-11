@@ -102,17 +102,18 @@ export function dimForScreensaver (level: number, stillWanted: () => boolean): v
 	}).catch(() => undefined);
 }
 
-/** Puts back the backlight the screensaver lowered, if it did: the schedule's level for now, else the one it saved. Safe to call at any time. */
-export function restoreBacklight (): void {
+/** Puts back the backlight the screensaver lowered, if it did: the schedule's level for now, else the one it saved. Safe to call at any time.
+ *  Resolves when it is done (or failed), so Lumen Screensaver can wait for it before it closes. */
+export function restoreBacklight (): Promise<void> {
 	const saved = readCache<number>(SAVED_BACKLIGHT_KEY);
-	if (saved === null) return;
+	if (saved === null) return Promise.resolve();
 	const now = scheduled();
-	setBacklight(now === null ? saved : now).then(() => { writeCache(SAVED_BACKLIGHT_KEY, null); dimmedHere = false; }).catch(() => undefined);
+	return setBacklight(now === null ? saved : now).then(() => { writeCache(SAVED_BACKLIGHT_KEY, null); dimmedHere = false; }).catch(() => undefined);
 }
 
 /** At start-up: a backlight left low by a screensaver that never ended (Lumen closed or crashed) is put back, unless this launch dimmed it. */
 export function restoreLeftoverBacklight (): void {
-	if (!dimmedHere) restoreBacklight();
+	if (!dimmedHere) void restoreBacklight();
 }
 
 export function setEyeComfort (on: boolean): Promise<void> {

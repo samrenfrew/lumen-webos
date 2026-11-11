@@ -1,0 +1,22 @@
+/* Lumen Screensaver (src/saver/), the overlay app over the app in front. The page is clear until the first photo is ready, so that app stays
+   in sight; then the screensaver (.ambient, ambient.css) fades in over it. */
+
+@font-face {
+	font-family: 'Geist Variable';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: block;
+	src: url('../assets/geist-wght.woff2') format('woff2');
+}
+
+* { box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: transparent; user-select: none; }
+#root { position: relative; width: 100%; height: 100%; }
+
+.lsaver {
+	position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+	font-family: var(--font-family); letter-spacing: -0.011em; -webkit-font-smoothing: antialiased;
+	opacity: 0; transition: opacity 600ms ease-out;
+}
+.lsaver--on { opacity: 1; }
+html.reduce-motion .lsaver { transition: none; }
