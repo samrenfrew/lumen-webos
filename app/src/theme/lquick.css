@@ -1,0 +1,39 @@
+/* Lumen Quick Settings (src/quick/), the overlay app opened by the gear button. Only the controls are drawn: the page stays clear so the app
+   under it shows round them. The controls are Control Center's (.panel--cc, .cc__* in panels.css) with new token values: an overlay
+   cannot see the app under it, so there is no blur, and the tint is darker to read over a bright picture. */
+
+@font-face {
+	font-family: 'Geist Variable';
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: block;
+	src: url('../assets/geist-wght.woff2') format('woff2');
+}
+
+* { box-sizing: border-box; }
+html, body { width: 1920px; height: 1080px; margin: 0; overflow: hidden; background: transparent; user-select: none; }
+#root { position: relative; width: 100%; height: 100%; }
+
+.lquick {
+	position: absolute; left: 0; top: 0; width: 100%; height: 100%;
+	font-family: var(--font-family); letter-spacing: -0.011em; -webkit-font-smoothing: antialiased;
+	--glass-tint: rgba(8, 10, 18, 0.72);
+	--cc-focus-fill: rgba(40, 44, 58, 0.86);
+}
+.lquick .panel.panel--cc { --glass-blur: none; animation: lquick-in var(--dur-fade) var(--ease-out) both; transform-origin: 100% 0; }
+@keyframes lquick-in { from { transform: scale(0.9); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* a soft dark corner behind the controls, so their edges and the caption read over a bright picture */
+.lquick__shade {
+	position: absolute; right: 0; top: 0; width: 900px; height: 760px; pointer-events: none;
+	background: radial-gradient(ellipse at 100% 0%, rgba(8, 10, 18, 0.6) 0%, rgba(8, 10, 18, 0.32) 45%, rgba(8, 10, 18, 0) 72%);
+	animation: lquick-fade var(--dur-fade) ease-out both;
+}
+@keyframes lquick-fade { from { opacity: 0; } to { opacity: 1; } }
+
+.lquick__toast {
+	position: absolute; right: var(--layout-rows-edge); top: 600px; padding: 14px 26px; border-radius: 30px;
+	background: var(--glass-tint); box-shadow: var(--glass-rim); color: #fff; font-size: 24px; font-weight: 600;
+}
+
+html.reduce-motion .lquick * { animation: none; transition: none; }

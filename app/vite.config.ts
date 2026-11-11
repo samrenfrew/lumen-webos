@@ -48,7 +48,7 @@ function classicScriptTag (): Plugin {
 
 	/** The TV-side scripts, shipped inside the app as dist/tv/ so Settings > System > TV scripts can install them (lib/root.ts installTvScripts).
 	 *  Their source stays in tools/tv/, where the SSH tools and the docs point. Keep this list in step with TV_SCRIPTS in lib/root.ts. */
-	const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh', '60-homehook', 'hosts-extra'];
+	const TV_SCRIPTS = ['watch.sh', 'stadia.sh', 'resume.sh', 'home-setup.sh', 'privacy.sh', 'gear.sh', '60-homehook', 'hosts-extra'];
 	function tvScripts (): Plugin {
 		let outDir = 'dist';
 		return {
@@ -112,6 +112,8 @@ function classicScriptTag (): Plugin {
 	/** Lumen Guide (docs/plans/guide-overlay.md): the overlay app, built from guide.html into dist-guide/ with LUMEN_TARGET=guide. Its appinfo is
 	 *  public-guide/appinfo.json; from app/private/ it takes only the font, since it shows no icons or wallpapers. */
 	const GUIDE_ID = 'com.samrenfrew.lumen.guide';
+	/** Lumen Quick Settings (docs/plans/quick-settings.md): a second overlay app, built from quick.html into dist-quick/ with LUMEN_TARGET=quick. */
+	const QUICK_ID = 'com.samrenfrew.lumen.quick';
 	function guideFont (privateDir: string): Plugin {
 		let outDir = 'dist-guide';
 		return {
@@ -128,22 +130,24 @@ function classicScriptTag (): Plugin {
 
 	export default defineConfig(({mode}) => {
 		const lumen = lumenSettings(mode);
-		const guide = process.env.LUMEN_TARGET === 'guide';
-		const appId = guide ? GUIDE_ID : lumen.appId;
+		// an overlay app (guide or quick) or, with no target, Lumen itself
+		const target = process.env.LUMEN_TARGET === 'guide' || process.env.LUMEN_TARGET === 'quick' ? process.env.LUMEN_TARGET : '';
+		const guide = target !== '';
+		const appId = target === 'guide' ? GUIDE_ID : target === 'quick' ? QUICK_ID : lumen.appId;
 		return {
 		base: './',            // the app is loaded from a local file path on the TV
-		publicDir: guide ? 'public-guide' : 'public',
+		publicDir: guide ? `public-${target}` : 'public',
 		plugins: guide
 			? [preact(), classicScriptTag(), guideFont(lumen.privateDir)]
 			: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title), tvScripts()],
 		define: {__LUMEN_APP_ID__: JSON.stringify(appId), __LUMEN_DEV__: JSON.stringify(mode === 'development' || lumen.dev)},
 		build: {
 			target: BROWSER_TARGET,
-			outDir: guide ? 'dist-guide' : 'dist',
+			outDir: guide ? `dist-${target}` : 'dist',
 			modulePreload: false,
 			cssTarget: BROWSER_TARGET,
 			rollupOptions: {
-				input: guide ? resolve(APP_DIR, 'guide.html') : resolve(APP_DIR, 'index.html'),
+				input: guide ? resolve(APP_DIR, `${target}.html`) : resolve(APP_DIR, 'index.html'),
 				output: {
 					format: 'iife',
 					inlineDynamicImports: true,

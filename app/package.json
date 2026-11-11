@@ -8,6 +8,7 @@
     "dev": "vite --port 5199",
     "build": "tsc --noEmit && vite build",
     "build:guide": "tsc --noEmit && LUMEN_TARGET=guide vite build",
+    "build:quick": "tsc --noEmit && LUMEN_TARGET=quick vite build",
     "package": "sh scripts/package.sh",
     "manifest": "node scripts/gen-manifest.mjs"
   },
