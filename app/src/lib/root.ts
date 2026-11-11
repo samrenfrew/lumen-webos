@@ -265,8 +265,8 @@ export function immichStackIds (base: string, key: string): Promise<string> {
 	return run(`${curl} ${shellQuote(base + '/api/stacks')} | grep -oE '"(primaryAssetId|id)":"[0-9a-f-]{36}"' | sed -e 's/^"primaryAssetId":"//' -e 's/^"id":"/=/' -e 's/"$//'`, 20000);
 }
 
-/** Lumen's or Lumen Guide's own install folder: the only place the app may read files from, and the only one copyFontIn and the logo commands write to. */
-const APP_DIR = /^\/media\/developer\/apps\/usr\/palm\/applications\/com\.samrenfrew\.lumen(\.dev|\.guide)?$/;
+/** Lumen's, Lumen Guide's or Lumen Screensaver's own install folder: the only place the app may read files from, and the only one copyFontIn and the logo commands write to. */
+const APP_DIR = /^\/media\/developer\/apps\/usr\/palm\/applications\/com\.samrenfrew\.lumen(\.dev|\.guide|\.saver)?$/;
 
 /** Copies the SF font that tools/push_sf_font.sh put on the TV into the app's folder (each Channel update replaces the folder). True when copied. */
 export function copyFontIn (appDir: string): Promise<boolean> {
@@ -342,6 +342,68 @@ export function installTvScripts (appDir: string): Promise<boolean> {
 		`${BOOT_HOOK} restart`,
 		'echo installed'
 	].join(' && '), 20000).then((out) => /installed\s*$/.test(out));
+}
+
+// ---------- Side apps (docs/plans/side-apps.md): Settings > Side apps installs, updates and removes them ----------
+
+/** The side apps, the only ids the commands below take. */
+export const SIDE_APPS = ['com.samrenfrew.lumen.guide', 'com.samrenfrew.lumen.quick', 'com.samrenfrew.lumen.saver'] as const;
+export type SideAppId = typeof SIDE_APPS[number];
+const isSideApp = (id: string): id is SideAppId => (SIDE_APPS as readonly string[]).indexOf(id) !== -1;
+const DEV_APPS = '/media/developer/apps/usr/palm/applications';
+const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,7}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+/** a release download from this repo, for that one app: https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/<id>_<version>_all.ipk */
+const releaseUrl = (id: string) => new RegExp(`^https://github\\.com/samrenfrew/lumen-webos/releases/download/v\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}/${id.replace(/\./g, '\\.')}_\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}_all\\.ipk$`);
+
+/** The version of each side app that is installed, read from its appinfo.json; a missing app is left out. */
+export function sideAppVersions (): Promise<Partial<Record<SideAppId, string>>> {
+	const script = SIDE_APPS.map((id) => `v=$(sed -n 's/.*"version": *"\\([0-9.]*\\)".*/\\1/p' ${DEV_APPS}/${id}/appinfo.json 2>/dev/null | head -1); [ -n "$v" ] && echo "${id} $v"`).join('; ');
+	return run(`${script}; true`).then((out) => {
+		const found: Partial<Record<SideAppId, string>> = {};
+		out.split('\n').forEach((line) => {
+			const [id, v] = line.trim().split(' ');
+			if (id && v && isSideApp(id) && VERSION.test(v)) found[id] = v;
+		});
+		return found;
+	});
+}
+
+/** Downloads a side app's .ipk from this repo's releases, checks its SHA-256 and installs it with the developer installer (what
+ *  tools/deploy.sh uses), waits until the app's appinfo.json has the new version, then restarts the TV scripts so watch.sh's key binds
+ *  follow. Resolves with the last line it printed: "installed", or what went wrong. The SHA-256 comes from the Homebrew Channel listing, read by the page over HTTPS; curl is first
+ *  asked to check GitHub's certificate, and only if the TV cannot (curl's exit code 60) is it fetched without that check, since the
+ *  SHA-256 still checks the file. */
+export function installSideApp (id: string, url: string, sha256: string): Promise<string> {
+	if (!isSideApp(id) || !releaseUrl(id).test(url) || !SHA256.test(sha256)) return Promise.reject(new Error(`refused: install ${id}`));
+	const version = url.slice(url.lastIndexOf('_', url.length - 9) + 1, url.length - 8);
+	if (!VERSION.test(version)) return Promise.reject(new Error(`refused: install ${id}`));
+	const ipk = `/tmp/${id}.ipk`;
+	const info = `${DEV_APPS}/${id}/appinfo.json`;
+	// luna-send prints a subscription's replies only to a terminal, so the install runs in the background (subscribed, as deploy.sh's) and its
+	// result is read from the app's appinfo.json
+	return run([
+		`rm -f ${ipk}`,
+		`curl -sfL -m 120 -o ${ipk} ${shellQuote(url)}; c=$?; [ $c = 60 ] && { curl -sfLk -m 120 -o ${ipk} ${shellQuote(url)}; c=$?; }`,
+		`if [ $c != 0 ]; then echo "Could not download it (curl $c)"; rm -f ${ipk}; exit 0; fi`,
+		`if [ "$(sha256sum ${ipk} | cut -d' ' -f1)" != ${sha256} ]; then echo "The download did not match its SHA-256, so it was not installed"; rm -f ${ipk}; exit 0; fi`,
+		`luna-send -w 90000 -i ${shellQuote('luna://com.webos.appInstallService/dev/install')} ${shellQuote(JSON.stringify({id: 'com.ares.defaultName', ipkUrl: ipk, subscribe: true}))} >/dev/null 2>&1 & p=$!`,
+		`n=0; while [ $n -lt 90 ] && ! grep -q '"version": *"${version}"' ${info} 2>/dev/null; do sleep 1; n=$((n+1)); done`,
+		`sleep 2; kill $p 2>/dev/null; rm -f ${ipk}`,
+		`[ -f ${BOOT_HOOK} ] && ${BOOT_HOOK} restart >/dev/null 2>&1`,
+		`if grep -q '"version": *"${version}"' ${info} 2>/dev/null; then echo installed; else echo "Could not install it"; fi`
+	].join('\n'), 150000).then((out) => { const lines = out.trim().split('\n'); return lines[lines.length - 1] || 'Could not install it'; });
+}
+
+/** Removes a side app (the developer remover, as uninstallApp), then restarts the TV scripts. True once the TV no longer knows it. */
+export function uninstallSideApp (id: string): Promise<boolean> {
+	if (!isSideApp(id)) return Promise.reject(new Error(`refused: uninstall ${id}`));
+	const present = `${luna('luna://com.webos.applicationManager/getAppInfo', {id})} 2>/dev/null | grep -q '"returnValue":true'`;
+	return run([
+		`if ${present}; then ${luna('luna://com.webos.appInstallService/dev/remove', {id, subscribe: false})} >/dev/null 2>&1; sleep 2; fi`,
+		`[ -f ${BOOT_HOOK} ] && ${BOOT_HOOK} restart >/dev/null 2>&1`,
+		`if ${present}; then echo kept; else echo gone; fi`
+	].join('; '), 30000).then((text) => text.indexOf('gone') !== -1);
 }
 
 /** home-setup.sh's changes, by name. */

@@ -37,6 +37,7 @@ import {AUTO_PLACE, peekWeather, readWeather, type Weather} from './lib/weather'
 import {useLiveTv} from './hooks/useLiveTv';
 import {channelColor, nowNextAt, rowChannels, type Channel} from './lib/livetv';
 import {homeSetup, installTvScripts, openChannel, privacy, reboot, runningApps, uninstallApp, type HomeAction, type PrivacyAction} from './lib/root';
+import {behind, installSide, readSideApps, removeSide, updateSides, SIDE_APP_TITLE, type SideAppId, type SideApps} from './lib/sideapps';
 import {appDir, nativeWhy, powerOnPending, powerOnWhy, readTvState, scriptsReady, type TvState} from './lib/tvsetup';
 import {APP_ID} from './config/constants';
 import {bootMark, navMark} from './lib/log';
@@ -52,7 +53,7 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye'} as const;
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye', sideGuide: 'side-guide', sideQuick: 'side-quick', sideSaver: 'side-saver', sideUpdate: 'side-update'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -153,6 +154,35 @@ function tvOptions (tv: TvState | null, busy: string): OptionItem[] {
 		description: pre + 'A software update can remove root, and with it Lumen\'s TV scripts. This is the Homebrew Channel\'s own switch, and takes effect after the TV restarts.',
 		value: !!tv && tv.updates, valueText: shown(OPTION.pvUpdates, tv && tv.updates ? 'On' : 'Off')
 	});
+	return rows;
+}
+
+/** Settings > Side apps: each row's side app (docs/plans/side-apps.md) */
+const SIDE_ROWS: {option: string; id: SideAppId; description: string}[] = [
+	{option: OPTION.sideGuide, id: 'com.samrenfrew.lumen.guide', description: 'A channel guide over Live TV: LIST opens Now and Next, GUIDE the full guide. Off removes it from the TV.'},
+	{option: OPTION.sideQuick, id: 'com.samrenfrew.lumen.quick', description: 'Sound, picture and backlight over any app, on the gear button. In Lumen the gear opens Control Center. Off removes it, and the gear is LG\'s again.'},
+	{option: OPTION.sideSaver, id: 'com.samrenfrew.lumen.saver', description: 'Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.'}
+];
+
+/** Settings > Side apps: a row per side app (on when installed), then Update while any is on. */
+function sideOptions (side: SideApps | null, busy: string): OptionItem[] {
+	const working = (id: string) => busy === id;
+	const rows: OptionItem[] = SIDE_ROWS.map(({option, id, description}) => {
+		const have = side && side.installed[id];
+		return {
+			id: option, group: 'sideapps', label: SIDE_APP_TITLE[id], description, value: !!have,
+			valueText: working(option) ? 'Working' : !side ? 'Checking' : have ? `On, ${have}` : 'Off'
+		};
+	});
+	if (side && SIDE_ROWS.some((r) => side.installed[r.id])) {
+		const n = behind(side).length;
+		rows.push({
+			id: OPTION.sideUpdate, group: 'sideapps', label: 'Update side apps',
+			description: 'Gets the newest version of each side app that is on, from Lumen\'s releases on GitHub (the ones the Homebrew Channel lists), and installs it.',
+			value: n > 0,
+			valueText: working(OPTION.sideUpdate) ? 'Working' : !side.latest ? (side.offline ? 'Could not check' : 'Checking') : n ? `Update ${n} app${n > 1 ? 's' : ''}` : 'Up to date'
+		});
+	}
 	return rows;
 }
 
@@ -524,6 +554,10 @@ export function App () {
 			showToast(last.length > 160 ? last.slice(0, 157) + '...' : last, /refused|could not|cannot|not ours|no node|failed|left .* on/i.test(last) ? 'error' : 'info');
 		}, (e: unknown) => showToast(e instanceof Error ? e.message : String(e), 'error')).then(done, done);
 	}, [showToast]);
+	// Settings > Side apps: what is installed and the newest releases, read when Settings opens and after each change (lib/sideapps.ts)
+	const [side, setSide] = useState<SideApps | null>(null);
+	const readSide = useCallback(() => { readSideApps().then(setSide).catch(() => undefined); }, []);
+	useEffect(() => { if (inSettings) readSide(); }, [inSettings]);
 	const tabs: SettingsTab[] = useMemo(() => {
 		if (!inSettings) return [];
 		const list: SettingsTab[] = [
@@ -931,6 +965,9 @@ export function App () {
 			// ----- Home and Power, Privacy (the TV scripts: tools/tv/home-setup.sh, tools/tv/privacy.sh) -----
 			...tvOptions(tv, tvBusy),
 
+			// ----- Side apps (docs/plans/side-apps.md) -----
+			...sideOptions(side, tvBusy),
+
 			// ----- System -----
 			{
 				id: OPTION.tvScripts,
@@ -969,7 +1006,7 @@ export function App () {
 				value: config.liquidDock
 			}] : [])
 		];
-	}, [config, choices, immich.ready, immichDraft, immichTest, tv, tvBusy]);
+	}, [config, choices, immich.ready, immichDraft, immichTest, tv, tvBusy, side]);
 
 	const wallpaper: WallpaperTab = useMemo(() => {
 		if (!inSettings) return {categories: [], entries: [], onPick: () => undefined};
@@ -1134,6 +1171,15 @@ export function App () {
 
 	const onOption = useCallback((optionId: string) => {
 		if (onTvOption(optionId, tv, runTv, showToast)) return;
+		// a side app's row installs or removes it; Update brings each one that is on up to the newest release
+		const sideRow = SIDE_ROWS.filter((r) => r.option === optionId)[0];
+		if (sideRow || optionId === OPTION.sideUpdate) {
+			if (!side) { showToast('Still checking the side apps'); return; }
+			const then = (line: string) => { readSide(); return line; };
+			if (!sideRow) runTv(optionId, () => updateSides(side).then(then));
+			else runTv(optionId, () => (side.installed[sideRow.id] ? removeSide(sideRow.id) : installSide(side, sideRow.id)).then(then));
+			return;
+		}
 		if (optionId === OPTION.restore) {
 			readBackup().then((saved) => {
 				if (!saved) { showToast('No settings backup found on the TV', 'error'); return; }
@@ -1157,7 +1203,7 @@ export function App () {
 		else if (optionId === OPTION.captions) updateConfig({...config, wallpaperCaptions: !config.wallpaperCaptions});
 		else if (optionId === OPTION.ambientPrint) updateConfig({...config, ambientPrint: !config.ambientPrint});
 		else if (optionId === OPTION.wpNew) updateConfig({...config, wpNewOnLaunch: !config.wpNewOnLaunch});
-	}, [config, immich.ready, testImmich, tv, runTv, showToast]);
+	}, [config, immich.ready, testImmich, tv, runTv, showToast, side, readSide]);
 
 	/** a value picked from an option's pop-up list */
 	const onChoose = useCallback((optionId: string, index: number) => {

@@ -3,7 +3,7 @@ import {Glyph, type GlyphName} from './Glyph';
 import {rowWindow} from '../lib/windowedList';
 
 /** Which Settings page an option is listed on (Settings.tsx GROUPS). */
-export type OptionGroup = 'home' | 'livetv' | 'wallpaper' | 'screensaver' | 'brightness' | 'appearance' | 'photos' | 'region' | 'tv' | 'privacy' | 'system';
+export type OptionGroup = 'home' | 'livetv' | 'wallpaper' | 'screensaver' | 'brightness' | 'appearance' | 'photos' | 'region' | 'tv' | 'privacy' | 'sideapps' | 'system';
 
 export interface OptionItem {
 	id: string;
