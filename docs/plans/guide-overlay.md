@@ -46,7 +46,7 @@ front). Details in `docs/research/spikes.md`, "Overlay window from a developer a
 - **Data from the TV, not from Lumen.** The channel list and programmes come from the same root calls as Lumen's guide
   (`app/src/lib/root.ts`: `channelList`, `nowNext`, `eventList`, `currentChannel`, `openChannel`). Lumen Guide keeps its own cache (its own
   `localStorage`) so a second LIST draws at once, then refreshes.
-- `npm run deploy:home` installs both apps. From 2.2.0 each release also builds Lumen Guide (`tools/build_release.py`), with Lumen's version, attaches it to the GitHub release and lists it in the Homebrew Channel's stable repository beside Lumen (`tools/gen_hbc_repo.py`).
+- `npm run deploy:home` installs both apps. From 2.2.0 each release also builds Lumen Guide (`tools/build_release.py`), attaches it to the GitHub release and lists it in the Homebrew Channel's stable repository beside Lumen (`tools/gen_hbc_repo.py`). Up to 2.2.0 it had Lumen's version; from 2026-11-11 it has its own, carrying on from 2.2.1, and it goes up only when the guide changes (`docs/plans/side-apps.md`).
 
 ## The spike (answered 2026-11-07)
 

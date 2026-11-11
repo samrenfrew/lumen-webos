@@ -32,6 +32,9 @@ These are the main changes since the fork. [docs/plans/PLAN.md](docs/plans/PLAN.
 
 - **Live TV.** A row of aerial channels with what is on now, a Now and Next guide, and a full week's guide. A rail at the left edge of the Guide switches between Now, Next and the Full guide. Rows show grey placeholder shapes while the guide data loads. The Guide button on the remote can open it. See [docs/research/live-tv.md](docs/research/live-tv.md) and [docs/plans/live-tv-build.md](docs/plans/live-tv-build.md).
 - **Lumen Guide.** A second, small app that draws a channel guide over the Live TV picture. In Live TV, LIST opens it on Now and GUIDE opens the Full guide. OK on a channel changes to it. The TV picture keeps playing behind it. Install it from the Homebrew Channel beside Lumen, then update the TV scripts (Settings > System > TV scripts). It needs LG Input Hook. See [docs/plans/guide-overlay.md](docs/plans/guide-overlay.md).
+- **Lumen Quick Settings.** A side app that shows Lumen's Control Center (sound, picture, backlight) over any app, on the remote's gear button. See [docs/plans/quick-settings.md](docs/plans/quick-settings.md).
+- **Lumen Screensaver.** A side app that shows the screensaver photos over the app you are watching, so after a key the app is where you left it. Without it, the screensaver opens Lumen. See [docs/plans/side-apps.md](docs/plans/side-apps.md).
+- **Side apps in Settings.** Settings > Side apps turns Lumen Guide, Quick Settings and the screensaver on or off, and updates them. Each side app has its own version, which goes up only when it changes.
 - **Live preview (dev builds only).** The channel in focus plays as a small picture in the Guide and on the Live TV row, without a change to Live TV's last channel. Settings > Live TV turns it on. See [docs/research/live-tv.md](docs/research/live-tv.md).
 - **Brightness schedule.** Settings > Brightness sets the backlight and Eye Comfort for each part of the day, with an optional slow change between them. Each input (apps, Live TV, HDMI) gets the level.
 - **Home and Power, and Privacy.** Settings pages that make LG's own Home routes open Lumen, choose what the TV opens when it turns on, and withdraw LG's data agreements and block its ad servers. See [docs/home-and-power-on.md](docs/home-and-power-on.md) and [docs/privacy.md](docs/privacy.md).
@@ -68,9 +71,9 @@ To get the builds on the TV:
 2. Open the Channel's settings.
 3. Add this repository URL: `https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json`
 4. Install Lumen from the Channel's app list.
-5. Optional: install Lumen Guide from the same list, for the channel guide over Live TV. It does not show in the TV's app list; LIST and GUIDE open it in Live TV once the TV scripts are installed (below).
+5. Optional: turn on the side apps in Lumen, Settings > Side apps, or install them from the same list: Lumen Guide (the channel guide over Live TV), Lumen Quick Settings (the gear button) and Lumen Screensaver (the photos over the app you are in). They do not show in the TV's app list; the remote's buttons and the screensaver open them once the TV scripts are installed (below).
 
-The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`, for Lumen and for Lumen Guide. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
+The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`, for Lumen and its side apps. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
 
 The public build does not include third-party app logos, private wallpapers or the SF font. Apps without an icon get a plain tile.
 
@@ -159,6 +162,8 @@ After each start, a dev build writes a "boot" line to `/var/lib/homehook/lumen.l
 | `npm run release` | Builds the public `.ipk` into `release/`, with no `app/private/`. |
 | `npm --prefix app run build:guide` | Builds Lumen Guide (the overlay) into `app/dist-guide/`. |
 | `npm run deploy:guide` | Installs Lumen Guide on the TV over SSH. `npm run deploy:home` also does this, after Lumen. |
+| `npm --prefix app run build:quick`, `build:saver` | Build Lumen Quick Settings and Lumen Screensaver into `app/dist-quick/` and `app/dist-saver/`. |
+| `npm run deploy:quick`, `deploy:saver` | Install them on the TV over SSH. `npm run deploy:home` installs all three side apps after Lumen. |
 | `npm run push-font` | Copies the SF font to `/var/lib/homehook/fonts/` on the TV. Lumen copies it into its own folder after each update. |
 | `python3 tools/build_catalog.py` | Turns `tools/catalog.json` into the cloud wallpaper list. |
 | `python3 tools/harvest_open.py [met\|cleveland\|commons]` | Adds paintings and landscapes, with credits, to the catalogue. |
@@ -193,7 +198,7 @@ Do not push only to get a build onto the TV. Use `npm run deploy:home` for that.
 
 The scripts in [tools/tv/](tools/tv/) run on the TV. They go in `/var/lib/homehook/`, and [tools/tv/60-homehook](tools/tv/60-homehook) in `/var/lib/webosbrew/init.d/` starts them at boot.
 
-- [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver, and runs the Settings > Brightness schedule. When Lumen Guide is installed, it binds LIST and GUIDE to the guide while Live TV is in front, and starts the guide hidden so that it opens at once. In other apps, GUIDE opens Lumen's Guide and LIST is left to the app.
+- [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver (over the app you are in, when Lumen Screensaver is installed), and runs the Settings > Brightness schedule. When Lumen Guide is installed, it binds LIST and GUIDE to the guide while Live TV is in front, and starts the guide hidden so that it opens at once. In other apps, GUIDE opens Lumen's Guide and LIST is left to the app.
 - [stadia.sh](tools/tv/stadia.sh) asks to pair a Stadia controller each time Moonlight opens. Press OK, then hold Stadia + Y.
 
 LG Input Hook owns the Home button on this TV. `watch.sh` takes over LG Home only when `/var/lib/homehook/home-takeover` exists.

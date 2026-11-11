@@ -36,7 +36,7 @@ Dev builds write a "boot" timeline line to `/var/lib/homehook/lumen.log` after e
 
 ## Docs
 
-Plans and specs live in `docs/plans/` (`PLAN.md`, `live-tv-build.md`, `settings-redesign.md`, `guide-overlay.md`, `quick-settings.md`). Research, audits, spikes and measurements live in `docs/research/` (`RESEARCH.md`, `live-tv.md`, `startup-perf.md`, `frame-rate.md`, `spikes.md`, `design-audit.md`, `prior-art.md`, `down-up-lag-review.md`). Docs that describe how a feature works now stay in `docs/` (`immich.md`, `keep-alive.md`). Do not put a plan, spec or finding in `.scratch/`: it is deleted when the work ships. Read the one for the area you touch before changing it, and update it when a finding changes.
+Plans and specs live in `docs/plans/` (`PLAN.md`, `live-tv-build.md`, `settings-redesign.md`, `guide-overlay.md`, `quick-settings.md`, `side-apps.md`). Research, audits, spikes and measurements live in `docs/research/` (`RESEARCH.md`, `live-tv.md`, `startup-perf.md`, `frame-rate.md`, `spikes.md`, `design-audit.md`, `prior-art.md`, `down-up-lag-review.md`). Docs that describe how a feature works now stay in `docs/` (`immich.md`, `keep-alive.md`). Do not put a plan, spec or finding in `.scratch/`: it is deleted when the work ships. Read the one for the area you touch before changing it, and update it when a finding changes.
 
 ## Commits
 

@@ -22,12 +22,20 @@ seen unless something looks wrong.
   in the Homebrew Channel beside Lumen. `watch.sh` does nothing for it when it is not installed.
 - Credits for the forks and projects this work drew on are in `README.md` (Credits) and `THIRD_PARTY_NOTICES.md`.
 - Pick up next: the Verify items below, then Lumen Guide's own (verify) list in `docs/plans/guide-overlay.md` (Status).
+- 2026-11-11, branch `live-tv-preview`: a third side app, Lumen Screensaver (the photos over the app you are in, so it resumes where you
+  left it), Settings > Side apps (turn each side app on or off, and update them), and a version of its own for each side app, set by the
+  release from whether its built files changed. Quick Settings and the screensaver join the release. Plan and status:
+  `docs/plans/side-apps.md`.
 
 ---
 
 ## Verify on the TV (built, not yet seen working)
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
+
+- [ ] Side apps (2026-11-11, branch `live-tv-preview`, not on the TV yet): the (verify) items in `docs/plans/side-apps.md` (Status).
+      Install with `npm run deploy:home`, which now installs Lumen Screensaver too, and update the TV scripts (Settings > System >
+      TV scripts) for the new `watch.sh`.
 
 - [ ] A wake leaves an app you opened by hand (2026-11-10, branch `live-tv-preview`, watcher on the TV; `tools/tv/watch.sh`, `opened_by_hand`). The wake reads the TV's log for who launched the app in front. Check: switch the TV on, open an app from Lumen within 30 s, and it stays; `/tmp/homehook.log` has "was opened by hand, left in front". Then a TV that wakes into its last app (not opened by hand) still goes to Lumen. Not known: how the log marks the app the TV restores at a cold boot, and a launch from a remote's app button.
 - [ ] OK acts on key down where a hold does nothing (2026-11-10, branch `live-tv-preview`, on the TV; `hooks/useOkPress.ts`). Check: OK

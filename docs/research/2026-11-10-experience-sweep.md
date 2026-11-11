@@ -169,7 +169,7 @@ What this means for each built-in screen:
 |---|---|---|
 | Gear menu (quick settings) | An overlay app that shows Lumen's Control Center over any app, on the gear key | The best next one. See below |
 | Input picker | The same overlay app, or a second view in it, on the Input key (code 241 for Input Hook, single source) | Lumen's Inputs list already exists in `Home.tsx` |
-| Screensaver | Done (`watch.sh` opens Lumen's) | cleanyourtv mounts over LG's saver app instead; no gain here |
+| Screensaver | `watch.sh` opened Lumen's, which leaves the app you were in and may lose its place. From 2026-11-11 an overlay app, Lumen Screensaver (`docs/plans/side-apps.md`) | cleanyourtv mounts over LG's saver app instead; the overlay avoids that mount |
 | Volume and channel banners | None found. No project replaces them, and nobody documents which app draws them | Leave |
 | Full Settings app | LG's is an overlay web app with trusted permissions (webOS OSE source) | Too large; Lumen's Control Center covers the daily part |
 | Toasts | LG's `createToast` as root already works and is LG-styled | Leave |

@@ -46,8 +46,9 @@ First build installed on 2026-11-10 (dev build), with the new `watch.sh` on the 
   Settings over the picture, quickly; Back and the gear close it and the app has the remote again. Sound, Picture, the backlight and
   Eye Comfort change the app underneath, and show its values, not Lumen's. All settings opens LG's Settings. The look over a bright
   picture.
-- **Not built:** the release. `tools/build_release.py` and `tools/gen_hbc_repo.py` do not build or list it yet, so it is on the TV
-  only as a dev build.
+- **Release (2026-11-11):** `tools/build_release.py` builds it and the workflow lists it in the Homebrew Channel beside Lumen, from
+  1.0.0, with a version of its own (`docs/plans/side-apps.md`). Its Screensaver button opens Lumen Screensaver over the app when that
+  is installed, else Lumen's own.
 - **The first gear press opened Lumen (fixed 2026-11-10):** the first build rewrote the bind as the app in front changed, right
   after the guide's own rewrite of the same file. Input Hook kept the old bind, so 3.5 s into Live TV the gear still launched Lumen.
   The bind is now fixed and `gear.sh` decides at the press. Seen: the script opens and closes Control Center with Lumen in front.
