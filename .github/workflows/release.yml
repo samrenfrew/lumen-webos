@@ -1,7 +1,8 @@
-# Builds the public .ipk files, Lumen and Lumen Guide (no app/private/).
+# Builds the public .ipk files, Lumen and its side apps: Lumen Guide, Lumen Quick Settings and Lumen Screensaver (no app/private/).
 #  - a push to main: a stable release. The version comes from appinfo.json; if that tag exists, the patch number goes up to the next free one.
-#    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. Lumen Guide (the overlay over
-#    Live TV) is built and published beside Lumen, with the same version.
+#    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. The side apps are built and
+#    published beside Lumen, each with its own version, which goes up only when that app changed (tools/build_release.py,
+#    docs/plans/side-apps.md). The last release's side-app hashes are kept in stable/side-apps.json on the hbc-repo branch.
 #  - a push to any other branch: a dev build (Settings > Frame-rate counter), kept as a workflow artifact only. Nothing is published.
 name: release
 on:
@@ -41,15 +42,17 @@ jobs:
               c = c * 1000 + int(os.environ['GITHUB_RUN_NUMBER'])
           d['version'] = f'{a}.{b}.{c}'
           json.dump(d, open(p, 'w'), indent=2)
-          g = 'app/public-guide/appinfo.json'; gd = json.load(open(g)); gd['version'] = d['version']
-          json.dump(gd, open(g, 'w'), indent=2)
           open(os.environ['GITHUB_ENV'], 'a').write(f"VERSION={d['version']}\n")
           print(d['version'])
           PY
       - name: Build the .ipk files
+        # the side apps' versions follow the last release's hashes (an empty file on the first release)
         env:
           LUMEN_DEV: ${{ github.ref_name == 'main' && '0' || '1' }}
-        run: python3 tools/build_release.py
+          LUMEN_SIDE_STATE: side-state.json
+        run: |
+          git show origin/hbc-repo:stable/side-apps.json > side-state.json 2>/dev/null || : > side-state.json
+          python3 tools/build_release.py
       - name: Keep the dev build
         if: github.ref_name != 'main'
         uses: actions/upload-artifact@v4
@@ -64,11 +67,13 @@ jobs:
         run: |
           LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
           GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
+          QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
+          SAVER=$(ls release/com.samrenfrew.lumen.saver_*.ipk)
           {
-            printf 'Built from %s.\n\nInstall: drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`.\n\n' "$GITHUB_SHA"
-            for f in "$LUMEN" "$GUIDE"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
+            printf 'Built from %s.\n\nInstall: drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen, Settings > Side apps.\n\n' "$GITHUB_SHA"
+            for f in "$LUMEN" "$GUIDE" "$QUICK" "$SAVER"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
           } > notes.md
-          gh release create "v$VERSION" "$LUMEN" "$GUIDE" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
+          gh release create "v$VERSION" "$LUMEN" "$GUIDE" "$QUICK" "$SAVER" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
       - name: Homebrew Channel repository
         # The Channel reads the index with XHR, so it is served from raw.githubusercontent.com (CORS allowed) on the hbc-repo branch:
         #   https://raw.githubusercontent.com/<repo>/hbc-repo/stable/apps.json
@@ -76,10 +81,14 @@ jobs:
         run: |
           LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
           GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
+          QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
+          SAVER=$(ls release/com.samrenfrew.lumen.saver_*.ipk)
           BASE="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/hbc-repo/stable"
           DL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION"
           git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
           git fetch origin hbc-repo && git worktree add hbc origin/hbc-repo || { git worktree add --detach hbc && git -C hbc checkout --orphan hbc-repo && git -C hbc rm -rfq .; }
           rm -rf hbc/stable
-          python3 tools/gen_hbc_repo.py "$BASE" hbc/stable "$LUMEN" "$DL/$(basename "$LUMEN")" app/dist "$GUIDE" "$DL/$(basename "$GUIDE")" app/dist-guide
+          python3 tools/gen_hbc_repo.py "$BASE" hbc/stable "$LUMEN" "$DL/$(basename "$LUMEN")" app/dist "$GUIDE" "$DL/$(basename "$GUIDE")" app/dist-guide \
+            "$QUICK" "$DL/$(basename "$QUICK")" app/dist-quick "$SAVER" "$DL/$(basename "$SAVER")" app/dist-saver
+          cp release/side-apps.json hbc/stable/side-apps.json
           cd hbc && git add -A && git commit -qm "stable: v$VERSION ${GITHUB_SHA:0:7}" && git push origin HEAD:hbc-repo
