@@ -166,8 +166,8 @@ while true; do
     was=1
     log "Moonlight in front: asking"
     ask "Pair the controller?"
-  elif [ "$asking" -eq 0 ] && [ -n "$cur" ] && [ -n "$seen" ] && [ "$cur" != "$seen" ]; then
-    # 2026-11-13: a drop that came back at once left the controller dead and nothing was shown
+  elif [ -n "$cur" ] && [ -n "$seen" ] && [ "$cur" != "$seen" ]; then
+    # 2026-11-13: a drop that came back at once left the controller dead and nothing was shown; one during the popup restarts its clock
     log "controller reconnected on its own ($seen to $cur): asking"
     ask "Controller reconnected"
   fi
