@@ -1,0 +1,15 @@
+{
+  "id": "com.samrenfrew.lumen.saver",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "Lumen Screensaver",
+  "appDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after.",
+  "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.png",
+  "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+  "rootRequired": true,
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.saver_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "38776fb56bc28826999f9f5770e4ff98c26f1accdbd6c0e14ea8ecb20ccd6c68"
+  },
+  "ipkSize": 2603250
+}

@@ -1,0 +1,15 @@
+{
+  "id": "com.samrenfrew.lumen.quick",
+  "version": "1.0.0",
+  "type": "web",
+  "title": "Lumen Quick Settings",
+  "appDescription": "Sound, picture and backlight over any app, opened with the gear button.",
+  "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
+  "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+  "rootRequired": true,
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.quick_1.0.0_all.ipk",
+  "ipkHash": {
+    "sha256": "3620f7c7683b48ae44ce68e0c6c187214ea1ff8118fb84179e9a535a5e192028"
+  },
+  "ipkSize": 102106
+}

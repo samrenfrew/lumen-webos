@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 2,
+    "count": 4,
     "maxPage": 1,
-    "itemsTotal": 2,
+    "itemsTotal": 4,
     "prevUrl": null,
     "nextUrl": null
   },
@@ -15,18 +15,18 @@
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen",
-        "version": "2.2.0",
+        "version": "2.2.1",
         "type": "web",
         "title": "Home",
         "appDescription": "Minimalist home screen: apps, inputs and a way back to LG's home.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.0/com.samrenfrew.lumen_2.2.0_all.ipk",
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen_2.2.1_all.ipk",
         "ipkHash": {
-          "sha256": "55ded7011b3d07f7869389a5b3a0a4e77aa3e9272c7bdd1756aebcc18fffaf32"
+          "sha256": "05eede9824a7ba3318911c24ba47009eebb0ecc09bedb6bcfd617f7a9d063b95"
         },
-        "ipkSize": 2952454
+        "ipkSize": 2956314
       },
       "pool": "main",
       "shortDescription": "Minimalist home screen: apps, inputs and a way back to LG's home."
@@ -38,21 +38,67 @@
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen.guide",
-        "version": "2.2.0",
+        "version": "2.2.1",
         "type": "web",
         "title": "Lumen Guide",
         "appDescription": "A narrow channel guide over Live TV, opened with LIST.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.0/com.samrenfrew.lumen.guide_2.2.0_all.ipk",
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.guide_2.2.1_all.ipk",
         "ipkHash": {
-          "sha256": "f7ad6fd416a7dc7f14c8afc732d9c24dcb07589de2306568ef2a2b6fb954675a"
+          "sha256": "68d27f3847be0215ac1882a88b5fe76bb47e50ef7262a0f276630b8d352c40f9"
         },
-        "ipkSize": 105990
+        "ipkSize": 107028
       },
       "pool": "main",
       "shortDescription": "A narrow channel guide over Live TV, opened with LIST."
+    },
+    {
+      "id": "com.samrenfrew.lumen.quick",
+      "title": "Lumen Quick Settings",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.quick",
+        "version": "1.0.0",
+        "type": "web",
+        "title": "Lumen Quick Settings",
+        "appDescription": "Sound, picture and backlight over any app, opened with the gear button.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.quick_1.0.0_all.ipk",
+        "ipkHash": {
+          "sha256": "3620f7c7683b48ae44ce68e0c6c187214ea1ff8118fb84179e9a535a5e192028"
+        },
+        "ipkSize": 102106
+      },
+      "pool": "main",
+      "shortDescription": "Sound, picture and backlight over any app, opened with the gear button."
+    },
+    {
+      "id": "com.samrenfrew.lumen.saver",
+      "title": "Lumen Screensaver",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.saver",
+        "version": "1.0.0",
+        "type": "web",
+        "title": "Lumen Screensaver",
+        "appDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.saver_1.0.0_all.ipk",
+        "ipkHash": {
+          "sha256": "38776fb56bc28826999f9f5770e4ff98c26f1accdbd6c0e14ea8ecb20ccd6c68"
+        },
+        "ipkSize": 2603250
+      },
+      "pool": "main",
+      "shortDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after."
     }
   ]
 }

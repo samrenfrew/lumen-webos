@@ -1,0 +1,14 @@
+{
+  "com.samrenfrew.lumen.guide": {
+    "version": "2.2.1",
+    "hash": "64c19314baaa51ee10f2cb9449e65e4f1df83cfe536fb48c340067ec15dbb9d6"
+  },
+  "com.samrenfrew.lumen.quick": {
+    "version": "1.0.0",
+    "hash": "7ae928f5773897e770d20d6578742547b7c2e3928cd97bb199704b664e2bf14b"
+  },
+  "com.samrenfrew.lumen.saver": {
+    "version": "1.0.0",
+    "hash": "9a2d064664c8b6e346e313ab7385c1cd060e96f228ff75b443d1e56ead204da4"
+  }
+}
