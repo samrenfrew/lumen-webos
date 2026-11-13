@@ -76,7 +76,8 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       service after 3 failed tries. "Controller paired." shows once a button press arrives. To try again: Home, then Moonlight. First run
       paired on try 7, right after a Bluetooth restart. The bridge and its files are gone from the TV. The script also copies the
       controller's hidraw node into Moonlight's jail. Sam saw it work on 2026-11-08 (paired on try 1). Still to see: the Bluetooth
-      restart after 3 failed tries, and Back on the popup.
+      restart after 3 failed tries, and Back on the popup. Added 2026-11-13, on the TV: the popup also shows when the controller drops
+      and reconnects on its own while Moonlight is in front (the input device's instance number changes). Still to see.
 
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).
