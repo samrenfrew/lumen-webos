@@ -298,6 +298,9 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
   about 29), and drops came every one to two minutes that evening. `bt_stack.conf` is back to `.orig` (the debug copy is at
   `/tmp/bt_stack.conf.debug` until a reboot). Guess, not proven: the logging slowed the stack enough to drop links. Watch the drop rate.
 - A drop while a direction is held leaves Moonlight holding it, since no release report arrives (BACKLOG.md, "release held buttons").
+- Drops went on with the logs off. Way round it (2026-11-13 22:20): the controller is paired to the gaming PC (the room above), not the
+  TV, so the game reads it on the PC and LG's Bluetooth is out of the path. Sam: "works a treat". On the TV the controller is unpaired
+  and `stadia.sh` is off (`/var/lib/homehook/no-stadia`). To go back: remove that file and pair from the popup.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
