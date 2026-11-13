@@ -20,7 +20,7 @@ The target TV is an LG 43UT91006LA on webOS 25 (Chromium 120). The repo was firs
 
 A dev build is a local build that you install on the TV over SSH: `npm run deploy:home`. Do not push a branch only to get a build onto the TV, and do not ask Sam to update in the Homebrew Channel.
 
-A push to `main` publishes a stable release to GitHub and the Homebrew Channel (`.github/workflows/release.yml`). The version is the one in `app/public/appinfo.json`, or the next free patch above it. A push to any other branch only builds a dev `.ipk` as a workflow artifact and publishes nothing. Push only when Sam asks. A Channel update replaces a local install.
+A push to `main` publishes a stable release to GitHub and the Homebrew Channel (`.github/workflows/release.yml`). The version is the one in `app/public/appinfo.json`, or the next free patch above it. A push to any other branch runs no workflow. Push only when Sam asks. A Channel update replaces a local install.
 
 Every push to `main` makes a release, docs-only pushes included, so each one needs release notes. When the release run has passed, add the notes above the text the workflow wrote (the build commit, install line and SHA-256), then a `---` line. Write them for someone who uses the TV: one line per change, in plain words, taken from the commit subjects since the last release. Use `gh release edit v<version> --repo samrenfrew/lumen-webos --notes-file <file>`. Always pass `--repo`: without it, `gh` reads the `upstream` remote (ammar027's repo), not this one. Show Sam the notes before you publish them.
 

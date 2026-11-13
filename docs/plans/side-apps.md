@@ -125,7 +125,7 @@ Each side app has its own version, and it goes up only when that app changes. Lu
   - It writes the new `side-apps.json` beside the `.ipk` files, and the workflow puts it on `hbc-repo` with the listing.
 - A side app whose version stayed is still built and listed (its `.ipk` is the same app), so the listing always has all of them; the
   Channel and Lumen see the same version and offer no update.
-- On a branch push, the dev build artifact has all four `.ipk` files, with the same version rule.
+- A branch push builds nothing since 2026-11-13 (the workflow runs on `main` only); `deploy:home` installs all four over SSH.
 
 ## 4. Lumen Screensaver in place of LG's (agreed 2026-11-13; Sam: treat it as working, he will feed back)
 

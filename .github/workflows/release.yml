@@ -3,11 +3,12 @@
 #    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. The side apps are built and
 #    published beside Lumen, each with its own version, which goes up only when that app changed (tools/build_release.py,
 #    docs/plans/side-apps.md). The last release's side-app hashes are kept in stable/side-apps.json on the hbc-repo branch.
-#  - a push to any other branch: a dev build (Settings > Frame-rate counter), kept as a workflow artifact only. Nothing is published.
+#  - a push to any other branch runs nothing: dev builds go to the TV over SSH (npm run deploy:home). GitHub paused this fork's
+#    workflows on 2026-11-08 for its Actions usage, most of it branch builds nobody downloaded.
 name: release
 on:
   push:
-    branches: ['**', '!hbc-repo']
+    branches: [main]
 permissions:
   contents: write
 # one run at a time: two pushes to main close together must not race on the tag or the hbc-repo branch
@@ -53,13 +54,6 @@ jobs:
         run: |
           git show origin/hbc-repo:stable/side-apps.json > side-state.json 2>/dev/null || : > side-state.json
           python3 tools/build_release.py
-      - name: Keep the dev build
-        if: github.ref_name != 'main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: lumen-${{ env.VERSION }}
-          path: release/*.ipk
-          retention-days: 14
       - name: Publish
         if: github.ref_name == 'main'
         env:
