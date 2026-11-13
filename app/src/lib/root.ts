@@ -201,6 +201,19 @@ export function startScreensaver (): Promise<void> {
 	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreenSaver', {})).then(() => undefined);
 }
 
+/** Ends the TV's screensaver state, as watch.sh does. With no screensaver up, tvpower answers with an error and nothing changes. */
+export function endScreensaver (): Promise<void> {
+	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreen', {}), 4000).then(() => undefined);
+}
+
+/** True while Lumen's own screensaver shows: its flag is set and a Lumen build is in front (so a flag left by a crash is not believed). */
+export function lumenOwnSaverUp (): Promise<boolean> {
+	return run(`[ -f /tmp/lumen-ambient-on ] && echo flag; ${luna('luna://com.webos.applicationManager/getForegroundAppInfo', {})}`, 4000).then((out) => {
+		const m = /"appId"\s*:\s*"([^"]+)"/.exec(out);
+		return /^flag/.test(out) && !!m && LUMEN_IDS.indexOf(m[1]) !== -1;
+	});
+}
+
 /** Tells watch.sh the video wallpaper is on, so LG's screensaver is ended while Lumen is in front. */
 export function setVideoFlag (on: boolean): Promise<void> {
 	return run(on ? `mkdir -p ${HOMEHOOK} && touch ${HOMEHOOK}/video-wallpaper` : `rm -f ${HOMEHOOK}/video-wallpaper`).then(() => undefined);
@@ -422,6 +435,12 @@ export function homeSetup (action: HomeAction, appId: string): Promise<string> {
 	const on = action === 'nativeOn' || action === 'powerOnOn';
 	if (on && LUMEN_IDS.indexOf(appId) === -1) return Promise.reject(new Error('refused: app id'));
 	return run(`sh ${HOMEHOOK}/home-setup.sh ${verb}${on ? ' ' + appId : ''} 2>&1; true`, 20000);
+}
+
+/** Lumen Screensaver in LG's screensaver's place, or LG's back (home-setup.sh saver-mount, docs/plans/side-apps.md section 4). Both are
+ *  cheap when nothing changes. Returns what it printed. */
+export function saverMount (on: boolean): Promise<string> {
+	return run(`sh ${HOMEHOOK}/home-setup.sh saver-mount ${on ? 'on' : 'off'} 2>&1; true`, 30000);
 }
 
 /** privacy.sh's changes, by name (Settings > Privacy). */

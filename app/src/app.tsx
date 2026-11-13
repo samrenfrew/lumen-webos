@@ -26,7 +26,7 @@ import {scheduledBacklight, writeBrightnessSchedule} from './lib/brightness';
 import {albums as immichAlbums, cachedServer, IMMICH_SOURCES, loadServer, saveServer, testServer, type ImmichServer} from './lib/immich';
 import {Ambient, prepareAmbient} from './components/Ambient';
 import {setVideoChoice, setVideoPaused, setVideoWallpaper, VIDEO_PLACES} from './lib/wallpaperVideo';
-import {clearSaverOffFlag, setAmbientFlag, setVideoFlag, startScreensaver} from './lib/system';
+import {clearSaverOffFlag, setAmbientFlag, setSaverMount, setVideoFlag, startScreensaver} from './lib/system';
 import {setFpsCounter} from './lib/fps';
 import {setWhere} from './lib/where';
 import {onMinute} from './lib/minute';
@@ -42,6 +42,9 @@ import {appDir, nativeWhy, powerOnPending, powerOnWhy, readTvState, scriptsReady
 import {APP_ID} from './config/constants';
 import {bootMark, navMark} from './lib/log';
 import {LANGS, setClockMode, setLang} from './lib/i18n';
+
+/** how long after launch, or after Screensaver changes, the screensaver mount is checked */
+const SAVER_MOUNT_DELAY_MS = 10000;
 
 type Screen = 'home' | 'settings' | 'ambient' | 'guide';
 
@@ -429,6 +432,8 @@ export function App () {
 	const saverFrom = useRef('');
 	useEffect(() => setVideoWallpaper(videoOn), [videoOn]);
 	useEffect(() => { setAmbientFlag(config.ambientOn); }, [config.ambientOn]);
+	// out of the launch's way; it also picks up a screensaver side app installed since the last launch
+	useEffect(() => { const t = window.setTimeout(() => setSaverMount(config.ambientOn), SAVER_MOUNT_DELAY_MS); return () => window.clearTimeout(t); }, [config.ambientOn]);
 	useEffect(() => { clearSaverOffFlag(); }, []);
 	useEffect(() => { setVideoPaused(screen !== 'home'); document.documentElement.classList.toggle('in-settings', screen === 'settings' || screen === 'guide'); }, [screen]);
 	const lastScreen = useRef(screen);

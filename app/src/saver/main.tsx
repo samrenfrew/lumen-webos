@@ -10,7 +10,7 @@ import {restoreBacklight, setBacklightSchedule} from '../lib/tvcontrols';
 import {scheduledBacklight} from '../lib/brightness';
 import {AUTO_PLACE, peekWeather, readWeather, type Weather} from '../lib/weather';
 import {CITIES, type City} from '../config/cities';
-import {copyFontIn, setAmbientShowing} from '../lib/root';
+import {appendLog, copyFontIn, endScreensaver, lumenOwnSaverUp, setAmbientShowing} from '../lib/root';
 import {isWebOS} from '../lib/luna';
 import {setWhere} from '../lib/where';
 import '../theme/tokens.css';
@@ -70,12 +70,22 @@ function applyClasses (c: UserConfig): void {
 const cityOf = (c: UserConfig): City | null => (c.weatherCity === AUTO_PLACE ? null : CITIES.filter((x) => x.name === c.weatherCity)[0] || null);
 const wantsWeather = (c: UserConfig) => !!c.weatherCity && (c.showWeather || c.saverForecast) && (c.weatherCity === AUTO_PLACE || !!cityOf(c));
 
-/** Closes the app once the backlight is back and the watcher knows the screensaver is gone. */
-function closeApp (): void {
-	const cap = new Promise<void>((resolve) => window.setTimeout(resolve, CLOSE_WAIT_MS));
-	const flag = isWebOS() ? setAmbientShowing(false).catch(() => undefined) : Promise.resolve();
-	Promise.race([Promise.all([restoreBacklight(), flag]), cap]).then(() => window.close());
+/** Dev builds: one line straight to lumen.log, not through logError's 5 s buffer, which a closing page would lose. */
+function note (text: string): Promise<void> {
+	if (!__LUMEN_DEV__ || !isWebOS()) return Promise.resolve();
+	return appendLog(`${new Date().toISOString()} lsaver ${text}\n`).catch(() => undefined);
 }
+
+/** Closes the app once the backlight is back, the watcher knows the screensaver is gone and the TV has left its screensaver state. */
+function closeApp (why: string): void {
+	const cap = new Promise<void>((resolve) => window.setTimeout(resolve, CLOSE_WAIT_MS));
+	// in LG's screensaver's place, closing the page alone may leave the TV in its screensaver state (docs/plans/side-apps.md section 4)
+	const tv = isWebOS() ? Promise.all([setAmbientShowing(false), endScreensaver()].map((p) => p.catch(() => undefined))) : Promise.resolve();
+	Promise.race([Promise.all([restoreBacklight(), tv, note(`close: ${why}`)]), cap]).then(() => window.close());
+}
+
+/** True when the page is LG's screensaver (mounted in its place) and Lumen's own screensaver is already showing under it. */
+const ownSaverUp: Promise<boolean> = isWebOS() ? lumenOwnSaverUp().catch(() => false) : Promise.resolve(false);
 
 /** Lumen Screensaver (docs/plans/side-apps.md): Lumen's screensaver in an overlay window, over the app in front, so that app is left as it
  *  was. watch.sh launches it when the TV's screensaver starts over another app. The page stays clear until the first photo is ready, then
@@ -88,15 +98,24 @@ function SaverRoot () {
 	const leaving = useRef(false);
 	/** once the screensaver is mounted, it takes the keys (and fades out first) */
 	const mounted = useRef(false);
-	const leave = () => {
+	const leave = (why = 'key') => {
 		if (leaving.current) return;
 		leaving.current = true;
 		setGone(true);
-		closeApp();
+		closeApp(why);
 	};
+	// the fade in waits for the check, so the page never shows over Lumen's own screensaver
+	const show = () => { ownSaverUp.then((up) => { if (!up) setShown(true); }); };
 
 	useEffect(() => {
 		setWhere('lumen screensaver', false);
+		ownSaverUp.then((up) => {
+			note(`open: ${up ? "Lumen's own screensaver is up, ending" : 'showing'}`);
+			if (up) leave("Lumen's own is up");
+		});
+		// every key the page gets, so a screensaver that does not end on a key shows whether the keys arrived
+		const seen = (e: KeyboardEvent) => { note(`key ${e.keyCode}`); };
+		window.addEventListener('keydown', seen, true);
 		lumenSettings().then((c) => {
 			setLang(c.language);
 			setClockMode(c.clockFormat);
@@ -110,11 +129,11 @@ function SaverRoot () {
 			mounted.current = true;
 			setConfig(c);
 		});
-		const anyway = window.setTimeout(() => setShown(true), SHOW_ANYWAY_MS);
+		const anyway = window.setTimeout(show, SHOW_ANYWAY_MS);
 		// a key before the screensaver is mounted ends it too; once mounted, Ambient takes the keys
 		const early = (e: KeyboardEvent) => { if (mounted.current) return; e.preventDefault(); leave(); };
 		window.addEventListener('keydown', early, true);
-		return () => { window.clearTimeout(anyway); window.removeEventListener('keydown', early, true); };
+		return () => { window.clearTimeout(anyway); window.removeEventListener('keydown', early, true); window.removeEventListener('keydown', seen, true); };
 	}, []);
 	if (gone || !config) return null;
 	const large = config.saverForecast && config.saverForecastSize === 'large';
@@ -132,8 +151,8 @@ function SaverRoot () {
 				showPeriod={config.showAmPm}
 				print={config.ambientPrint}
 				opening={null}
-				onShown={() => setShown(true)}
-				onExit={leave}
+				onShown={show}
+				onExit={() => leave()}
 			/>
 		</div>
 	);

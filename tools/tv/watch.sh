@@ -64,6 +64,8 @@ PRELOADMGR=preload-manager.service
 GUIDE=com.samrenfrew.lumen.guide
 QUICK=com.samrenfrew.lumen.quick
 SAVER=com.samrenfrew.lumen.saver
+LGSAVER_DIR=/usr/palm/applications/com.webos.app.screensaver   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
+SAVER_COPY=/var/lib/homehook/saver-app
 GEAR=/var/lib/homehook/gear.sh
 LIVETV=com.webos.app.livetv
 KEYBINDS=/home/root/.config/lginputhook/keybinds.json
@@ -73,6 +75,7 @@ last=0
 okhome=0
 ticks=0
 saverlast=0
+saverapp=""
 pwprev=""
 lastme=""
 pwlast=""
@@ -195,6 +198,10 @@ PY
 }
 # starts Lumen Quick Settings hidden if it is installed and not open, so a gear press shows it at once; $1 names the reason in the log.
 # Called as the app in front changes (Lumen too), a while after the scripts start and after each wake.
+# true while Lumen Screensaver is LG's screensaver (home-setup.sh saver-mount on): the TV launches it, so there is nothing to hand over
+saver_mounted() {
+  [ -d "$SAVER_COPY" ] && [ "$(stat -c %d:%i "$LGSAVER_DIR" 2>/dev/null)" = "$(stat -c %d:%i "$SAVER_COPY" 2>/dev/null)" ]
+}
 # true while Lumen Screensaver (the overlay) is open
 saver_running() {
   case "$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)" in *'"id":"'$SAVER'"'*) return 0 ;; esac
@@ -368,6 +375,23 @@ while true; do
   elif [ "$vid" -eq 1 ]; then
     case "$pw" in
       *'"Screen Saver"'*) luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1; echo "$(date +%T) ended screensaver (video wallpaper)" >> /tmp/homehook.log ;;
+    esac
+  elif [ -f "$AMBIENT_FLAG" ] && saver_mounted; then
+    # Lumen Screensaver is LG's screensaver: the TV opens it on its own timer, and it ends itself over Lumen's own (docs/plans/side-apps.md
+    # section 4). Only a guard: if the app it came up over leaves the front while it is up (the 2026-11-13 hang), it is ended.
+    case "$pw" in
+      *'"Screen Saver"'*)
+        if [ "$pwprev" != "saver" ]; then
+          saverapp=$app
+          echo "$(date +%T) screensaver: Lumen Screensaver (in LG's place) over ${app:-nothing}" >> /tmp/homehook.log
+        elif [ -n "$saverapp" ] && [ "$app" != "$saverapp" ]; then
+          luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
+          echo "$(date +%T) screensaver: ended, $saverapp left the front (now ${app:-nothing})" >> /tmp/homehook.log
+          saverapp=""
+        fi
+        pwprev="saver"
+        ;;
+      *) pwprev="other"; saverapp="" ;;
     esac
   elif [ -f "$AMBIENT_FLAG" ] && target=$(me_target); then
     # Lumen's ambient screen (your photos) instead of LG's screensaver. While it is up, LG's screensaver still starts after its timer (nothing

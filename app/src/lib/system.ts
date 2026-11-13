@@ -15,6 +15,12 @@ export function setAmbientFlag (on: boolean): void {
 	root.setAmbientFlag(on).catch(() => undefined);
 }
 
+/** Settings > Screensaver Enabled puts Lumen Screensaver in LG's screensaver's place (when the side app is installed); Disabled puts LG's back. */
+export function setSaverMount (on: boolean): void {
+	if (!isWebOS()) return;
+	root.saverMount(on).catch(() => undefined);
+}
+
 /** An older Settings > Screensaver > Off may have left its flag on the TV; nothing in Settings could undo it now. */
 export function clearSaverOffFlag (): void {
 	if (!isWebOS()) return;
