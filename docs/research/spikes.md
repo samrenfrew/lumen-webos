@@ -286,6 +286,18 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
 - Same day, 16:17: a pairing worked (input on `hidraw2`) but Moonlight saw nothing. Each reconnect or pairing can take a new hidraw
   number while `bthidmanager` still holds the old ones, and Moonlight's jail has only a fixed `hidraw0`. `stadia.sh` now copies the
   controller's node into `/var/palm/jail/com.limelight.webos/dev` each second; Moonlight opened `hidraw2` as soon as it was there.
+- Drop popup back (2026-11-13): the 2026-11-08 rewrite only asked when Moonlight came to the front, so a mid-game drop showed nothing.
+  `stadia.sh` again reads the input device's instance each second and asks when it changes; a change while the popup is up restarts
+  its 60 s clock. Caught the drops at 21:37, 21:59 and 22:01; re-pairs took 12 to 23 s.
+- Cached report line removed (2026-11-13 21:51): with the Bluetooth service stopped, the controller's `HidReport` line was taken out of
+  `bt_config.conf`, then the service started. The HID host ran its own discovery, registered for report ID 3 last, and input worked
+  with no re-pair (4950 bytes in 15 s). But it saved the line again at once, so the next power-cycle was dead as usual. Before this, a
+  service restart alone did not fix a dead link (2026-10-21). So "stop, remove the line, start" recovers a drop without Stadia + Y, at
+  the cost of about 30 s with no controller or Magic Remote, and must run at every drop. Not built.
+- Debug logs off (2026-11-13 22:05): the snoop and stack logs from 2026-11-06 were still on (3.4 MB of stack log in 9 minutes, load
+  about 29), and drops came every one to two minutes that evening. `bt_stack.conf` is back to `.orig` (the debug copy is at
+  `/tmp/bt_stack.conf.debug` until a reboot). Guess, not proven: the logging slowed the stack enough to drop links. Watch the drop rate.
+- A drop while a direction is held leaves Moonlight holding it, since no release report arrives (BACKLOG.md, "release held buttons").
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.

@@ -19,3 +19,9 @@
 **Origin:** 2026-11-02. The preload manager kept opening LG Home (the stand-in) over iPlayer, so `watch.sh` now stops the preload manager outright.
 **Idea:** Find what keeps setting `com.webos.app.home` back to `true` in `/var/preferences/webos-preload-manager-conf.json` (it was off at 08:21 and back on before 11:03), and stop that, so YouTube and Live TV can preload again.
 **Context for next agent:** `setPreloadPolicy` answers true but changes nothing live. `/etc/palm/webos-preload-manager-conf.json` has Home `true` built in, and the binary also reads `/var/preferences/webos-preload-manager-debug-conf.json`, which might win. Notes: `docs/keep-alive.md` (preload paragraph). Check with `grep preloadmanager /var/log/messages` on the TV.
+
+## Stadia drop: release held buttons and pause the game
+**Logged:** 2026-11-13
+**Origin:** Stadia drops on 2026-11-13. A drop while a direction was held left Moonlight moving the character, and the drop cost a fight.
+**Idea:** When `stadia.sh` sees the controller drop, send Moonlight a "nothing pressed" report so held buttons let go, then a Start press so the game pauses until the controller works again.
+**Context for next agent:** Moonlight reads the controller from hidraw inside its jail (`/var/palm/jail/com.limelight.webos/dev`), and the dead device belongs to LG's HID host, so the reports must come from a gamepad of our own made through `/dev/uhid`. `tools/tv/stadia-bridge.py` already makes one (same IDs and report map, added to the jail); report ID 3, 10 bytes, rest is `[8,0,0,128,128,128,128,0,0,0]` (docs/research/spikes.md, "Bridge test"). Decide whether Moonlight treats it as the same player or a second controller, and which bit is Start.
