@@ -169,3 +169,17 @@ Worth watching:
 - Pierregvx (branch `films-series`): a films and series section, AI picks and a player inside Lumen, in one large commit.
 - ayushcody (branch `pr/dev-mode-icons`): Lumen on a TV that is not rooted (Dev Mode), and Lucide icons for LG's own apps. Its PR here was closed.
 - quangtdev: Vietnamese, and a boot hook that stubs LG's ad and log services (Lumen's `privacy.sh` does the same job differently).
+
+## Aerial screensaver (aabytt/custom-screensaver-aerial, read 2026-11-13 at 38871c8)
+
+It does not answer LG's screensaver. It becomes it. On webOS 25 and 26 LG's screensaver (`com.webos.app.screensaver`) is a Flutter app. `assets/apply.sh` bind-mounts the app's own `assets/` folder over `/usr/palm/applications/com.webos.app.screensaver`. That folder holds a web app with LG's id, `"defaultWindowType": "screenSaver"` and `"noSplashOnLaunch": true`. `tvpower` then launches it on its normal timer, so nothing races LG's screensaver.
+
+- The app manager caches each `appinfo.json`. To make it read the mounted one without a restart (a restart closes every app), the script calls `blockSystemApp` then `releaseBlockSystemApp` on the id (`forceBlockSystemApp: false` where the schema needs it). If that fails, it unmounts and keeps LG's.
+- The page calls `com.webos.service.screenmanager/setScreenSaverMode` (manual) each time it starts, because the TV ends a screensaver that shows full-screen video. The mode lives in memory only.
+- Some TVs launch LG's video ads screensaver (`com.webos.app.videoads`) instead. A copy of the same web app, with that id, is mounted over it too.
+- A paused video in another app keeps its hardware decoder. When an app holds one, Aerial shows a clock in place of video, so the app can still resume.
+- Any system notification ends the screensaver. Aerial switches notifications off while each video starts, and a watcher switches them back on.
+- A key ends it with `window.close()`. The app under it stays in front.
+- The mount is redone at boot from a hook in `/var/lib/webosbrew/init.d`. MIT licence.
+
+For Lumen Screensaver: this removes the hand-over from `watch.sh` (LG's screensaver showing, then the app, then ours), which is what Sam saw on 2026-11-13 over Plex.
