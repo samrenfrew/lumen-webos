@@ -300,7 +300,8 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
 - A drop while a direction is held leaves Moonlight holding it, since no release report arrives (BACKLOG.md, "release held buttons").
 - Drops went on with the logs off. Way round it (2026-11-13 22:20): the controller is paired to the gaming PC (the room above), not the
   TV, so the game reads it on the PC and LG's Bluetooth is out of the path. Sam: "works a treat". On the TV the controller is unpaired
-  and `stadia.sh` is off (`/var/lib/homehook/no-stadia`). To go back: remove that file and pair from the popup.
+  and `stadia.sh` is off (`/var/lib/homehook/no-stadia`). To go back: remove that file and pair from the popup. Moonlight's stream
+  menu (quit and the rest), which the controller shortcut used to open, opens from the remote: hold Back, or press red.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
