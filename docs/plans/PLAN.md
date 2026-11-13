@@ -22,6 +22,8 @@ seen unless something looks wrong.
   in the Homebrew Channel beside Lumen. `watch.sh` does nothing for it when it is not installed.
 - Credits for the forks and projects this work drew on are in `README.md` (Credits) and `THIRD_PARTY_NOTICES.md`.
 - Pick up next: the Verify items below, then Lumen Guide's own (verify) list in `docs/plans/guide-overlay.md` (Status).
+- 2026-11-13, branch `live-tv-preview`: Lumen Screensaver is being moved into LG's screensaver's place (`docs/plans/side-apps.md`
+  section 4), all four steps built, on the TV as a dev build. The trials over Plex and the plan are in that file.
 - 2026-11-11, branch `live-tv-preview`: a third side app, Lumen Screensaver (the photos over the app you are in, so it resumes where you
   left it), Settings > Side apps (turn each side app on or off, and update them), and a version of its own for each side app, set by the
   release from whether its built files changed. Quick Settings and the screensaver join the release. Plan and status:
@@ -32,6 +34,11 @@ seen unless something looks wrong.
 ## Verify on the TV (built, not yet seen working)
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
+
+- [ ] Lumen Screensaver in place of LG's (2026-11-13, branch `live-tv-preview`, dev build on the TV; `docs/plans/side-apps.md`
+      section 4). All four steps built; Sam treats it as working and will feed back. Check: over a paused app the photos come up
+      with no LG screensaver first and a key goes back to the app; after a reboot it is still Lumen's; Screensaver Disabled gives
+      LG's back. Over Lumen's own screensaver it was seen ending itself unseen.
 
 - [ ] Side apps (2026-11-11, branch `live-tv-preview`, not on the TV yet): the (verify) items in `docs/plans/side-apps.md` (Status).
       Install with `npm run deploy:home`, which now installs Lumen Screensaver too, and update the TV scripts (Settings > System >

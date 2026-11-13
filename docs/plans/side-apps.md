@@ -21,8 +21,10 @@ playing YouTube video (`docs/research/spikes.md`, "Overlay window from a develop
 into an overlay for the same reason (`docs/research/prior-art.md`). The 2026-11-10 sweep marked the screensaver "Done, no gain"; it did
 not weigh the lost place, which is why this plan replaces that line.
 
-cleanyourtv mounts its own files over LG's screensaver app instead. That is the same kind of mount as the gear menu route Sam dropped
-(a bad file can take the compositor down), so it is not used.
+cleanyourtv mounts its own files over LG's screensaver app instead. This plan first ruled that out as the same kind of mount as the
+gear menu route Sam dropped (a bad file can take the compositor down). That was wrong for webOS 25: there the screensaver is an app
+folder like LG Home, and the mount puts a web app in its place, as the Home takeover already does (`tools/tv/home-setup.sh`). Section 4
+replaces watch.sh's hand-over with that mount, after the trials of 2026-11-13.
 
 ### What it does
 
@@ -125,6 +127,74 @@ Each side app has its own version, and it goes up only when that app changes. Lu
   Channel and Lumen see the same version and offer no update.
 - On a branch push, the dev build artifact has all four `.ipk` files, with the same version rule.
 
+## 4. Lumen Screensaver in place of LG's (agreed 2026-11-13; Sam: treat it as working, he will feed back)
+
+### Why
+
+Over Plex, watch.sh's hand-over shows LG's screensaver, then Plex, then the photos: it sees LG's screensaver up to a second late,
+launches ours, and ends LG's 1 s later, but ours takes about 4.5 s to show. The trials (Status) mounted our page in LG's screensaver
+app's place, as Aerial does (`docs/research/prior-art.md`). The TV then launched it on its own timer, it drew in 1.3 to 1.5 s, LG's
+screensaver never showed, and a key went back to Plex where it was. Two runs out of three were clean. The first hung (Status).
+
+### What changes
+
+- **The TV launches it.** With Settings > Screensaver Enabled and Lumen Screensaver installed, LG's screensaver app
+  (`com.webos.app.screensaver`) is our page. watch.sh no longer launches anything when LG's screensaver starts over an app.
+- **Same app, two ways in.** The build in `com.samrenfrew.lumen.saver` stays the source. A copy of its folder is kept in
+  `/var/lib/homehook/saver-app` with LG's id in `appinfo.json` (`"defaultWindowType": "screenSaver"`, `"type": "web"`, everything else as
+  ours), and that copy is bind-mounted over `/usr/palm/applications/com.webos.app.screensaver`. A copy, not a mount of our folder, so an
+  install of the side app cannot change the page under the TV while it is up, and our own `appinfo.json` stays ours. Quick Settings'
+  Screensaver button still launches `com.samrenfrew.lumen.saver` as an overlay.
+- **One script owns it**, the same shape as the Home takeover: `home-setup.sh saver-mount on|off|check` stages the copy, mounts it, and
+  has the app manager read it with `blockSystemApp` then `releaseBlockSystemApp` (no restart of the app manager, so open apps stay
+  open). If the app manager does not report `"type": "web"` after that, it unmounts and LG's screensaver stays. `off` unmounts and
+  does the same block and release. Every step goes to `/tmp/homehook.log`.
+- **At boot**, `home-setup.sh guard` (which `60-homehook` already runs at each boot and TV scripts restart) runs `saver-mount on` when
+  `/var/lib/homehook/saver-mount` exists, as it does for the Home takeover's `home-mount`.
+- **Kept up to date.** After Settings > Side apps installs or updates the screensaver, and after `deploy:home`, the copy is staged again
+  if the side app's version or files changed. A changed copy is swapped only while the screensaver is not up.
+- **Lumen sets it.** Settings > Screensaver Enabled with the side app installed writes `saver-mount` and runs `on`. Disabled, or the side
+  app turned off in Side apps, runs `off`. New fixed commands in `lib/root.ts`, in the same shape as `homeSetup`.
+- **watch.sh** keeps every other screensaver rule as it is: Disabled (end LG's), the video wallpaper, Frame, and the old hand-over as
+  the fallback when the mount is off or failed.
+
+### When Lumen's own screensaver is already up
+
+Lumen's idle timer (1 minute) shows Lumen's own screensaver. LG's timer (10 minutes) still runs, since nothing is pressed, so 9
+minutes later the TV launches ours on top of Lumen's.
+
+- **Our page stays clear and ends it.** At start it checks `/tmp/lumen-ambient-on` (Lumen writes it while its own screensaver shows).
+  If it is there, the page draws nothing, asks the TV to end the screensaver (`turnOnScreen`, through `lib/root.ts`) and closes. It is
+  clear until its first photo is ready, so Lumen's photos carry on with no visible change. watch.sh still ends LG's screensaver in this
+  case, as today, as a backstop.
+- **Lumen in front without its own screensaver** (Settings, the Guide, or its timer off): ours shows over Lumen, and a key leaves Lumen
+  where it was. Today watch.sh opens Lumen's own instead. Both show the same photos; this way has one path for every app.
+- **(verify)** Whether `window.close()` alone ends the TV's screensaver state, or only `turnOnScreen` does.
+- **To try later:** Aerial sets `com.webos.service.screenmanager/setScreenSaverMode` to `manual` for its own id. If Lumen could do that
+  for itself while its own screensaver shows, LG's timer might not fire over Lumen at all. Not known.
+
+### The hang
+
+On the first trial no key ended it, and Plex was closed while it was up (Lumen started again 20 s in). The second trial could not
+see why: the TV lists no DevTools page under LG's screensaver id. So:
+
+- The page writes each key it gets, and its close, to `lumen.log` (dev builds), so a second hang shows whether keys arrived.
+- watch.sh notices when the app the screensaver came up over has been closed while it is up, logs it, and ends the screensaver, so
+  the screen does not sit on photos with nothing under them.
+- If it is stuck, the remote's power button still turns the TV off. **(verify)** that the next switch-on shows Lumen, not the photos.
+
+### Not doing
+
+- LG's video ads screensaver (`com.webos.app.videoads`, present on this TV). Aerial mounts over it too, because some TVs launch it
+  instead. Lumen's Privacy settings already block LG's ads; mount it only if the log ever shows it launched.
+
+### Steps (each leaves the TV working)
+
+1. The page: key and close log lines, the `lumen-ambient-on` check, and `turnOnScreen` before close. Harmless as an overlay.
+2. `home-setup.sh saver-mount` and its line in the guard. Tried over SSH with Sam watching, before Lumen calls it.
+3. watch.sh: no hand-over while the mount is on, and the closed-app check.
+4. Settings: Screensaver Enabled and Side apps call it. Re-stage after installs.
+
 ## Status
 
 First build 2026-11-11, on branch `live-tv-preview`. Type check and build pass for all four apps. In a desktop browser the screensaver
@@ -141,6 +211,25 @@ page stays clear, fades in once the first picture has loaded, and a key takes it
 - **(verify)** Settings > Side apps: the versions shown, Off then On for each (uninstall, download, SHA-256 check, install), the key
   binds following without a restart of the TV, and Update. Also whether curl on the TV can fetch from GitHub over HTTPS.
 - **(verify)** Over Live TV: whether LG's screensaver ever starts there, and if it does, that Live TV keeps playing under it.
+- **Seen 2026-11-13, over Plex (paused), LG timer 3 min:** watch.sh ends LG's screensaver 1 s after it launches ours, but ours takes about 4.5 s to show, so LG's screensaver shows, then Plex, then the photos. A key closes it and Plex is where it was. Tried instead: our page bind-mounted over `com.webos.app.screensaver` as a web app (the Aerial way, `docs/research/prior-art.md`), with watch.sh stopped. The TV launched it on its timer and it drew in 1.5 s with no LG screensaver, but no key ended it and Plex was closed while it was up (Lumen relaunched 20 s in). Ended with `turnOnScreen`, then unmounted and `blockSystemApp`/`releaseBlockSystemApp` put LG's back. Cause not known: keys may have gone to Lumen's card under it, or the page's close path fails under LG's id. Next try with DevTools on the page.
+- **Second trial, same day, same setup:** two runs over paused Plex, both clean. The photos came up straight from Plex (Sam: "went straight into the photos"), first frame in 1.3 s, OK went back to Plex with Plex still running. The TV does not list a page under LG's screensaver id in DevTools, so the key probe in the page could not be read; the first trial's hang is still unexplained (Plex closed and Lumen relaunched under it). A backstop started with `setsid nohup` over SSH died when the session closed. LG's screensaver was put back and watch.sh restarted after.
+- **Section 4, step 1 built (2026-11-13, dev build on the TV, as the overlay):** `lsaver key`, `lsaver close` and `lsaver open` lines in
+  `lumen.log`, `endScreensaver` before close, and the `lumenOwnSaverUp` check (`lib/root.ts`). Seen over Plex: "open: showing" with a
+  stale `/tmp/lumen-ambient-on` left by an install mid-show (Plex in front, so the check ignored it), then "key 13", "close: key", the
+  flag cleared and Plex in front. **(verify)** with the mount: the page ends itself over Lumen's own screensaver with nothing drawn.
+- **Section 4, step 2 built (2026-11-13, scripts on the TV):** `home-setup.sh saver-mount on|off`, `saver=` in `state`, and the guard
+  puts the mount back at boot and stages the copy again after the side app changes (so `60-homehook` did not change). `saver-mount on`
+  worked on the TV (the app manager reported `web`), and `off` put LG's back (`flutter`). Over SSH run it with `ssh -tt`: in a session
+  with no terminal, `luna-send` printed nothing to a pipe, so the first `on` read the app manager's answer as a refusal and gave LG's
+  back. The guard at boot is not affected (it has mounted the Home takeover again after every restart). Seen at 12:33 with the mount
+  on: over Lumen's own screensaver the TV launched ours, the page logged "Lumen's own screensaver is up, ending", drew nothing, and the
+  TV was back to Active 35 ms after it entered Screen Saver (the window was up 0.4 s, clear).
+- **Section 4, steps 3 and 4 built (2026-11-13, dev build and scripts on the TV):** watch.sh stands back while the mount is on (only
+  logs, and ends the screensaver if the app it came up over leaves the front), and Lumen runs `saver-mount on` (or `off`) 10 s after
+  each launch and after Settings > Screensaver changes. `saver-mount off` does nothing when nothing is in place, so the launch call is
+  cheap. **(verify)** over Plex and YouTube with the scripts installed: straight into the photos, a key back to the app, and
+  `homehook.log` saying "Lumen Screensaver (in LG's place)". **(verify)** after a reboot the guard mounts it again
+  (`home-setup.sh status` says "saver-mount: on"). **(verify)** Screensaver Disabled in Settings puts LG's back.
 - **First release:** the next push to `main` publishes Quick Settings 1.0.0, the screensaver 1.0.0 and the Guide 2.2.1, the versions in
   their `public-<app>/appinfo.json`, since there is no `side-apps.json` yet. It writes the first one; from the release after, each
   version follows its hash. Checked locally: two builds of the same code hash the same, and the version rule gives 1.0.0, 2.2.1 (same
