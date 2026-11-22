@@ -1,7 +1,7 @@
 // Which layers repaint on Down and on Up (DevTools layer paint events). usage: node layer-paints.mjs [pairs] ; env LIVECSS, LIVEJS, NORELAUNCH
 import {execFileSync} from 'node:child_process';
 const PAIRS = +(process.argv[2] || 2);
-const relaunch = () => execFileSync('ssh', ['-o', 'BatchMode=yes', '-o', 'LogLevel=ERROR', 'root@192.168.0.20', `luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"com.samrenfrew.lumen"}'`]);
+const relaunch = () => execFileSync('ssh', ['-tt', '-o', 'BatchMode=yes', '-o', 'LogLevel=ERROR', 'root@192.168.0.20', `luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"com.samrenfrew.lumen"}'`]);
 if (!process.env.NORELAUNCH) { relaunch(); await new Promise((ok) => setTimeout(ok, 5000)); }
 const pages = await fetch('http://127.0.0.1:19998/json').then((r) => r.json());
 const page = pages.find((p) => /lumen/i.test(p.url));

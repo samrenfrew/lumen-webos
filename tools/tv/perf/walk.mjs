@@ -5,7 +5,7 @@ import {execFileSync} from 'node:child_process';
 const PORT = 19998;
 const GAP = 380; // ms between key presses, a quick but human pace
 
-const relaunch = () => execFileSync('ssh', ['-o', 'BatchMode=yes', '-o', 'LogLevel=ERROR', 'root@192.168.0.20', `luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"com.samrenfrew.lumen"}'`]);
+const relaunch = () => execFileSync('ssh', ['-tt', '-o', 'BatchMode=yes', '-o', 'LogLevel=ERROR', 'root@192.168.0.20', `luna-send -n 1 luna://com.webos.applicationManager/launch '{"id":"com.samrenfrew.lumen"}'`]);
 
 const SEGMENTS = {
 	dock: ['right', 'right', 'right', 'right', 'right', 'right', 'left', 'left', 'left', 'left', 'left', 'left'],
