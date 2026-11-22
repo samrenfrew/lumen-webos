@@ -1,4 +1,4 @@
-# Prior art: other custom TV home screens (October 2026)
+# Prior art: other custom TV home screens (October and November 2026)
 
 Research done on 2026-10-24. Star counts come from the GitHub API on that day. Feature claims come from each project's README. Nobody tested them on a TV.
 
@@ -183,3 +183,40 @@ It does not answer LG's screensaver. It becomes it. On webOS 25 and 26 LG's scre
 - The mount is redone at boot from a hook in `/var/lib/webosbrew/init.d`. MIT licence.
 
 For Lumen Screensaver: this removes the hand-over from `watch.sh` (LG's screensaver showing, then the app, then ours), which is what Sam saw on 2026-11-13 over Plex.
+
+## Sweep of 2026-11-19
+
+Read by four agents from commit messages, docs and some source; nothing was tried on this TV. Each item says whether Lumen already has it. Repos with no activity of note: gprot42/webos-launch-home, zzeppieri/webos-custom-home, OmkarK97/webos-vibehack, NaveenDA/lg-webos-custom-home, mbsintegrations/LG-TV-HA-Home-Launcher, chiotas/lightkeeper (webOS 3 and 4 work only).
+
+### Worth doing
+
+- **Up and Down repaint every tile** (Pierregvx fork, `34e7ddd`, 2026-11-12). `--lower-shift` is set on `.rows` at each Up and Down (`Home.tsx:486`). An inherited custom property changes the style of every tile and the glass bar under it, so they all repaint. The fix is one rule in `app/src/theme/home.css`: `@property --lower-shift { syntax: '<length>'; inherits: false; initial-value: 300px; }`. Pierregvx's fork carries our docs and names the same TV model; its `docs/research/frame-rate.md` measures GPU raster per Down 497 to 188 ms and slide frames 5 to 28. juanrusch (`109af98`, webOS 6) found the same cause and dropped the variable. Lumen does not have the fix. Measured live on this TV on 2026-11-19 (`updown.mjs`, 8 pairs each, the rule injected over DevTools): between the dock and the grid, style and layout on Down fell from 36 to 17 ms and GPU raster from 231 to 210 ms, but a slide still drew about 3 frames. Between the two lower rows nothing changed: raster was already about 30 ms and 8 frames a slide. So the fix is small here; the 3-frame Down from the dock has another cause.
+- **Block `nsu.lge.com`** (upstream ammar027 `ffe1805`). An LG update server that the Homebrew Channel's update block misses. Lumen's `privacy.sh` and `hosts-extra` do not list it.
+- **Screensaver and power-off** (cleanyourtv-WebOS `86b4eb0`, `36417f9`, tested on a 65UR91006LB, webOS 25). Switching the TV off while their mounted screensaver showed stalled until the page closed itself on `visibilitychange`. Lumen Screensaver (`app/src/saver/main.tsx`) listens for no `visibilitychange`. It already has `noSplashOnLaunch` and `spinnerOnLaunch: false`.
+
+### Worth checking on the TV
+
+- **The screensaver ending itself a few seconds in** (Glasshouse `8cc0a24`, G3 on 10.3). Even in manual mode, `tvpower` ended the saver 2.4 to 2.6 s after it opened. Glasshouse launches it again if it ends within 6 s with no key. Lumen Screensaver was seen ending itself unseen over Lumen's own screensaver (PLAN.md Verify); this may be the same thing. Aerial's `setScreenSaverMode` manual call is still "to try later" in `docs/plans/side-apps.md`.
+- **A notification ends the screensaver** (Aerial, webOS 25 and 26). Aerial turns notifications off while each video starts, with a watcher that turns them back on, since the off state survives a Quick Start power-off. Lumen's Stadia popup and toasts may end Lumen Screensaver. Do not copy the off switch without the watcher.
+- **Home pressed to end the screensaver opens nothing** (Glasshouse `59d4f72`, B4 on 10.3.2). `tvpowerd` sees the key 170 ms after the button. Glasshouse ignores Home while the saver shows and for 1 s after.
+- **LG Home preloaded over a playing app** (Glasshouse `e59afe7`, `b5e65af`, B4 on 10.3.2). With little free memory during a 4K stream, the preload manager launched `com.webos.app.home` three times in 90 s, and the third closed the playing app. With Quick Start+ off, every switch-on turns all preloading back on. Adds to the backlog item on LG Home's preload. Check that Lumen's `allowedApps` edit survives a cold boot.
+- **A wake from standby goes through bootd** (Glasshouse `46e39b0`, C4 on 10.3.1). After a reboot, a wake from Suspend opened Home 1.1 s in with no input. Lumen already maps `wakeOnLan` and `wakeOnWiFi` (`home-setup.sh:50`), so this backs the Wake-on-LAN check still open in PLAN.md. A magic packet must go to the broadcast address, not the TV's IP.
+
+### Already in Lumen, or not for this TV
+
+- The bootd power-on copy, the Home takeover by mount with block then release, and the power-state subscription (`resume.sh`) are all in Lumen.
+- Glasshouse found some TVs (G3 on 8.4, C2 on 9.2.2) with `blockSystemApp` but no release, which left LG Home blocked until a reboot. Lumen checks for the block schema only. Not seen on webOS 25.
+- cleanyourtv-WebOS now forces the app manager to reread apps by switching the UI language and back (`a5e7aef`, webOS 24), because restarting the app manager blanks HDMI for about 10 s. Only a fallback if block and release ever fail here.
+- cleanyourtv-WebOS issues #122 and #263 (webOS 25): black video or black HDMI after an app manager restart. Lumen does not restart it.
+- lg-luma: a cached "lifecycle failed" marker for a manifest Home app went stale across updates (`9664872`). Matters only if Lumen's Home takeover ever caches such a fallback.
+- Pierregvx's live preview finding (each tune makes the TV write guide data, 140% CPU) led to a 600 ms dwell. Lumen already has `dwell: 600` (`LivePreview.tsx:9`).
+- Hearth 2.2.0 closes inherited file descriptors in its helpers (`fdclean`). Lumen's `60-homehook` uses `setsid nohup` with stdio redirected, from a boot hook, not a Homebrew service; low risk.
+- upstream `6159e4f`, `27dbf33`: the wake no longer pushes Lumen over an app you opened. Lumen's `opened_by_hand` (2026-11-10) does the same job.
+
+### Small ideas
+
+- A "Refresh app icons" button in Settings, and weather place search by city name (braunglasrakete fork).
+- Colour keys call a Home Assistant webhook (codefarm-eu fork).
+- Hold Back for recent apps (lg-luma `a2acb54`).
+- Log which app was in front when the screensaver started (Hearth #48), for the saver trials.
+- New projects: RealRayTan/clean-webos-launcher (webOS 25 on a C5; commits on HDMI focus at boot and a long-press Home deadlock, not read), funnymataleao/luma-webos-launcher (native Rust, webOS 6).
