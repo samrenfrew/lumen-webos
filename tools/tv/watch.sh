@@ -304,6 +304,27 @@ bl_apply() {
   esac
 }
 
+MEMLOG=/var/lib/homehook/mem.log
+memboot=0
+mem_log() {
+  st=$(luna-send -n 1 luna://com.webos.memorymanager/getCurrentMemState '{}' </dev/null 2>/dev/null)
+  lvl=$(printf '%s' "$st" | sed -n 's/.*"currentLevel":"\([^"]*\)".*/\1/p')
+  use=$(printf '%s' "$st" | sed -n 's/.*"usable":\([0-9]*\).*/\1/p')
+  mem=$(awk '/^MemAvailable/{a=$2} /^SwapTotal/{t=$2} /^SwapFree/{f=$2} END{printf "avail=%d swap=%d", a/1024, (t-f)/1024}' /proc/meminfo)
+  apps=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null | tr '{' '\n' | sed -n 's/.*"id":"\([^"]*\)".*"processid":"\([0-9]*\)".*/\1 \2/p' |
+    while read -r id pid; do
+      awk -v id="$id" '/^VmRSS/{r=$2} /^VmSwap/{s=$2} END{printf " %s=%d+%d", id, r/1024, s/1024}' /proc/$pid/status 2>/dev/null
+    done)
+  why=""
+  if [ "$memboot" -eq 0 ]; then
+    memboot=1
+    memup=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+    [ "${memup:-0}" -lt 900 ] && why=" boot: $(grep -oE '"PowerOnReason":"[^"]*"|"power_off_history":"[^"]*"' /var/log/messages 2>/dev/null | head -2 | tr '\n' ' ')"
+  fi
+  echo "$(date '+%F %T') level=$lvl usable=$use $mem load=$(cut -d' ' -f1 /proc/loadavg) |$apps$why" >> "$MEMLOG"
+  [ "$(wc -l < "$MEMLOG")" -gt 4000 ] && tail -n 3000 "$MEMLOG" > "$MEMLOG.tmp" && mv "$MEMLOG.tmp" "$MEMLOG"
+}
+
 stop_preload
 while true; do
   # wake: the power state goes back to Active from standby or off (not from the screensaver), or the loop missed its ticks (suspended)
@@ -464,6 +485,7 @@ while true; do
   # keep the extra blocked names (hosts-extra, and Settings > Privacy's list) in /etc/hosts (about every 30 s; the dashboard rewrites the table at boot)
   ticks=$((ticks + 1))
   [ $((ticks % 30)) -eq 0 ] && stop_preload
+  [ $((ticks % 60)) -eq 5 ] && mem_log
   if [ $((ticks % 30)) -eq 1 ] && { [ -f "$EXTRA" ] || [ -f "$PRIVACY_HOSTS" ]; }; then
     # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in a file cannot point a name somewhere real
     # one pass: the lines not yet in the table (two greps, not one per line: the privacy list is about 180 lines)
