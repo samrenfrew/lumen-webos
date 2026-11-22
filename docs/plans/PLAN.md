@@ -35,10 +35,21 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] TV restarts on its own (2026-11-19, branch `live-tv-preview`, on the TV). The TV rebooted several times on 2026-11-19 (watchdog
+      reset: `cpuAbnormal`, `OFF_BY_NO_POLLING`), with system calls timing out before it. Memory is the suspect, not proven. Lumen
+      Guide and Quick Settings are off (Settings > Side apps) to save memory, `deploy:home` now leaves an off side app off, and
+      watch.sh writes `/var/lib/homehook/mem.log`. Check: at the next restart, read mem.log for the minutes before it. Turning a side
+      app off now waits until its folder is gone, so the row says Off; not yet seen on the TV.
+      Graphics memory in use (`GPUTotal - GPUCached` in /proc/meminfo), 2026-11-19: Lumen's screensaver about 180 MB, home about
+      86 MB once settled (150 for the first seconds), Settings about 106 MB. Before the saver fix the same day, LG's timer put a
+      second screensaver over Lumen's own every 20 minutes, which would have added more on top.
+      2026-11-20: Sam turned Lumen Screensaver off, as he saw it causing the restarts, and uses the screensaver inside Lumen again.
+      Check: no restarts in the days after. Dropping Home's page while hidden saves no memory (`docs/keep-alive.md`, Lumen's memory).
+
 - [ ] Lumen Screensaver in place of LG's (2026-11-13, branch `live-tv-preview`, dev build on the TV; `docs/plans/side-apps.md`
       section 4). All four steps built; Sam treats it as working and will feed back. Check: over a paused app the photos come up
       with no LG screensaver first and a key goes back to the app; after a reboot it is still Lumen's; Screensaver Disabled gives
-      LG's back. Over Lumen's own screensaver it was seen ending itself unseen.
+      LG's back. Over Lumen's own screensaver it was seen ending itself unseen. Off since 2026-11-20 (see the restarts item above).
 
 - [ ] Side apps (2026-11-11, branch `live-tv-preview`, not on the TV yet): the (verify) items in `docs/plans/side-apps.md` (Status).
       Install with `npm run deploy:home`, which now installs Lumen Screensaver too, and update the TV scripts (Settings > System >
