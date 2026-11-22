@@ -77,10 +77,10 @@ function note (text: string): Promise<void> {
 }
 
 /** Closes the app once the backlight is back, the watcher knows the screensaver is gone and the TV has left its screensaver state. */
-function closeApp (why: string): void {
+function closeApp (why: string, ownUp = false): void {
 	const cap = new Promise<void>((resolve) => window.setTimeout(resolve, CLOSE_WAIT_MS));
 	// in LG's screensaver's place, closing the page alone may leave the TV in its screensaver state (docs/plans/side-apps.md section 4)
-	const tv = isWebOS() ? Promise.all([setAmbientShowing(false), endScreensaver()].map((p) => p.catch(() => undefined))) : Promise.resolve();
+	const tv = isWebOS() ? Promise.all([ownUp ? Promise.resolve() : setAmbientShowing(false), endScreensaver()].map((p) => p.catch(() => undefined))) : Promise.resolve();
 	Promise.race([Promise.all([restoreBacklight(), tv, note(`close: ${why}`)]), cap]).then(() => window.close());
 }
 
@@ -95,14 +95,15 @@ function SaverRoot () {
 	const [weather, setWeather] = useState<Weather | null>(null);
 	const [shown, setShown] = useState(false);
 	const [gone, setGone] = useState(false);
+	const [clear, setClear] = useState(false);
 	const leaving = useRef(false);
 	/** once the screensaver is mounted, it takes the keys (and fades out first) */
 	const mounted = useRef(false);
-	const leave = (why = 'key') => {
+	const leave = (why = 'key', ownUp = false) => {
 		if (leaving.current) return;
 		leaving.current = true;
 		setGone(true);
-		closeApp(why);
+		closeApp(why, ownUp);
 	};
 	// the fade in waits for the check, so the page never shows over Lumen's own screensaver
 	const show = () => { ownSaverUp.then((up) => { if (!up) setShown(true); }); };
@@ -111,7 +112,7 @@ function SaverRoot () {
 		setWhere('lumen screensaver', false);
 		ownSaverUp.then((up) => {
 			note(`open: ${up ? "Lumen's own screensaver is up, ending" : 'showing'}`);
-			if (up) leave("Lumen's own is up");
+			if (up) leave("Lumen's own is up", true); else setClear(true);
 		});
 		// every key the page gets, so a screensaver that does not end on a key shows whether the keys arrived
 		const seen = (e: KeyboardEvent) => { note(`key ${e.keyCode}`); };
@@ -135,7 +136,8 @@ function SaverRoot () {
 		window.addEventListener('keydown', early, true);
 		return () => { window.clearTimeout(anyway); window.removeEventListener('keydown', early, true); window.removeEventListener('keydown', seen, true); };
 	}, []);
-	if (gone || !config) return null;
+	// hazard: Ambient deletes /tmp/lumen-ambient-on when it unmounts; mounting it before the check is done wipes Lumen's own screensaver flag
+	if (gone || !config || !clear) return null;
 	const large = config.saverForecast && config.saverForecastSize === 'large';
 	return (
 		<div class={`lsaver${shown ? ' lsaver--on' : ''}`}>
