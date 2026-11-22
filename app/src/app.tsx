@@ -1287,7 +1287,7 @@ export function App () {
 				onClose={() => setControls(false)}
 				onCloseDown={() => { setControls(false); setFocusRow({id: ROW.apps, seq: Date.now()}); }}
 				onError={(text) => showToast(text, 'error')}
-				onAction={(a: CenterAction) => { setControls(false); if (a === 'art') showScreensaver(true); else onActivate('menu', {key: MISC.lgHome, label: 'LG Home'}); }}
+				onAction={(a: CenterAction) => { setControls(false); if (a === 'art') showScreensaver(true); else if (a === 'settings') launchApp('com.palm.app.settings').catch(() => showToast("Couldn't open the TV's settings", 'error')); else onActivate('menu', {key: MISC.lgHome, label: 'LG Home'}); }}
 			/>}
 			<Toast message={toast} />
 		</>

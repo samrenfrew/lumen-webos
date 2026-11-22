@@ -20,6 +20,8 @@ LG Input Hook. The gear button is code 139 for Input Hook, and a bind stops LG's
 - **The controls** are Lumen's Control Center (`components/ControlCenter.tsx`, which now takes its layout as a prop) **(default)**:
   Sound and Picture; the backlight bar and Eye Comfort; All settings (LG's Settings app), Screensaver (Lumen's), Screen off and Restart.
   Theme and Clock are left out, since they are Lumen's own settings and a second app cannot see them.
+- **Lumen's own Control Center has All settings in place of Restart** (Sam, 2026-11-19): the gear in Lumen opens Control Center, so
+  without it LG's Settings app could only be reached from another app. Restart stays in Quick Settings and in Lumen's Settings.
 - **Closes** on Back, on the gear again, after an action that leaves it, and after 30 seconds without a key **(default)**. It hides
   rather than closes, as the guide does.
 

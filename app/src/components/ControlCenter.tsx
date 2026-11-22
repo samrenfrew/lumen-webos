@@ -34,7 +34,7 @@ const MENU_GLYPH: Record<MenuCell, GlyphName> = {sound: 'speaker', picture: 'pic
 const GRID: ControlLayout = [
 	[{id: 'sound', span: 2}, {id: 'picture', span: 2}],
 	[{id: 'dark', span: 2}, {id: 'clock', span: 2}],
-	[{id: 'art', span: 1}, {id: 'home', span: 1}, {id: 'screenoff', span: 1}, {id: 'restart', span: 1}],
+	[{id: 'art', span: 1}, {id: 'home', span: 1}, {id: 'screenoff', span: 1}, {id: 'settings', span: 1}],
 	[{id: 'backlight', span: 3}, {id: 'eye', span: 1}]
 ];
 
