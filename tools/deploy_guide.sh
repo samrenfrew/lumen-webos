@@ -5,6 +5,7 @@ set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tools/env.sh"
 [ -n "$LUMEN_TV_HOST" ] || { echo "LUMEN_TV_HOST is not set. Copy .env.example to .env and set it." >&2; exit 1; }
+if [ -n "$LUMEN_SIDE_IF_INSTALLED" ] && ! ssh -o BatchMode=yes -o LogLevel=ERROR "$LUMEN_TV_HOST" 'test -d /media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.guide'; then echo "Lumen Guide is off on the TV (Settings > Side apps), so it is left off."; exit 0; fi
 OUT=${LUMEN_BUILD_DIR:-$ROOT/build}
 cd "$ROOT/app"
 [ -d node_modules ] || npm ci --no-audit --no-fund
