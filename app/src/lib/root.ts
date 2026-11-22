@@ -412,11 +412,14 @@ export function installSideApp (id: string, url: string, sha256: string): Promis
 export function uninstallSideApp (id: string): Promise<boolean> {
 	if (!isSideApp(id)) return Promise.reject(new Error(`refused: uninstall ${id}`));
 	const present = `${luna('luna://com.webos.applicationManager/getAppInfo', {id})} 2>/dev/null | grep -q '"returnValue":true'`;
+	const dir = `${DEV_APPS}/${id}`;
 	return run([
-		`if ${present}; then ${luna('luna://com.webos.appInstallService/dev/remove', {id, subscribe: false})} >/dev/null 2>&1; sleep 2; fi`,
+		`if ${present} || [ -d ${dir} ]; then ${luna('luna://com.webos.appInstallService/dev/remove', {id, subscribe: false})} >/dev/null 2>&1; fi`,
+		// hazard: sideAppVersions reads this folder, so returning before it is deleted leaves the Settings row saying On
+		`n=0; while [ $n -lt 30 ] && [ -d ${dir} ]; do sleep 1; n=$((n+1)); done`,
 		`[ -f ${BOOT_HOOK} ] && ${BOOT_HOOK} restart >/dev/null 2>&1`,
-		`if ${present}; then echo kept; else echo gone; fi`
-	].join('; '), 30000).then((text) => text.indexOf('gone') !== -1);
+		`if ${present} || [ -d ${dir} ]; then echo kept; else echo gone; fi`
+	].join('; '), 45000).then((text) => text.indexOf('gone') !== -1);
 }
 
 /** home-setup.sh's changes, by name. */

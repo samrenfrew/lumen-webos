@@ -1181,8 +1181,9 @@ export function App () {
 		if (sideRow || optionId === OPTION.sideUpdate) {
 			if (!side) { showToast('Still checking the side apps'); return; }
 			const then = (line: string) => { readSide(); return line; };
-			if (!sideRow) runTv(optionId, () => updateSides(side).then(then));
-			else runTv(optionId, () => (side.installed[sideRow.id] ? removeSide(sideRow.id) : installSide(side, sideRow.id)).then(then));
+			const failed = (e: unknown) => { readSide(); throw e; };
+			if (!sideRow) runTv(optionId, () => updateSides(side).then(then, failed));
+			else runTv(optionId, () => (side.installed[sideRow.id] ? removeSide(sideRow.id) : installSide(side, sideRow.id)).then(then, failed));
 			return;
 		}
 		if (optionId === OPTION.restore) {
