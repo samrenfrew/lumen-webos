@@ -103,6 +103,14 @@ closed. Usable is the memory manager's figure, the one it closes apps by.
   in front 15 s, launches over SSH): the page catches up in 1.3 to 2.1 s (was 3.1 to 3.7 s by trace, a different method). One run just
   after a cold boot froze for about 7 s. Down pressed about 1 s after the return: one run had stutters of 100 to 320 ms as the rows came
   up, the other was smooth.
+- Dropping the page while hidden saves nothing (spike 2026-11-20, Moonlight in front, two runs per case). On `visibilitychange` to
+  hidden, the page set `display: none` on `body`, and in a second case also removed every image's `src` and the wallpaper. It put
+  them back on the return. Usable memory at 3, 20 and 60 s away was 336 to 351 MB in every case, and graphics memory in use
+  (`GPUTotal - GPUCached` in /proc/meminfo) was 119 to 128 MB in every case, with no gap between the cases. Closing Lumen in the same
+  state freed 100 MB of usable memory and 70 MB of graphics memory, so the method can see a saving. The return showed no black
+  frame, but the frame-gap timings were too noisy (0.9 to 4.6 s) to compare. So what Lumen holds in the background is not its page
+  content, which the browser has already let go. It is the page's window, renderer and the web engine's own share, which only
+  closing (or the memory manager's own tools, items 8 and 11 below) can free.
 - How to measure again: per process, `/proc/<pid>/smaps_rollup`; GPU, the file above; the app's process id, `applicationManager/running`.
 
 ## Not tried yet
