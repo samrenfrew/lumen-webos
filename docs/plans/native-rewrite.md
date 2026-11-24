@@ -34,6 +34,9 @@ Left out:
 - **The light look.** Dark only.
 - **Liquid glass, and glass as a setting.** The native Lumen has the one glass the web Lumen shows today. Liquid glass and Dock
   blur are not choices; Liquid glass may come back later.
+  Back on 2026-11-24 as Settings > Appearance > Liquid glass, off by default: the app bar and the glass control in focus bend the
+  wallpaper at their rim (`bend`, `fringe`, `bezel` in `look.rs`, tunable live with `nctl.mjs set`). **(verify)** the look and
+  the frame times on the TV.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.

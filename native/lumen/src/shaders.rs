@@ -207,6 +207,7 @@ uniform vec4 u_box;
 uniform vec4 u_look;
 uniform vec3 u_tone;
 uniform float u_alpha;
+uniform vec3 u_bend;
 void main() {
   vec2 hs = u_box.zw * 0.5;
   vec2 p = v_px - (u_box.xy + hs);
@@ -215,7 +216,15 @@ void main() {
   float a = clamp(0.5 - d, 0.0, 1.0);
   float shadow = u_shadow_strength * (1.0 - smoothstep(-10.0, 18.0, rr(p - vec2(0.0, 8.0), hs, r)));
   if (a <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_alpha); return; }
-  vec3 seen = texture2D(u_glass, v_uv).rgb;
+  vec2 n = rr_normal(p, hs, r);
+  vec3 seen;
+  if (u_bend.x == 0.0) seen = texture2D(u_glass, v_uv).rgb;
+  else {
+    float bezel = min(u_bend.z, 0.5 * min(hs.x, hs.y));
+    float e = clamp(1.0 + d / bezel, 0.0, 1.0);
+    vec2 off = -n * (1.0 - sqrt(1.0 - e * e)) * u_bend.x * bezel / u_bend.z / vec2(1920.0, 1080.0);
+    seen = vec3(texture2D(u_glass, v_uv + off * (1.0 + u_bend.y)).r, texture2D(u_glass, v_uv + off).g, texture2D(u_glass, v_uv + off * (1.0 - u_bend.y)).b);
+  }
   float grey = dot(seen, vec3(0.299, 0.587, 0.114));
   seen = clamp(mix(vec3(grey), seen, u_tone.x) * u_tone.y, 0.0, 1.0);
   float blur = u_look.y;
@@ -225,7 +234,6 @@ void main() {
   float sheen = u_look.z * (g < 0.42 ? mix(0.13, 0.03, g / 0.42) : mix(0.03, 0.08, (g - 0.42) / 0.58));
   col = col * (1.0 - sheen) + sheen;
   alpha = alpha + (1.0 - alpha) * sheen;
-  vec2 n = rr_normal(p, hs, r);
   float edge = 1.0 - smoothstep(0.0, 2.0, -d);
   float glow = 1.0 - smoothstep(0.0, 14.0, -d);
   float rim = u_look.w * (edge * (0.55 * max(-(n.x + n.y) * 0.7071, 0.0) + 0.25 * max((n.x + n.y) * 0.7071, 0.0)) + 0.05 * glow);

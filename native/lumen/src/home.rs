@@ -1305,7 +1305,7 @@ impl Home {
         let rim = &d.p.bar_rim;
         self.bar_uniforms(d, rim, gloss, (px, py, pw, ph), veiled);
         rim.bind(3, c"u_lens", lens.tex);
-        rim.set2(c"u_bend", d.look.bend, d.look.fringe);
+        rim.set2(c"u_bend", d.bend(), d.look.fringe);
         d.gfx.quad(rim, px, py, pw, iy - py);
         d.gfx.quad(rim, px, iy + ih, pw, py + ph - iy - ih);
         d.gfx.quad(rim, px, iy, ix - px, ih);
