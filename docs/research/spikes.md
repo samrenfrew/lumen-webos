@@ -549,7 +549,29 @@ Spike 4, the part that needs no reboot:
   nothing) is not known yet.
 - When the two test apps were opened in turn a few seconds apart, the window manager relaunched the one just closed
   (`NL_APP_LAUNCH_BEGIN … "caller_id":"com.webos.surfacemanager","mode":"autoReload"`). Not understood.
-- **(verify)** with `com.samrenfrew.lumen.rtest` added to `com.webos.memorymanager.KeepAlive` and `KeepOnLaunchEx` and the TV
-  rebooted (the memory manager reads the lists only at start): it survives another app opening, it is told when it goes to
-  the back and comes forward, a launch while it runs delivers the new parameters, and its memory in the back.
 - The Home button and power-on are settings that name an app id (`keybinds.json`, `home-setup.sh`), the same for a native app.
+
+Then with `com.samrenfrew.lumen.rtest` added to `com.webos.memorymanager.KeepAlive` and `KeepOnLaunchEx` (`config/setConfigs`)
+and the TV rebooted, since the memory manager reads the lists only at start:
+
+- **It survives.** YouTube, the web Lumen and Plex were each opened over it: the same process every time.
+- **It is told when it leaves and returns**: SDL window event 13 (focus lost) when another app covers it, 12 (focus gained)
+  when it is back. In the back its own memory fell from 13.9 MB to about 5 MB with 4 to 6 MB swapped out. Its graphics
+  memory did not fall at all (61.7 MB and the 19 MB of window buffers), because the test app lets nothing go: letting
+  pictures go on event 13 is phase 1 work, and what that frees is not measured yet.
+- **A launch while it runs does nothing unless the app handles it.** With LG's SDL holding the app manager's subscription,
+  the launch call returned true and the app stayed in the back, with no event. SDL's `SDL_HINT_WEBOS_REGISTER_APP` hint did
+  not stop SDL registering, under either spelling or value tried.
+- **What works: the app takes its own name on the bus before `SDL_Init`** (`LSRegister("<app id>")`), and subscribes to
+  `applicationManager/registerApp` itself. SDL then cannot take the name, and still opens its window normally. The app hears
+  `{"event":"registered"}`, and on each later launch
+  `{"event":"relaunch","parameters":{"view":"ambient"},…}`: the launch parameters, every time.
+- **The app must bring itself forward.** Of four ways tried, only one works:
+  `wl_webos_shell_surface_set_state(surface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN)`. `SDL_RaiseWindow`, `SDL_ShowWindow`
+  and the shell's default state do nothing.
+- **Coming forward took 0.19, 0.40 and 0.25 s** from the launch call to the window showing (`NL_APP_LAUNCH_BEGIN` to `NL_VSC`
+  visible in `/var/log/messages`), over YouTube, the web Lumen and Plex. The test app looks at the bus only every 250 ms
+  when idle; a thread of its own for the bus removes that wait. The budget is 0.3 s.
+- This also changes spike 2: with the name taken first, the same handle makes the TV calls, and the nameless one is not needed.
+- In the test app this path runs only when `/tmp/rtest-own-register` exists. The lists were put back afterwards (they take
+  effect at the next reboot) and the test app closed.

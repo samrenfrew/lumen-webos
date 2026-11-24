@@ -117,8 +117,9 @@ Each is small, answers one question on the TV, and is written up in `docs/resear
 4. **Staying alive.** The app is sent to the back and brought forward without restarting, gets its launch parameters each time,
    the Home button (LG Input Hook) and power-on open it, and the TV's memory manager treats it no worse than the web one
    (`docs/keep-alive.md`).
-   **Partly answered 2026-11-24:** like the web app, it is closed when another app opens unless it is on the TV's keep-alive
-   lists. Launch parameters arrive on a fresh start. The rest needs it on the lists and a reboot.
+   **Answered 2026-11-24: yes, on the TV's keep-alive lists**, as the web Lumen is. The app takes its bus name before SDL
+   starts, hears each relaunch with its parameters, and asks the window manager for full screen to come forward: 0.2 to 0.4 s.
+   Not measured: graphics memory in the back once pictures are let go.
 5. **Video.** The live preview and the video wallpaper are `<video>` elements today. Natively they need the TV's media service
    with a hole cut in the window. Find out whether both work, and whether the picture under a native window can be read (it
    cannot from a web page). If not, both stay out and glass over video stays a tint.

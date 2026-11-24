@@ -9,6 +9,8 @@
 enum { CLAIMED, NO_WAYLAND_INFO, NO_WEBOS_SHELL };
 
 static struct wl_webos_shell *webos_shell;
+static struct wl_webos_shell_surface *claimed_surface;
+static struct wl_display *claimed_display;
 
 static void shell_global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t version) {
     (void)data; (void)version;
@@ -28,6 +30,8 @@ int lumen_claim_window(SDL_Window *window) {
     if (!webos_shell) return NO_WEBOS_SHELL;
     struct wl_webos_shell_surface *shell_surface = wl_webos_shell_get_shell_surface(webos_shell, info.info.wl.surface);
     wl_webos_shell_surface_set_property(shell_surface, "_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
+    claimed_surface = shell_surface;
+    claimed_display = info.info.wl.display;
     wl_display_flush(info.info.wl.display);
     return CLAIMED;
 }
@@ -71,4 +75,11 @@ const char *lumen_export_video_window(SDL_Window *window, int w, int h) {
     wl_region_destroy(whole);
     wl_display_flush(display);
     return video_window_id;
+}
+
+int lumen_shell_state(int state) {
+    if (!claimed_surface) return 0;
+    wl_webos_shell_surface_set_state(claimed_surface, (uint32_t)state);
+    wl_display_flush(claimed_display);
+    return 1;
 }

@@ -234,6 +234,9 @@ extern "C" {
     pub fn SDL_Init(flags: u32) -> c_int;
     pub fn SDL_PollEvent(event: *mut SDL_Event) -> c_int;
     pub fn SDL_Quit();
+    pub fn SDL_RaiseWindow(window: *mut SDL_Window);
+    pub fn SDL_ShowWindow(window: *mut SDL_Window);
+    pub fn SDL_HideWindow(window: *mut SDL_Window);
     pub fn SDL_SetHint(name: *const c_char, value: *const c_char) -> c_int;
     pub fn SDL_SetSurfaceBlendMode(surface: *mut SDL_Surface, mode: c_int) -> c_int;
     pub fn SDL_UpperBlit(src: *mut SDL_Surface, src_rect: *const SDL_Rect, dst: *mut SDL_Surface, dst_rect: *mut SDL_Rect) -> c_int;
@@ -273,6 +276,7 @@ extern "C" {
 
 #[cfg(feature = "webos")]
 extern "C" {
+    pub fn lumen_shell_state(state: c_int) -> c_int;
     pub fn lumen_export_video_window(window: *mut SDL_Window, w: c_int, h: c_int) -> *const c_char;
     pub fn lumen_luna_open(name: *const c_char) -> *mut c_char;
     pub fn lumen_luna_call(uri: *const c_char, payload: *const c_char, timeout_ms: c_int) -> *mut c_char;

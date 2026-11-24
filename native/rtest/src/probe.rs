@@ -7,9 +7,11 @@ use std::time::{Instant, SystemTime};
 
 const PROBE_PATH: &str = "/tmp/rtest-probe";
 const SHOWN: usize = 900;
+const FULLSCREEN: std::ffi::c_int = 3;
 
 pub struct Probe {
     seen: Option<SystemTime>,
+    window: *mut SDL_Window,
 }
 
 fn taken(text: *mut c_char) -> Option<String> {
@@ -30,12 +32,16 @@ extern "C" fn heard(reply: *const c_char, user: *mut c_void) {
     let uri = unsafe { CStr::from_ptr(user.cast::<c_char>()) }.to_string_lossy();
     let reply = unsafe { CStr::from_ptr(reply) }.to_string_lossy();
     note!("probe heard {}: {}", uri, shortened(&reply));
+    if reply.contains("\"event\":\"relaunch\"") {
+        note!("relaunch: asked for full screen, {}", unsafe { lumen_shell_state(FULLSCREEN) });
+    }
 }
 
-fn open(name: &str) {
+fn open(name: &str) -> bool {
     let c_name = CString::new(name).unwrap_or_default();
     let failed = taken(unsafe { lumen_luna_open(if name == "-" { std::ptr::null() } else { c_name.as_ptr() }) });
-    note!("probe luna as {}: {}", name, failed.unwrap_or_else(|| "open".into()));
+    note!("probe luna as {}: {}", name, failed.as_deref().unwrap_or("open"));
+    failed.is_none()
 }
 
 fn call(uri: &str, payload: &str) {
@@ -82,12 +88,17 @@ fn whoami() {
     note!("probe env: {}", shortened(&env.join(" ")));
 }
 
+pub fn register_first(app_id: &str) {
+    if open(app_id) {
+        subscribe("luna://com.webos.applicationManager/registerApp", "{}");
+    }
+}
+
 impl Probe {
-    pub fn open(app_id: &str) -> Probe {
+    pub fn open(window: *mut SDL_Window) -> Probe {
         let args: Vec<String> = std::env::args().collect();
         note!("probe args: {:?}", args);
-        open(app_id);
-        Probe { seen: None }
+        Probe { seen: None, window }
     }
 
     pub fn tick(&mut self) {
@@ -102,13 +113,24 @@ impl Probe {
             let mut words = line.splitn(3, ' ');
             let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or("{}"));
             match verb {
-                "open" => open(first),
+                "open" => {
+                    open(first);
+                }
                 "call" => call(first, rest),
                 "sub" => subscribe(first, rest),
                 "write" => write(first),
                 "read" => read(first),
                 "ls" => list(first),
                 "id" => whoami(),
+                "raise" => {
+                    match first {
+                        "sdl" => unsafe { SDL_RaiseWindow(self.window) },
+                        "show" => unsafe { SDL_ShowWindow(self.window) },
+                        "hide" => unsafe { SDL_HideWindow(self.window) },
+                        _ => note!("probe shell state {}: {}", first, unsafe { lumen_shell_state(first.parse().unwrap_or(0)) }),
+                    }
+                    note!("probe raise {}", first);
+                }
                 _ => {}
             }
         }

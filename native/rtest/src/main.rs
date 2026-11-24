@@ -15,6 +15,7 @@ const TUNING_PATH: &str = "/tmp/ntest-tune";
 const BENCH_PATH: &str = "/tmp/ntest-bench";
 const WEBOS_BACK_SCANCODE: c_int = 482;
 const STEPS_PATH: &str = "/tmp/rtest-steps";
+const OWN_REGISTER_PATH: &str = "/tmp/rtest-own-register";
 
 const ROWS: usize = 3;
 const COLS: usize = 6;
@@ -929,6 +930,10 @@ fn run() -> i32 {
     unsafe {
         lumen_abi_checked();
         SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_BACK".as_ptr(), c"true".as_ptr());
+        #[cfg(feature = "webos")]
+        if std::path::Path::new(OWN_REGISTER_PATH).exists() {
+            probe::register_first("com.samrenfrew.lumen.rtest");
+        }
         if SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0 {
             note!("SDL_Init: {}", sdl_error());
             return 1;
@@ -1073,7 +1078,7 @@ fn run() -> i32 {
     let (mut redraw, mut running) = (true, true);
     let per_ms = ms_per_count();
     #[cfg(feature = "webos")]
-    let mut probe = probe::Probe::open("com.samrenfrew.lumen.rtest");
+    let mut probe = probe::Probe::open(window);
     #[cfg(feature = "webos")]
     if app.tune.see_through != 0.0 {
         note!("video window: {}", unsafe { CStr::from_ptr(lumen_export_video_window(window, screen_w, screen_h)) }.to_string_lossy());
@@ -1090,6 +1095,9 @@ fn run() -> i32 {
             if kind == SDL_WINDOWEVENT {
                 note!("window event {}", unsafe { e.window.event });
                 redraw = true;
+            }
+            if kind != SDL_QUIT && kind != SDL_WINDOWEVENT && !(0x300..0x900).contains(&kind) {
+                note!("event {:#x}", kind);
             }
             if kind != SDL_KEYDOWN || unsafe { e.key.repeat } != 0 {
                 continue;
