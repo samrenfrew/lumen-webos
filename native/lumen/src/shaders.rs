@@ -31,7 +31,8 @@ vec2 rr_normal(vec2 p, vec2 half_size, float r) {
 
 pub const COPY_FRAGMENT: &str = r#"uniform sampler2D u_tex;
 uniform vec4 u_uvx;
-void main() { gl_FragColor = vec4(texture2D(u_tex, v_uv * u_uvx.xy + u_uvx.zw).rgb, 1.0); }
+uniform float u_mul;
+void main() { gl_FragColor = vec4(texture2D(u_tex, v_uv * u_uvx.xy + u_uvx.zw).rgb * u_mul, 1.0); }
 "#;
 
 pub const BLUR_FRAGMENT: &str = r#"uniform sampler2D u_tex;

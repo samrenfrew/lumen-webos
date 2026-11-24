@@ -85,6 +85,7 @@ pub struct App {
     wallpaper_changed_at: Instant,
     held_since: Option<u32>,
     hold_fired: bool,
+    shown_once: bool,
     hidden: bool,
     redraw: bool,
     running: bool,
@@ -191,7 +192,9 @@ impl App {
         let kept = decoded(&store::path(wallpaper::SHOWN));
         let from_store = kept.is_some();
         let Some(picture) = kept.or_else(|| decoded(&bundled)) else { return note!("wallpaper: none could be read") };
-        self.home.set_wallpaper(&mut self.draw, &picture);
+        self.home.night = self.is_night();
+        let fade = self.shown_once;
+        self.home.set_wallpaper(&mut self.draw, &picture, fade, ticks());
         let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
         let pick = if from_store { store::read(wallpaper::SHOWN_PICK) } else { None };
         self.home.caption = pick.and_then(|pick| wallpaper::caption_of(&listed, pick.trim())).filter(|_| self.settings.captions);
@@ -252,7 +255,20 @@ impl App {
         }
     }
 
+    fn is_night(&self) -> bool {
+        let hour = clock::local(clock::unix_now()).hour;
+        match self.settings.wallpaper_dim.as_str() {
+            "always" => true,
+            "night" => !(6..19).contains(&hour),
+            _ => false,
+        }
+    }
+
     fn tick_clock(&mut self) -> u32 {
+        if self.is_night() != self.home.night && self.fixed_clock.is_none() {
+            self.home.night = self.is_night();
+            self.show_wallpaper();
+        }
         let now = clock::local(clock::unix_now());
         let twenty_four_hour = match self.settings.clock_format {
             ClockFormat::TwentyFour => true,
@@ -897,6 +913,7 @@ fn run() -> i32 {
         wallpaper_changed_at: Instant::now(),
         held_since: None,
         hold_fired: false,
+        shown_once: false,
         hidden: false,
         redraw: true,
         running: true,
@@ -1015,6 +1032,7 @@ fn run() -> i32 {
         app.home.frame_shown(ticks(), draw_ms);
         if !first_frame_shown {
             first_frame_shown = true;
+            app.shown_once = true;
             app.mark("first-frame");
             note!("first frame shown {} ms after start, RSS {} kB", app.began.elapsed().as_millis(), status_kb("VmRSS"));
         }

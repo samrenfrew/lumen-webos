@@ -37,6 +37,8 @@ const SHADOW_REST: [f32; 3] = [8.0, 16.0, 0.30];
 const SHADOW_BAR: [f32; 3] = [12.0, 22.0, 0.38];
 const SHADOW_GRID: [f32; 3] = [26.0, 40.0, 0.46];
 const VEIL_TINT: f32 = 0.26;
+const NIGHT_DIM: f32 = 0.45;
+const WALLPAPER_FADE_MS: f32 = 450.0;
 const TILE_WITHOUT_COLOUR: [f32; 3] = [0.16, 0.17, 0.22];
 const FOLDER_COLOUR: [f32; 3] = [0.231, 0.259, 0.337];
 const INK_ON_PHOTO: [f32; 3] = [0.933, 0.933, 0.933];
@@ -205,6 +207,9 @@ pub struct Home {
     folder: Option<(String, Vec<Tile>)>,
     folder_index: usize,
     sharp: Tex,
+    fading_from: Tex,
+    wallpaper_fade: Anim,
+    pub night: bool,
     glass: Tex,
     veil: Tex,
     blurs_made_with: [i32; 4],
@@ -396,6 +401,9 @@ impl Home {
             folder: None,
             folder_index: 0,
             sharp: Tex::default(),
+            fading_from: Tex::default(),
+            wallpaper_fade: Anim::still(1.0),
+            night: false,
             glass: Tex::default(),
             veil: Tex::default(),
             blurs_made_with: [0; 4],
@@ -448,17 +456,26 @@ impl Home {
         [d.look.glass_halvings as i32, d.look.glass_passes as i32, d.look.veil_halvings as i32, d.look.veil_passes as i32]
     }
 
-    pub fn set_wallpaper(&mut self, d: &mut Draw, wallpaper: &Decoded) {
+    pub fn set_wallpaper(&mut self, d: &mut Draw, wallpaper: &Decoded, fade: bool, now: u32) {
         let mut raw = d.gfx.upload_rgba(&wallpaper.rgba, wallpaper.w, wallpaper.h);
         unsafe { glDisable(GL_BLEND) }
-        d.gfx.free(&mut self.sharp);
+        d.gfx.free(&mut self.fading_from);
+        if fade && self.sharp.tex != 0 && !self.reduce_motion {
+            self.fading_from = self.sharp;
+            self.wallpaper_fade = Anim::still(0.0);
+            self.wallpaper_fade.go(1.0, WALLPAPER_FADE_MS, &EASE, now);
+        } else {
+            d.gfx.free(&mut self.sharp);
+            self.wallpaper_fade = Anim::still(1.0);
+        }
         self.sharp = d.gfx.blank(d.gfx.screen_w, d.gfx.screen_h);
         d.gfx.stretched_over(&self.sharp);
         let shape = (raw.w as f32 / raw.h as f32) / (DESIGN_W / DESIGN_H);
+        let mul = if self.night { 1.0 - NIGHT_DIM } else { 1.0 };
         if shape > 1.0 {
-            d.copy_whole(raw, 1.0 / shape, 1.0, (1.0 - 1.0 / shape) / 2.0, 0.0);
+            d.copy_dimmed(raw, (1.0 / shape, 1.0, (1.0 - 1.0 / shape) / 2.0, 0.0), mul);
         } else {
-            d.copy_whole(raw, 1.0, shape, 0.0, (1.0 - shape) / 2.0);
+            d.copy_dimmed(raw, (1.0, shape, 0.0, (1.0 - shape) / 2.0), mul);
         }
         d.gfx.free(&mut raw);
         self.blur_wallpaper(d);
@@ -484,7 +501,7 @@ impl Home {
     }
 
     pub fn backdrop_bytes(&self) -> usize {
-        self.sharp.bytes() + self.glass.bytes() + self.veil.bytes()
+        self.sharp.bytes() + self.glass.bytes() + self.veil.bytes() + self.fading_from.bytes()
     }
 
     pub fn look_changed(&mut self, d: &mut Draw) {
@@ -905,7 +922,7 @@ impl Home {
     }
 
     pub fn moving(&self, now: u32) -> bool {
-        let anims = [&self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
+        let anims = [&self.wallpaper_fade, &self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
         anims.iter().any(|a| a.busy(now))
             || self.tiles.iter().any(|t| t.focus.busy(now))
             || self.top_focus.iter().any(|a| a.busy(now))
@@ -1430,7 +1447,16 @@ impl Home {
             glClear(GL_COLOR_BUFFER_BIT);
             glDisable(GL_BLEND);
         }
+        let faded_in = self.wallpaper_fade.at(now);
+        if faded_in >= 1.0 && self.fading_from.tex != 0 {
+            d.gfx.free(&mut self.fading_from);
+        }
         if self.sharp.tex == 0 {
+        } else if veiled <= 0.0 && self.fading_from.tex != 0 {
+            d.p.backdrop.bind(0, c"u_wall", self.fading_from.tex);
+            d.p.backdrop.bind(1, c"u_veil", self.sharp.tex);
+            d.p.backdrop.set1(c"u_t", faded_in);
+            d.gfx.quad(&d.p.backdrop, 0.0, 0.0, DESIGN_W, DESIGN_H);
         } else if veiled <= 0.0 {
             d.copy_whole(self.sharp, 1.0, 1.0, 0.0, 0.0);
         } else if veiled >= 1.0 {
