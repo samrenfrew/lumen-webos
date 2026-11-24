@@ -3,6 +3,7 @@
 #include "util.h"
 #include "../vendor/cJSON.h"
 #include <SDL_image.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <math.h>
 #include <stdio.h>
@@ -13,7 +14,7 @@
 
 #define LUMEN_PHOTO_DIR "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/wallpapers"
 
-enum { SHOWN_MAX = 40, FRAMES_MAX = 300, STACKS_EVERY_S = 6 * 3600, MAX_FILES = 64 };
+enum { SHOWN_MAX = 40, FRAMES_MAX = 300, STACKS_EVERY_S = 6 * 3600, MAX_FILES = 64, PICKS_MAX = 128, KEY_MAX = 64, LOCAL_MAX = 64, POOL_MAX = PICKS_MAX + LOCAL_MAX };
 static const double PAIR_BOX = (960.0 - 4) / 1080;
 static const double SCREEN_BOX = 16.0 / 9;
 
@@ -28,6 +29,9 @@ static char server_key[128];
 static char last_id[80];
 static char files[MAX_FILES][300];
 static int file_count;
+static char picks[PICKS_MAX][KEY_MAX];
+static int pick_count;
+static char *catalog;
 
 static void state_path(char *out, size_t n, const char *name) { snprintf(out, n, "%s/%s", state_dir(), name); }
 
@@ -73,20 +77,15 @@ static int valid_id(const char *id) {
 }
 
 static void list_files(void) {
-    char own[300];
-    snprintf(own, sizeof own, "%s/photos", app_dir);
-    const char *dirs[] = {own, LUMEN_PHOTO_DIR};
-    for (int d = 0; d < 2 && !file_count; d++) {
-        DIR *dir = opendir(dirs[d]);
-        if (!dir) continue;
-        struct dirent *e;
-        while ((e = readdir(dir)) && file_count < MAX_FILES) {
-            size_t n = strlen(e->d_name);
-            if (n > 4 && !strcmp(e->d_name + n - 4, ".jpg") && !strstr(e->d_name, "-bg."))
-                snprintf(files[file_count++], sizeof files[0], "%s/%s", dirs[d], e->d_name);
-        }
-        closedir(dir);
+    DIR *dir = opendir(LUMEN_PHOTO_DIR);
+    if (!dir) return;
+    struct dirent *e;
+    while ((e = readdir(dir)) && file_count < MAX_FILES) {
+        size_t n = strlen(e->d_name);
+        if (n > 4 && !strcmp(e->d_name + n - 4, ".jpg") && !strstr(e->d_name, "-bg."))
+            snprintf(files[file_count++], sizeof files[0], "%s/%s", LUMEN_PHOTO_DIR, e->d_name);
     }
+    closedir(dir);
 }
 
 void picker_init(const char *dir, SaverConfig *config) {
@@ -107,6 +106,10 @@ void picker_init(const char *dir, SaverConfig *config) {
         const char *sources = str(c, "ambient");
         if (sources) snprintf(cfg->sources, sizeof cfg->sources, "%s", sources);
         if (num(c, "immichRecentDays") > 0) cfg->recent_days = (int)num(c, "immichRecentDays");
+        const cJSON *wanted;
+        cJSON_ArrayForEach(wanted, cJSON_GetObjectItemCaseSensitive(c, "wallpaperPicks"))
+            if (cJSON_IsString(wanted) && strlen(wanted->valuestring) < KEY_MAX && pick_count < PICKS_MAX)
+                snprintf(picks[pick_count++], KEY_MAX, "%s", wanted->valuestring);
         if (num(c, "ambientSeconds") >= 5) cfg->seconds = (int)num(c, "ambientSeconds");
     } else {
         note("config: no %s", path);
@@ -123,9 +126,11 @@ void picker_init(const char *dir, SaverConfig *config) {
         snprintf(server_key, sizeof server_key, "%s", key);
     }
     cJSON_Delete(srv);
+    snprintf(path, sizeof path, "%s/assets/wallpapers.tsv", app_dir);
+    catalog = read_file(path, NULL);
     list_files();
-    note("config: show %s, sources %s, recent %d days, %d s a photo, server %s, %d local pictures",
-         cfg->immich ? "immich" : "pictures", cfg->sources, cfg->recent_days, cfg->seconds, *server_url ? "set" : "none", file_count);
+    note("config: show %s, sources %s, recent %d days, %d s a photo, server %s, %d picks, %d developer pictures",
+         cfg->immich ? "immich" : "pictures", cfg->sources, cfg->recent_days, cfg->seconds, *server_url ? "set" : "none", pick_count, file_count);
 }
 
 /* ---- Immich requests ---- */
@@ -730,13 +735,113 @@ static int from_files(Picture *out) {
     return out->img[0] != NULL;
 }
 
+static int catalog_url(const char *id, char *url, size_t n) {
+    size_t id_len = strlen(id);
+    for (const char *line = catalog; line && *line;) {
+        const char *end = strchr(line, '\n');
+        size_t len = end ? (size_t)(end - line) : strlen(line);
+        if (len > id_len + 1 && !strncmp(line, id, id_len) && line[id_len] == '\t') {
+            snprintf(url, n, "%.*s", (int)(len - id_len - 1), line + id_len + 1);
+            return 1;
+        }
+        line += len + (end ? 1 : 0);
+    }
+    return 0;
+}
+
+static int local_number(const char *key) {
+    if (strncmp(key, "local:", 6) || !key[6] || strlen(key) > 8) return -1;
+    for (const char *p = key + 6; *p; p++) if (!isdigit((unsigned char)*p)) return -1;
+    return atoi(key + 6);
+}
+
+static void local_path(char *out, size_t n, int number) { snprintf(out, n, "%s/photos/default-%d.jpg", app_dir, number); }
+
+static int is_pick(const char *key) {
+    int number = local_number(key);
+    char path[320];
+    if (number >= 0) { local_path(path, sizeof path, number); return access(path, R_OK) == 0; }
+    return !strncmp(key, "cloud:", 6) && catalog_url(key + 6, path, sizeof path);
+}
+
+static int pool_of(char pool[][KEY_MAX], int locals_only) {
+    int n = 0;
+    for (int i = 0; i < pick_count && !locals_only; i++)
+        if (is_pick(picks[i])) memcpy(pool[n++], picks[i], KEY_MAX);
+    int none_picked = !n;
+    for (int i = 0; i < LOCAL_MAX && none_picked; i++) {
+        snprintf(pool[n], KEY_MAX, "local:%d", i);
+        if (is_pick(pool[n])) n++;
+    }
+    return n;
+}
+
+static const char *other_than_last(char pool[][KEY_MAX], int n) {
+    int fit[POOL_MAX], count = 0;
+    for (int i = 0; i < n; i++) if (strcmp(pool[i], last_id)) fit[count++] = i;
+    if (count) return pool[fit[rand() % count]];
+    return n ? pool[0] : NULL;
+}
+
+static void resized_url(const char *url, char *out, size_t n) {
+    const char *bare = strstr(url, "://");
+    bare = bare ? bare + 3 : url;
+    size_t o = (size_t)snprintf(out, n, "https://images.weserv.nl/?url=");
+    for (const char *p = bare; *p && o + 4 < n; p++) {
+        if (isalnum((unsigned char)*p) || strchr("-_.!~*'()", *p)) out[o++] = *p;
+        else o += (size_t)snprintf(out + o, n - o, "%%%02X", (unsigned char)*p);
+    }
+    snprintf(out + o, n - o, "&w=1920&h=1080&fit=cover&q=82&output=jpg");
+}
+
+static SDL_Surface *load_pick(const char *key) {
+    char path[320];
+    int number = local_number(key);
+    if (number >= 0) { local_path(path, sizeof path, number); return IMG_Load(path); }
+    state_path(path, sizeof path, "cloud-");
+    size_t o = strlen(path);
+    snprintf(path + o, sizeof path - o, "%s.jpg", key + 6);
+    SDL_Surface *kept = IMG_Load(path);
+    if (kept) return kept;
+    char url[400], resized[900];
+    if (!catalog_url(key + 6, url, sizeof url)) return NULL;
+    resized_url(url, resized, sizeof resized);
+    Buffer jpg;
+    if (http_get(resized, NULL, "image/*", &jpg)) return NULL;
+    SDL_Surface *img = decode(jpg.data, jpg.len);
+    if (img) write_file(path, jpg.data, jpg.len);
+    free(jpg.data);
+    return img;
+}
+
+static int from_picks(Picture *out) {
+    char pool[POOL_MAX][KEY_MAX];
+    const char *key = other_than_last(pool, pool_of(pool, 0));
+    if (!key) return 0;
+    SDL_Surface *img = load_pick(key);
+    if (!img && strncmp(key, "local:", 6)) {
+        note("picture: %s did not load, a local one instead", key);
+        key = other_than_last(pool, pool_of(pool, 1));
+        img = key ? load_pick(key) : NULL;
+    }
+    if (!img) return 0;
+    memset(out, 0, sizeof *out);
+    snprintf(out->id, sizeof out->id, "%s", key);
+    out->count = 1;
+    out->x[0] = 0.5f;
+    out->y[0] = 0.5f;
+    out->img[0] = img;
+    return 1;
+}
+
 int picker_next(Picture *out) {
     Uint32 t0 = SDL_GetTicks();
     int ok = 0;
     const char *how = "";
     if (cfg->immich && *server_url && (ok = take_ready(out))) how = "kept from last time";
     else if (cfg->immich && *server_url && (ok = from_immich(out))) how = "from Immich";
-    else if ((ok = from_files(out))) how = "from local pictures";
+    else if ((ok = from_picks(out))) how = "from the wallpaper pictures";
+    else if ((ok = from_files(out))) how = "from the developer folder";
     if (ok) {
         snprintf(last_id, sizeof last_id, "%s", out->id);
         note("picture: %s %s, %d photo%s, %u ms", out->id, how, out->count, out->count > 1 ? "s" : "", SDL_GetTicks() - t0);
