@@ -277,6 +277,7 @@ pub struct Home {
     live_at: usize,
     in_live: bool,
     live_slot: usize,
+    pub preview_showing: Option<String>,
     live_offset: Anim,
 }
 
@@ -501,6 +502,7 @@ impl Home {
             live_at: 0,
             in_live: false,
             live_slot: 0,
+            preview_showing: None,
             live_offset: Anim::still(0.0),
         }
     }
@@ -635,6 +637,22 @@ impl Home {
 
     fn lower(&self) -> bool {
         self.engaged && matches!(self.zone, Zone::Rows | Zone::Menu) && (self.place_of(self.focus).0 > 0 || self.in_live) && !(self.zone == Zone::Menu && self.menu.from_folder)
+    }
+
+    pub fn live_preview_box(&self) -> Option<(String, [f32; 4])> {
+        if !self.live_focused() {
+            return None;
+        }
+        let shown = &self.live.get(self.live_at)?.shown;
+        if shown.id == GUIDE_TILE {
+            return None;
+        }
+        let offset = live_offset(self.live_at, self.live.len(), self.live_slot);
+        let left = ROWS_EDGE + self.live_at as f32 * (TILE_W + TILE_GAP) - offset;
+        let top = self.live_top() - self.shift.target() + self.drop.target() * GRID_DROP;
+        let (w, h) = (TILE_W * LIFT_GRID, TILE_H * LIFT_GRID);
+        let (x, y) = (left + TILE_W / 2.0 - w / 2.0, top + TILE_H / 2.0 - LIFT_RISE * LIFT_GRID - h / 2.0);
+        Some((shown.id.clone(), [x, y, w, h]))
     }
 
     fn live_top(&self) -> f32 {
@@ -1769,6 +1787,9 @@ impl Home {
                 Self::tile_uniforms(d, &self.live[at].tile, icon, (x, y, w, h), TILE_RADIUS * scale, shadow, f);
                 d.p.tile.set1(c"u_turn", 0.0);
                 d.gfx.quad(&d.p.tile, x - margin, y - margin, w + 2.0 * margin, h + 2.0 * margin);
+            }
+            if self.preview_showing.as_deref() == Some(self.live[at].shown.id.as_str()) {
+                d.hole(x, y, w, h, TILE_RADIUS * scale);
             }
             let shown = self.live[at].shown.clone();
             let done = shown.now.as_ref().map_or(0.0, |p| livetv::progress(p, self.unix_now));

@@ -1,6 +1,8 @@
 {
  "version": 1,
  "config": {
+  "guidePreview": true,
+  "homePreview": true,
   "appIds": [
    "com.webos.app.livetv",
    "bbc.iplayer.3.0",

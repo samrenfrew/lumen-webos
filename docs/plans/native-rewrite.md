@@ -178,6 +178,9 @@ reach the native one, so Settings can be ported late.
    `home-live`, `guide`, `guide-typed`, `guide-full`, `guide-full-later`, from `fixtures/livetv.json`. Not built: the Guide over
    Live TV as its own app (the code runs when launched as `com.samrenfrew.lumen.native.guide`, but nothing packages it), and
    the live preview beside the Guide.
+   **Live previews built 2026-11-24 (verify by eye):** `src/preview.rs` opens `utp.broadcast` on the app's own bus name after 0.6 s on a
+   channel, places the picture with `wl_webos_exported_set_exported_window` (the TV reports it at the tile's place, doubled for the 4K
+   panel), and cuts a hole once `avmutemanager` says the picture is unmuted. Screenshots show the hole black, so only Sam can see it work.
 5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
    **Built 2026-11-24, not yet on the TV.** `settings_screen.rs` (pages and drawing), `settings_options.rs` (rows and what

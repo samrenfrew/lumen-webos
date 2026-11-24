@@ -12,6 +12,10 @@ use std::collections::HashMap;
 
 pub const GUIDE_APP_ID: &str = "com.samrenfrew.lumen.native.guide";
 const EDGE: f32 = 125.0;
+const ROWS_PREVIEW: [f32; 4] = [DESIGN_W - 64.0 - 448.0, DESIGN_H - 56.0 - 252.0, 448.0, 252.0];
+const FULL_PREVIEW: [f32; 4] = [DESIGN_W - EDGE - 400.0, 150.0, 400.0, 225.0];
+const ROWS_PREVIEW_CARD: Card = Card { w: 448, h: 252, radius: 24.0, logo_box: (112.0, 63.0, 224.0, 126.0), name_px: 36, name_box: (22.0, 0.0, 404.0, 252.0) };
+const FULL_PREVIEW_CARD: Card = Card { w: 400, h: 225, radius: 24.0, logo_box: (100.0, 56.0, 200.0, 113.0), name_px: 34, name_box: (20.0, 0.0, 360.0, 225.0) };
 const ROW_STEP: f32 = 132.0;
 const ROW_H: f32 = 120.0;
 const IN_VIEW: usize = 6;
@@ -102,6 +106,7 @@ pub struct Guide {
     win: u64,
     anchor: u64,
     wrapped: HashMap<String, (String, String)>,
+    pub preview: Option<bool>,
 }
 
 fn style(px: i32, weight: &'static str, spacing_em: f32, ink: [f32; 3]) -> Style {
@@ -169,11 +174,31 @@ impl Guide {
             win: half_hour(t),
             anchor: t,
             wrapped: HashMap::new(),
+            preview: None,
         }
     }
 
     pub fn over_live_tv(&self) -> bool {
         self.over_live_tv
+    }
+
+    pub fn preview_box(&self, live: &Live) -> Option<(String, [f32; 4])> {
+        if self.over_live_tv {
+            return None;
+        }
+        let channel = live.channels.get(self.at)?;
+        Some((channel.id.clone(), if self.view == View::Full { FULL_PREVIEW } else { ROWS_PREVIEW }))
+    }
+
+    fn draw_preview(&self, d: &mut Draw, live: &Live) {
+        let (Some(showing), Some((_, [x, y, w, h]))) = (self.preview, self.preview_box(live)) else { return };
+        let Some(c) = live.channels.get(self.at) else { return };
+        let card = if self.view == View::Full { &FULL_PREVIEW_CARD } else { &ROWS_PREVIEW_CARD };
+        let picture = Self::card(d, c, &live.logos, card);
+        d.picture(picture, x, y, w, h, 1.0);
+        if showing {
+            d.hole(x, y, w, h, card.radius);
+        }
     }
 
     pub fn at(&self) -> usize {
@@ -454,6 +479,7 @@ impl Guide {
                 self.draw_rows(d, now, live, t, &clock);
             }
         }
+        self.draw_preview(d, live);
         if !(self.over_live_tv && self.view == View::Full) {
             self.draw_rail(d, now);
         }
@@ -654,9 +680,10 @@ impl Guide {
                     }
                 }
                 if !p.desc.is_empty() {
-                    let (one, two) = self.wrap(d, &p.desc, 1300.0);
+                    let desc_w = if self.preview.is_some() { 1220.0 } else { 1300.0 };
+                    let (one, two) = self.wrap(d, &p.desc, desc_w);
                     for (k, line) in [one, two].iter().enumerate() {
-                        if let Some(text) = d.text_fit(line, &white(26, "500"), 1300.0) {
+                        if let Some(text) = d.text_fit(line, &white(26, "500"), desc_w) {
                             text.draw(d, EDGE, 334.0 + k as f32 * 35.1, 0.8);
                         }
                     }

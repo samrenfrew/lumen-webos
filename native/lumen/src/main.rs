@@ -17,6 +17,7 @@ mod livetv;
 mod inputs;
 mod look;
 mod picker;
+mod preview;
 mod pictures;
 mod root;
 mod saver;
@@ -112,6 +113,8 @@ pub struct App {
     wallpaper_changed_at: Instant,
     held_since: Option<u32>,
     touched_at: u32,
+    preview: preview::Preview,
+    placed_video: Option<[i32; 4]>,
     hold_fired: bool,
     shown_once: bool,
     hidden: bool,
@@ -838,6 +841,7 @@ impl App {
             "last_move": self.home.last_move,
             "hidden": self.hidden,
             "up_ms": self.began.elapsed().as_millis() as u64,
+            "preview": format!("{:?}", self.preview.phase()),
         })
     }
 
@@ -1008,6 +1012,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
         eprintln!("usage: lumen --shot <out.png> [--at <ms after the last key>] [--against <kept.png>] [left|right|up|down|ok|back|hold|1-6 ...]");
         return 2;
     };
+    app.preview_tick(ticks());
     let shot = app.frame_pixels(1000 + at_ms);
     let saved = !shot.is_null() && unsafe { IMG_SavePNG(shot, CString::new(out.as_str()).unwrap_or_default().as_ptr()) } == 0;
     println!("{} {}", if saved { "saved" } else { "could not save" }, out);
@@ -1160,6 +1165,8 @@ fn run() -> i32 {
         wallpaper_changed_at: Instant::now(),
         held_since: None,
         touched_at: 0,
+        preview: preview::Preview::new(),
+        placed_video: None,
         hold_fired: false,
         shown_once: false,
         hidden: false,
@@ -1262,7 +1269,8 @@ fn run() -> i32 {
         }
         app.change_wallpaper_if_due();
         app.live_tick();
-        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).chain(app.idle_wait_ms()).min();
+        app.preview_tick(ticks());
+        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).chain(app.idle_wait_ms()).chain(app.preview.wait_ms(ticks())).min();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
             app.write_boot_line();
         }
@@ -1306,6 +1314,7 @@ fn run() -> i32 {
         }
     }
 
+    app.close_preview_now();
     note!("RSS {} kB, peak {} kB", status_kb("VmRSS"), status_kb("VmHWM"));
     unsafe {
         SDL_GL_DeleteContext(context);

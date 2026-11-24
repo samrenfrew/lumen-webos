@@ -36,6 +36,9 @@ pub struct Settings {
     pub immich_picks: Vec<String>,
     pub guide_full: bool,
     pub idle_seconds: u32,
+    pub home_preview: bool,
+    pub guide_preview: bool,
+    pub preview_sound: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -85,6 +88,9 @@ impl Settings {
             immich_picks: vec!["immich:recent".into()],
             guide_full: false,
             idle_seconds: 0,
+            home_preview: false,
+            guide_preview: false,
+            preview_sound: false,
         }
     }
 
@@ -150,6 +156,9 @@ impl Settings {
             immich_recent_days: saved["immichRecentDays"].as_u64().filter(|d| [30, 90, 180, 365].contains(d)).map_or(defaults.immich_recent_days, |d| d as u32),
             immich_picks: strings(&saved["immichPicks"]).filter(|p| !p.is_empty()).unwrap_or(defaults.immich_picks),
             guide_full: saved["guideFull"].as_bool() == Some(true),
+            home_preview: saved["homePreview"].as_bool() == Some(true),
+            guide_preview: saved["guidePreview"].as_bool() == Some(true),
+            preview_sound: saved["guideSound"].as_bool() == Some(true),
             idle_seconds: saved["idleSeconds"].as_u64().filter(|s| [0, 30, 60, 120, 300].contains(s)).map_or(defaults.idle_seconds, |s| s as u32),
         })
     }

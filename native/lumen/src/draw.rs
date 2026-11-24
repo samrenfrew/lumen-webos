@@ -264,6 +264,17 @@ impl Draw {
         self.gfx.quad(&self.p.ink, x, y, w, h);
     }
 
+    pub fn hole(&self, x: f32, y: f32, w: f32, h: f32, radius: f32) {
+        let p = &self.p.fill;
+        p.activate();
+        p.set4(c"u_box", x, y, w, h);
+        p.set1(c"u_radius", radius);
+        p.set4(c"u_ink", 0.0, 0.0, 0.0, 1.0);
+        unsafe { glBlendFuncSeparate(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA) }
+        self.gfx.quad(p, x, y, w, h);
+        unsafe { glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE) }
+    }
+
     pub fn glass(&self, g: &Glass) {
         let p = &self.p.glass;
         p.bind(0, c"u_glass", self.glass_backdrop.tex);

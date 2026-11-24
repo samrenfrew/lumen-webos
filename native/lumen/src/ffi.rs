@@ -315,6 +315,10 @@ extern "C" {
     pub fn lumen_abi_checked() -> c_int;
     #[cfg(feature = "webos")]
     pub fn lumen_claim_window(window: *mut SDL_Window, overlay: c_int) -> c_int;
+    #[cfg(feature = "webos")]
+    pub fn lumen_export_video_window(window: *mut SDL_Window) -> *const c_char;
+    #[cfg(feature = "webos")]
+    pub fn lumen_place_video(source_w: c_int, source_h: c_int, x: c_int, y: c_int, w: c_int, h: c_int) -> c_int;
 }
 
 extern "C" {

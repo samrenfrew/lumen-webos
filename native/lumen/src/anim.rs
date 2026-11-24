@@ -82,6 +82,10 @@ impl Anim {
         self.ease = *ease;
     }
 
+    pub fn target(&self) -> f32 {
+        self.to
+    }
+
     pub fn set(&mut self, value: f32) {
         self.from = value;
         self.to = value;
