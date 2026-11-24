@@ -20,7 +20,7 @@ const BUTTONS_Y: f32 = 184.0;
 const BUTTON_H: f32 = 54.0;
 const BUTTON_GAP: f32 = 14.0;
 const ROWS_Y: f32 = 262.0;
-const ROW_H: f32 = 46.0;
+const ROW_H: f32 = 42.0;
 const COL_W: f32 = 640.0;
 const NAME_W: f32 = 290.0;
 const TRACK_W: f32 = 220.0;
@@ -44,13 +44,15 @@ const fn slider(name: &'static str, label: &'static str, min: f32, max: f32, ste
     Control::Slider { name, label, min, max, step }
 }
 
-pub const CONTROLS: [Control; 21] = [
+pub const CONTROLS: [Control; 23] = [
     Control::Switch(Toggle::Liquid, "Liquid glass"),
     Control::Switch(Toggle::Focus, "Show focus"),
     Control::Switch(Toggle::Moving, "Move focus by itself"),
     slider("bend", "Edge bend", -200.0, 200.0, 4.0),
     slider("bezel", "Edge width", 1.0, 110.0, 1.0),
     slider("edge_shape", "Edge shape, round to flat", 1.0, 8.0, 0.25),
+    slider("side_width", "Side edges, width", 0.2, 2.0, 0.05),
+    slider("side_bend", "Side edges, bend", 0.0, 1.0, 0.05),
     slider("fringe", "Colour fringe", 0.0, 1.0, 0.02),
     slider("magnify", "Magnify", -0.2, 0.2, 0.01),
     slider("liquid_blur", "Blur, liquid glass", 0.0, 4.0, 0.05),
@@ -67,10 +69,10 @@ pub const CONTROLS: [Control; 21] = [
     slider("sheen", "Sheen", 0.0, 3.0, 0.05),
     slider("glow", "Inner glow", 0.0, 8.0, 0.25),
 ];
-const LEFT_COLUMN: usize = 11;
+const LEFT_COLUMN: usize = 12;
 pub const BUTTONS: [&str; 4] = ["Exit", "New wallpaper", "Hide controls", "Reset"];
 
-pub const GLASS_LOOK: [&str; 21] = ["bend", "bezel", "edge_shape", "fringe", "magnify", "liquid_blur", "glass_halvings", "glass_passes", "frost", "tint", "saturate", "brighten", "glass_shadow", "specular", "light_angle", "rim_light", "colour_rims", "button_colour_rims", "sheen", "glow", "finish"];
+pub const GLASS_LOOK: [&str; 23] = ["bend", "bezel", "edge_shape", "side_width", "side_bend", "fringe", "magnify", "liquid_blur", "glass_halvings", "glass_passes", "frost", "tint", "saturate", "brighten", "glass_shadow", "specular", "light_angle", "rim_light", "colour_rims", "button_colour_rims", "sheen", "glow", "finish"];
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Outcome {
@@ -286,7 +288,7 @@ impl Lab {
             Some(Control::Slider { name, label, .. }) => json!({"part": "lab__row", "label": label, "name": name, "value": look.get(name)}),
             Some(Control::Switch(toggle, label)) => json!({"part": "lab__row", "label": label, "on": self.switch_on(toggle, liquid)}),
         };
-        json!({"screen": "glass lab", "focused": [focused]})
+        json!({"screen": "glass lab", "focused": [focused], "timing": self.timing()})
     }
 
     pub fn draw(&mut self, d: &mut Draw, liquid: bool) {
@@ -391,7 +393,7 @@ mod tests {
         for i in 0..20 {
             last = lab.key(Key::Right, &look, true, 1000 + i * 50);
         }
-        assert_eq!(last, Outcome::Set("bend", 44.0 + 4.0 * 4.0));
+        assert_eq!(last, Outcome::Set("bend", Look::defaults().bend + 4.0 * 4.0));
     }
 
     #[test]

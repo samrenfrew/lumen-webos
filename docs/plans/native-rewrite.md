@@ -44,7 +44,10 @@ Left out:
   flatter in the middle and steeper at the rim), `magnify`, `specular` and `light_angle` (a glint along the rim facing the light),
   `rim_light`, `colour_rims` (the blue and pink rims on the bar), `button_colour_rims`, `sheen`, `frost` (white haze) and `glow`.
   The panel shows how long the last frame took to draw, and frames a second while "Move focus by itself" is on. What is set
-  there is kept in the look file, as with `nctl.mjs set`; Reset puts back only the glass values. **(verify)** Sam has not tried it yet.
+  there is kept in the look file, as with `nctl.mjs set`; Reset puts back only the glass values. Sam tried it and set new defaults (2026-11-24): `liquid_blur` 0.1,
+  `bezel` 27, `bend` 36, `rim_light` 0.5, `colour_rims` 0.35, `button_colour_rims` 0.1, `glow` 0.5. Added after:
+  `side_width` and `side_bend`, which make the band of bend on the left and right edges narrower or weaker than on the top and
+  bottom, blending round the corners, so a pill reads more like a drop of water than an even ring. **(verify)** their look.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.

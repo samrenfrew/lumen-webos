@@ -325,6 +325,7 @@ impl Draw {
         p.set4(c"u_shape", self.look.edge_shape, self.magnify(), self.look.frost, self.look.glow);
         let [lx, ly] = self.light();
         p.set4(c"u_light", lx, ly, self.look.specular, self.look.button_colour_rims);
+        p.set2(c"u_side", self.look.side_width, self.look.side_bend);
         let margin = 40.0;
         self.gfx.quad(p, g.x - margin, g.y - margin, g.w + 2.0 * margin, g.h + 2.0 * margin);
     }

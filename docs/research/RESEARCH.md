@@ -63,6 +63,7 @@ More measurements from the webOS 25 TV are in `docs/research/frame-rate.md`, `do
   - Refraction strength (60 or 140) and bezel depth (14 or 40) make no clear difference. The cost is reading the backdrop at all, not the lens settings.
   - The colour fringe (3 passes) drops to 4-7 fps while moving.
   - Each layer alone, moving (3 runs each): tint, sheen and rims only 41 fps (45-47 without the focus highlight); colour boost (saturate and brightness) 33; 3px blur 25; refraction 18; refraction with the boost 19; refraction with blur and boost 15; refraction with the fringe 7. The first layer that reads the backdrop pays most of the cost.
+- Native (Lumen Native, 2026-11-24, Glass lab with the focus moving along the bar): the colour fringe is one extra picture read per colour in the glass's rim only, and costs nothing measurable. Fringe 0, 0.12, 0.5 and 1 all held 50 frames a second at 14.7-14.9 ms a frame (the screen's rate), worst frame about 23 ms. The web fringe was slow because the browser ran three full SVG filter passes over the backdrop each frame, not because of the colour split itself.
 - Online, only SVG displacement or WebGL does real refraction. The static rim and highlight tricks are from https://dev.to/kevinbism/recreating-apples-liquid-glass-effect-with-pure-css-3gpl and https://dev.to/afif/border-with-gradient-and-radius-387f.
 
 ## Sources

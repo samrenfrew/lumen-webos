@@ -56,13 +56,16 @@ pub const LENS_FRAGMENT: &str = r#"uniform vec4 u_bar;
 uniform float u_radius;
 uniform float u_bezel;
 uniform float u_edge_shape;
+uniform vec2 u_side;
 void main() {
   vec2 hs = u_bar.zw * 0.5;
   vec2 p = v_px - (u_bar.xy + hs);
   float d = rr(p, hs, u_radius);
   float shadow = 0.28 * (1.0 - smoothstep(-26.0, 44.0, rr(p - vec2(0.0, 20.0), hs, u_radius)));
-  float e = clamp(1.0 + d / u_bezel, 0.0, 1.0);
-  vec2 off = -rr_normal(p, hs, u_radius) * (1.0 - pow(max(1.0 - pow(e, u_edge_shape), 0.0), 1.0 / u_edge_shape));
+  vec2 n = rr_normal(p, hs, u_radius);
+  float side = abs(n.x);
+  float e = clamp(1.0 + d / (u_bezel * mix(1.0, u_side.x, side)), 0.0, 1.0);
+  vec2 off = -n * mix(1.0, u_side.y, side) * (1.0 - pow(max(1.0 - pow(e, u_edge_shape), 0.0), 1.0 / u_edge_shape));
   gl_FragColor = vec4((off * 127.0 + 128.0) / 255.0, clamp(0.5 - d, 0.0, 1.0), shadow);
 }
 "#;
@@ -223,6 +226,7 @@ uniform float u_alpha;
 uniform vec3 u_bend;
 uniform vec4 u_shape;
 uniform vec4 u_light;
+uniform vec2 u_side;
 void main() {
   vec2 hs = u_box.zw * 0.5;
   vec2 p = v_px - (u_box.xy + hs);
@@ -236,9 +240,10 @@ void main() {
   if (u_bend.x == 0.0 && u_shape.y == 0.0) seen = texture2D(u_glass, v_uv).rgb;
   else {
     float bezel = min(u_bend.z, 0.5 * min(hs.x, hs.y));
-    float e = clamp(1.0 + d / bezel, 0.0, 1.0);
+    float side = abs(n.x);
+    float e = clamp(1.0 + d / (bezel * mix(1.0, u_side.x, side)), 0.0, 1.0);
     float lift = 1.0 - pow(max(1.0 - pow(e, u_shape.x), 0.0), 1.0 / u_shape.x);
-    vec2 off = (-n * lift * u_bend.x * bezel / u_bend.z - p * u_shape.y) / vec2(1920.0, 1080.0);
+    vec2 off = (-n * lift * mix(1.0, u_side.y, side) * u_bend.x * bezel / u_bend.z - p * u_shape.y) / vec2(1920.0, 1080.0);
     seen = vec3(texture2D(u_glass, v_uv + off * (1.0 + u_bend.y)).r, texture2D(u_glass, v_uv + off).g, texture2D(u_glass, v_uv + off * (1.0 - u_bend.y)).b);
   }
   float grey = dot(seen, vec3(0.299, 0.587, 0.114));

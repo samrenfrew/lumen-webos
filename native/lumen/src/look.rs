@@ -50,11 +50,11 @@ look! {
     show_top_wait_ms = 200.0, 0.0, 2000.0;
     glass_halvings = 0.0, 0.0, 4.0;
     glass_passes = 1.0, 1.0, 8.0;
-    liquid_blur = 0.35, 0.0, 4.0;
+    liquid_blur = 0.1, 0.0, 4.0;
     veil_halvings = 2.0, 0.0, 4.0;
     veil_passes = 3.0, 1.0, 8.0;
-    bezel = 28.0, 1.0, 110.0;
-    bend = 44.0, -200.0, 200.0;
+    bezel = 27.0, 1.0, 110.0;
+    bend = 36.0, -200.0, 200.0;
     fringe = 0.12, 0.0, 1.0;
     saturate = 1.5, 0.0, 3.0;
     brighten = 1.1, 0.0, 3.0;
@@ -69,12 +69,14 @@ look! {
     magnify = 0.0, -0.5, 0.5;
     specular = 0.0, 0.0, 2.0;
     light_angle = -45.0, -180.0, 180.0;
-    rim_light = 1.0, 0.0, 3.0;
-    colour_rims = 1.0, 0.0, 3.0;
-    button_colour_rims = 0.0, 0.0, 3.0;
+    rim_light = 0.5, 0.0, 3.0;
+    colour_rims = 0.35, 0.0, 3.0;
+    button_colour_rims = 0.1, 0.0, 3.0;
     sheen = 1.0, 0.0, 3.0;
     frost = 0.0, 0.0, 1.0;
-    glow = 1.0, 0.0, 8.0;
+    glow = 0.5, 0.0, 8.0;
+    side_width = 1.0, 0.2, 2.0;
+    side_bend = 1.0, 0.0, 1.0;
 }
 
 impl Look {
