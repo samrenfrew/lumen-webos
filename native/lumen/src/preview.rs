@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 const BROADCAST: &str = "luna://com.webos.service.utp.broadcast";
 const MUTES: &str = "luna://com.webos.service.avmutemanager/listMuteStatus";
 const APP_ID: &str = "com.samrenfrew.lumen.native";
+const LIVE_TV_APP_ID: &str = "com.webos.app.livetv";
 pub const DWELL_MS: u32 = 600;
 const SETTLE_MS: u32 = 4000;
 const POLL_MS: u32 = 100;
@@ -156,6 +157,16 @@ pub fn picture_shown(reply: &Value) -> bool {
     reply["videoMute"].as_array().is_some_and(|list| !list.is_empty() && list.iter().all(|m| m["videoMuteStatus"].as_bool() == Some(false)))
 }
 
+pub fn open_over_home(window_id: &str, sound: bool) {
+    let window_id = window_id.to_string();
+    bus::call("luna://com.webos.applicationManager/closeByAppId", json!({"id": LIVE_TV_APP_ID}), 3000, move |reply| {
+        if reply.is_ok() {
+            note!("preview: closed Live TV in the background, as its muted picture hid the preview");
+        }
+        open(&window_id, sound);
+    });
+}
+
 pub fn open(window_id: &str, sound: bool) {
     let options = json!({"options": {"appId": APP_ID, "updateLastChannelId": false, "windowId": window_id}});
     bus::call(&format!("{BROADCAST}/open"), options, 4000, move |reply| {
@@ -245,8 +256,10 @@ impl App {
                 if window.is_empty() {
                     note!("preview: the window could not be exported for video");
                     self.preview.opened(None);
-                } else {
+                } else if self.guide.is_some() {
                     open(&window, sound);
+                } else {
+                    open_over_home(&window, sound);
                 }
             }
             Step::Tune(channel) => {
