@@ -56,7 +56,7 @@ The file is `{"version": 1, "config": {...}}`. A side app reads it with `parseCo
 drops what it does not know, so a newer Lumen with an older side app, or the reverse, still works. If Lumen ever changes what a
 field means, `version` goes up and the side apps check it.
 
-From the file it uses: the photo source (wallpaper pictures or Immich, and which), time on each photo, brightness, Print look,
+From the file it uses: the photo source (wallpaper pictures or Immich, and which), time on each photo, brightness,
 night dimming, reduce motion, the clock's AM/PM, language, clock format, the weather city and the weather widget. Weather is fetched
 by the screensaver itself, from the same service as Lumen.
 

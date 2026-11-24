@@ -13,7 +13,6 @@ typedef struct {
     int saver_forecast;
     int forecast_large;
     char weather_city[64];
-    int print;
     char brightness[8];
 } Settings;
 

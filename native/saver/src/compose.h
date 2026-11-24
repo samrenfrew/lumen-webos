@@ -4,5 +4,5 @@
 
 enum { PAIR_WIDTH = 956 };
 
-SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int print, int night);
+SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int night);
 int compose_check(int argc, char **argv);

@@ -158,6 +158,8 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
   `/sys/kernel/debug/pvr/proc_stats/live_pids_stats/process_stats` (lumen-saver: 27.5 MB, 31.4 MB peak) or `/proc/gpu/<pid>`
   in 4 kB pages (6935 at rest, 7087 in a crossfade). The 180 MB of the web one was measured the old way, so it may be up to a
   pool's worth (about 35 MB) too high.
+- The Print look is gone from the screensaver, in Lumen's own too (Sam, 2026-11-24: it is made for art, not photos). Art
+  wallpapers on the home screen keep theirs. Night dimming is now a plain dim of each picture.
 - First picture 3.8 s after launch; building a pair with the Print look takes 300-550 ms of it.
 - Hyperion after the run: Piccap `connected` and `videoRunning` true, `hyperiond` on 19400.
 

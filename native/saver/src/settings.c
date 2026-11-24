@@ -57,7 +57,6 @@ void settings_load(const char *app_dir, Settings *s) {
         s->show_weather = flag(c, "showWeather", 1);
         s->reduce_motion = flag(c, "reduceMotion", 0);
         s->saver_forecast = flag(c, "saverForecast", 0);
-        s->print = flag(c, "ambientPrint", 0);
     }
     cJSON_Delete(file);
     s->forecast_large = s->saver_forecast && !strcmp(size, "large");
@@ -72,9 +71,9 @@ void settings_load(const char *app_dir, Settings *s) {
         s->tv_clock_24h = strcmp(clock, "12h") != 0;
     }
     cJSON_Delete(tv);
-    note("settings: language %s (tv %s), clock %s, dim %s, brightness %s, weather %s in '%s', forecast %s, print %d, reduce motion %d",
+    note("settings: language %s (tv %s), clock %s, dim %s, brightness %s, weather %s in '%s', forecast %s, reduce motion %d",
          s->language, s->tv_locale, settings_clock_24h(s) ? "24h" : "12h", s->wallpaper_dim, s->brightness, s->show_weather ? "line" : "no line",
-         s->weather_city, s->saver_forecast ? (s->forecast_large ? "large" : "small") : "off", s->print, s->reduce_motion);
+         s->weather_city, s->saver_forecast ? (s->forecast_large ? "large" : "small") : "off", s->reduce_motion);
 }
 
 int settings_clock_24h(const Settings *s) {

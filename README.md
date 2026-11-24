@@ -39,7 +39,7 @@ These are the main changes since the fork. [docs/plans/PLAN.md](docs/plans/PLAN.
 - **Brightness schedule.** Settings > Brightness sets the backlight and Eye Comfort for each part of the day, with an optional slow change between them. Each input (apps, Live TV, HDMI) gets the level.
 - **Home and Power, and Privacy.** Settings pages that make LG's own Home routes open Lumen, choose what the TV opens when it turns on, and withdraw LG's data agreements and block its ad servers. See [docs/home-and-power-on.md](docs/home-and-power-on.md) and [docs/privacy.md](docs/privacy.md).
 - **Immich photos.** Your own photos from an Immich server as the wallpaper and as a screensaver. Portrait photos show in pairs. See [docs/immich.md](docs/immich.md).
-- **Photo screensaver.** It starts after a set time on the home screen, or from Art mode in the Control Center. It can dim the backlight and has a Print look for paintings. When it comes up over an app, a key press goes back to that app.
+- **Photo screensaver.** It starts after a set time on the home screen, or from Art mode in the Control Center. It can dim the backlight. When it comes up over an app, a key press goes back to that app.
 - **Control Center.** One grid of tvOS-sized glass controls. Sound, Picture, Theme and Clock open a list of choices, as on tvOS 26.
 - **Settings.** A stack of pages in the Apple TV layout, not tabs. See [docs/plans/settings-redesign.md](docs/plans/settings-redesign.md).
 - **Glass.** A light live blur on the dock and the top buttons, a colour fringe on the dock rim, and a highlight that follows focus. Settings > Appearance > Dock blur turns the dock blur on or off.

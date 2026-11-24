@@ -7,7 +7,7 @@
 #include "compose.h"
 #include "util.h"
 
-enum { BLUR_BAND_AT_1080 = 520, GRADIENT_STEPS = 4096, ONE = 65536, TAP_ONE = 256 };
+enum { BLUR_BAND_AT_1080 = 520, NIGHT_KEEP = 141, ONE = 65536, TAP_ONE = 256 };
 
 typedef struct {
     int *start, *count, *weight;
@@ -211,56 +211,14 @@ static int blur_bottom(SDL_Surface *frame) {
     return ok;
 }
 
-typedef struct { int keep; int add[3]; } Veil;
-
-static void veil_table(Veil *table, int print, int night) {
-    static const double warm[3] = {255, 244, 222}, cream[3] = {236, 228, 212};
-    double dim = (print ? 0.86 : 1) * (night ? 0.55 : 1);
-    for (int i = 0; i < GRADIENT_STEPS; i++) {
-        double t = sqrt((i + 0.5) / GRADIENT_STEPS), alpha = 0, premult[3] = {0, 0, 0};
-        if (print) {
-            if (t < 0.38) {
-                double f = 1 - t / 0.38;
-                alpha = 0.07 * f;
-                for (int c = 0; c < 3; c++) premult[c] = warm[c] * 0.07 * f;
-            } else {
-                alpha = 0.36 * (t < 1 ? (t - 0.38) / 0.62 : 1);
-            }
-        }
-        double keep = print ? (1 - alpha) * 0.91 * dim : dim;
-        table[i].keep = (int)(keep * ONE + 0.5);
-        for (int c = 0; c < 3; c++) table[i].add[c] = print ? (int)((premult[c] * 0.91 + cream[c] * 0.09) * dim * ONE + 0.5) + 32768 : 32768;
-    }
-}
-
-static int apply_veils(SDL_Surface *frame, int print, int night) {
-    int w = frame->w, h = frame->h;
-    Veil *table = malloc(GRADIENT_STEPS * sizeof(Veil));
-    uint32_t *across = malloc((size_t)w * sizeof(uint32_t));
-    if (!table || !across) { free(table); free(across); return 0; }
-    veil_table(table, print, night);
-    double rx = 0.85 * w, ry = 0.95 * h, cx = 0.24 * w, cy = 0.06 * h, limit = 268435456.0;
-    for (int x = 0; x < w; x++) {
-        double d = (x + 0.5 - cx) / rx, v = d * d * GRADIENT_STEPS * ONE;
-        across[x] = (uint32_t)(v < limit ? v : limit);
-    }
-    for (int y = 0; y < h; y++) {
-        double d = (y + 0.5 - cy) / ry, v = d * d * GRADIENT_STEPS * ONE;
-        uint32_t down = (uint32_t)(v < limit ? v : limit);
+static void dim_for_night(SDL_Surface *frame) {
+    for (int y = 0; y < frame->h; y++) {
         uint32_t *row = (uint32_t *)((uint8_t *)frame->pixels + (size_t)y * frame->pitch);
-        for (int x = 0; x < w; x++) {
-            uint32_t idx = (across[x] + down) >> 16;
-            const Veil *q = table + (idx < GRADIENT_STEPS ? idx : GRADIENT_STEPS - 1);
+        for (int x = 0; x < frame->w; x++) {
             uint32_t v = row[x];
-            uint32_t r = ((v >> 16 & 255) * (uint32_t)q->keep + (uint32_t)q->add[0]) >> 16;
-            uint32_t g = ((v >> 8 & 255) * (uint32_t)q->keep + (uint32_t)q->add[1]) >> 16;
-            uint32_t b = ((v & 255) * (uint32_t)q->keep + (uint32_t)q->add[2]) >> 16;
-            row[x] = 0xFF000000u | r << 16 | g << 8 | b;
+            row[x] = 0xFF000000u | ((v >> 16 & 255) * NIGHT_KEEP >> 8) << 16 | ((v >> 8 & 255) * NIGHT_KEEP >> 8) << 8 | ((v & 255) * NIGHT_KEEP >> 8);
         }
     }
-    free(table);
-    free(across);
-    return 1;
 }
 
 static void place_one(SDL_Surface *frame, SDL_Surface *img, SDL_Rect box, int fit_width, float px, float py) {
@@ -270,7 +228,7 @@ static void place_one(SDL_Surface *frame, SDL_Surface *img, SDL_Rect box, int fi
     resample_into(frame, img, dw, dh, box.x + (int)((box.w - dw) * px), box.y + (int)((box.h - dh) * py), box);
 }
 
-SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int print, int night) {
+SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int night) {
     if (!pic || pic->count < 1 || pic->count > 2 || !pic->img[0] || (pic->count == 2 && !pic->img[1]) || sw <= 0 || sh <= 0) return NULL;
     SDL_Surface *frame = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, 32, SDL_PIXELFORMAT_ARGB8888);
     if (!frame) return NULL;
@@ -282,21 +240,22 @@ SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int print, int ni
         place_one(frame, pic->img[0], (SDL_Rect){0, 0, w, sh}, 1, 0, pic->y[0]);
         place_one(frame, pic->img[1], (SDL_Rect){sw - w, 0, w, sh}, 1, 0, pic->y[1]);
     }
-    if (!blur_bottom(frame) || ((print || night) && !apply_veils(frame, print, night))) {
+    if (!blur_bottom(frame)) {
         SDL_FreeSurface(frame);
         return NULL;
     }
+    if (night) dim_for_night(frame);
     return frame;
 }
 
 int compose_check(int argc, char **argv) {
-    int extra = argc - 3;
+    int extra = argc - 2;
     if (extra != 1 && extra != 3 && extra != 4) {
-        fprintf(stderr, "usage: --compose <out.png> <print 0|1> <night 0|1> <photo.jpg> [x y] | <photo.jpg> <y1> <photo2.jpg> <y2>\n");
+        fprintf(stderr, "usage: --compose <out.png> <night 0|1> <photo.jpg> [x y] | <photo.jpg> <y1> <photo2.jpg> <y2>\n");
         return 2;
     }
     Picture pic = {.count = extra == 4 ? 2 : 1};
-    char **in = argv + 3;
+    char **in = argv + 2;
     pic.img[0] = IMG_Load(in[0]);
     pic.x[0] = extra == 3 ? (float)atof(in[1]) : 0.5f;
     pic.y[0] = extra == 3 ? (float)atof(in[2]) : extra == 4 ? (float)atof(in[1]) : 0.5f;
@@ -310,7 +269,7 @@ int compose_check(int argc, char **argv) {
         return 1;
     }
     Uint32 t0 = SDL_GetTicks();
-    SDL_Surface *frame = compose_frame(&pic, 1920, 1080, atoi(argv[1]), atoi(argv[2]));
+    SDL_Surface *frame = compose_frame(&pic, 1920, 1080, atoi(argv[1]));
     Uint32 ms = SDL_GetTicks() - t0;
     int rc = 1;
     if (frame) {

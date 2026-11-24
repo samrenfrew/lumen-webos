@@ -119,7 +119,7 @@ static int fetcher(void *unused) {
         if (picker_next(&pic)) {
             if (quitting) { picture_free(&pic); break; }
             Uint32 t0 = SDL_GetTicks();
-            frame = compose_frame(&pic, frame_w, frame_h, settings.print, settings_night(&settings));
+            frame = compose_frame(&pic, frame_w, frame_h, settings_night(&settings));
             note("compose: %u ms", SDL_GetTicks() - t0);
             picture_free(&pic);
         }
