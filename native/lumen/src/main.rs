@@ -933,6 +933,7 @@ impl App {
         }
         match view {
             None => {
+                self.close_saver();
                 self.screen = None;
                 self.panel = None;
                 self.close_lab();
