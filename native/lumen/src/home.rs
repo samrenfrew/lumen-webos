@@ -1,8 +1,9 @@
 use crate::anim::{Anim, EASE, EASE_DOWN, EASE_OUT, EASE_SCROLL, EASE_UP, EASE_VEIL};
 use crate::apps::background_of;
-use crate::draw::{decoded, Decoded, Draw, Glass, Style};
+use crate::draw::{decoded, Decoded, Draw, Glass, Plate, Style};
 use crate::ffi::*;
 use crate::gfx::{Tex, DESIGN_H, DESIGN_W};
+use crate::livetv::{self, Programme};
 use crate::settings::Forecast;
 use crate::text::Shadow;
 use crate::weather::{self, Weather};
@@ -84,6 +85,18 @@ const FOLDER_ROW_STEP: f32 = 176.0;
 const FOLDER_PRESETS: [&str; 3] = ["Games", "Tools", "Media"];
 const TOAST_MS: u32 = 3500;
 pub const HOLD_MS: u32 = 600;
+pub const GUIDE_TILE: &str = "livetv:guide";
+const CHANNEL_PREFIX: &str = "channel:";
+const LIVE_TITLE_H: f32 = 65.0;
+const LIVE_TITLE_ABOVE: f32 = 40.5;
+const LIVE_BELOW: f32 = 150.0;
+const LIVE_INFO_GAP: f32 = 36.0;
+const LIVE_INFO_W: f32 = livetv::LIVE_INFO_W;
+const GUIDE_GLYPH: &str = "M3.5 5.5h17v13h-17zM3.5 9.5h17M9 9.5v9";
+const BAR_PLATE: Plate = Plate { h: 6.0, radius: 3.0, fill: [1.0, 1.0, 1.0, 0.22], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
+const BAR_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..BAR_PLATE };
+const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
+const METER_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..METER };
 
 const TIME_SHADOW: [Shadow; 1] = [Shadow { drop: 4, blur: 24, strength: 0.28 }];
 const STATUS_SHADOW: [Shadow; 2] = [Shadow { drop: 1, blur: 16, strength: 0.5 }, Shadow { drop: 0, blur: 2, strength: 0.22 }];
@@ -91,6 +104,8 @@ const LABEL_SHADOW: [Shadow; 2] = [Shadow { drop: 2, blur: 14, strength: 0.55 },
 const TEXT_SHADOW: [Shadow; 1] = [Shadow { drop: 2, blur: 10, strength: 0.8 }];
 const CAPTION_SHADOW: [Shadow; 1] = [Shadow { drop: 2, blur: 14, strength: 0.6 }];
 const GLASS_INK_SHADOW: [Shadow; 1] = [Shadow { drop: 1, blur: 8, strength: 0.35 }];
+const ROW_TITLE_SHADOW: [Shadow; 1] = [Shadow { drop: 2, blur: 12, strength: 0.45 }];
+const INFO_SHADOW: [Shadow; 1] = [Shadow { drop: 2, blur: 12, strength: 0.5 }];
 
 const TIME: Style = Style { px: 80, weight: "600-clock", spacing_em: 0.0, feature: "case", ink: INK_ON_PHOTO, shadows: &TIME_SHADOW };
 const TIME_TNUM: Style = Style { feature: "tnum", ..TIME };
@@ -109,6 +124,9 @@ const FOLDER_TITLE: Style = Style { px: 32, weight: "600", spacing_em: -0.02, fe
 const FOLDER_LABEL: Style = Style { px: 22, weight: "600", spacing_em: -0.015, feature: "", ink: INK_ON_PHOTO, shadows: &LABEL_SHADOW };
 const TOAST: Style = Style { px: 26, weight: "400", spacing_em: 0.0, feature: "", ink: [0.667, 0.667, 0.667], shadows: &[] };
 const TOAST_ERROR: Style = Style { ink: [0.878, 0.337, 0.31], ..TOAST };
+const ROW_TITLE: Style = Style { px: 26, weight: "600", spacing_em: -0.01, feature: "", ink: INK_ON_PHOTO, shadows: &ROW_TITLE_SHADOW };
+const INFO_LINE: Style = Style { px: 22, weight: "500", spacing_em: 0.0, feature: "", ink: WHITE, shadows: &INFO_SHADOW };
+const INFO_TITLE: Style = Style { px: 32, weight: "600", spacing_em: -0.015, feature: "", ink: WHITE, shadows: &INFO_SHADOW };
 
 const SLIDERS: &str = "M4 7h8M16 7h4M4 17h4M12 17h8M12 4.5v5M8 14.5v5";
 const GEAR: &str = "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
@@ -148,6 +166,19 @@ pub enum Action {
     Uninstall(String),
     FolderAdd(String, String),
     FolderOut(String),
+    Guide,
+    Channel(String),
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct LiveShown {
+    pub id: String,
+    pub number: String,
+    pub name: String,
+    pub logo: Option<String>,
+    pub now: Option<Programme>,
+    pub next: Option<Programme>,
+    pub loading: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -179,6 +210,11 @@ struct Tile {
     app: Shown,
     bg: [f32; 3],
     focus: Anim,
+}
+
+struct LiveTile {
+    shown: LiveShown,
+    tile: Tile,
 }
 
 #[derive(Default)]
@@ -236,6 +272,11 @@ pub struct Home {
     pub last_move: String,
     pub refresh_ms: f32,
     pub reduce_motion: bool,
+    live: Vec<LiveTile>,
+    live_at: usize,
+    in_live: bool,
+    live_slot: usize,
+    live_offset: Anim,
 }
 
 pub fn place(index: usize, bar_count: usize, cols: usize) -> (usize, usize) {
@@ -273,6 +314,10 @@ pub fn moved(focus: usize, key: Key, total: usize, bar_count: usize, cols: usize
         Key::Up if row > 0 => to(row - 1, col),
         _ => focus,
     }
+}
+
+pub fn live_offset(selected: usize, count: usize, slot: usize) -> f32 {
+    selected.min(count.saturating_sub(2)).saturating_sub(slot) as f32 * (TILE_W + TILE_GAP)
 }
 
 pub fn row_top(row: usize) -> f32 {
@@ -445,6 +490,11 @@ impl Home {
             last_move: String::new(),
             refresh_ms: 20.0,
             reduce_motion: false,
+            live: Vec::new(),
+            live_at: 0,
+            in_live: false,
+            live_slot: 0,
+            live_offset: Anim::still(0.0),
         }
     }
 
@@ -569,11 +619,27 @@ impl Home {
     }
 
     fn focused_tile(&self) -> bool {
-        self.engaged && matches!(self.zone, Zone::Rows | Zone::Menu) && !(self.zone == Zone::Menu && self.menu.from_folder)
+        self.engaged && !self.in_live && matches!(self.zone, Zone::Rows | Zone::Menu) && !(self.zone == Zone::Menu && self.menu.from_folder)
+    }
+
+    fn live_focused(&self) -> bool {
+        self.engaged && self.in_live && self.zone == Zone::Rows
     }
 
     fn lower(&self) -> bool {
-        self.engaged && matches!(self.zone, Zone::Rows | Zone::Menu) && self.place_of(self.focus).0 > 0 && !(self.zone == Zone::Menu && self.menu.from_folder)
+        self.engaged && matches!(self.zone, Zone::Rows | Zone::Menu) && (self.place_of(self.focus).0 > 0 || self.in_live) && !(self.zone == Zone::Menu && self.menu.from_folder)
+    }
+
+    fn live_top(&self) -> f32 {
+        row_top(self.row_count()) + LIVE_TITLE_H
+    }
+
+    fn shift_for(&self, row: usize) -> f32 {
+        if self.in_live {
+            (BAR_TILES_TOP - GRID_TOP).max(self.live_top() - GRID_BOTTOM + LIVE_BELOW)
+        } else {
+            lower_shift(row)
+        }
     }
 
     fn settle(&mut self, _now: u32) {
@@ -584,7 +650,12 @@ impl Home {
             tile.focus.set(if shown && at == self.focus { 1.0 } else { 0.0 });
         }
         let (row, col) = self.place_of(self.focus);
-        self.shift.set(if lower { lower_shift(row) } else { 0.0 });
+        self.shift.set(if lower { self.shift_for(row) } else { 0.0 });
+        let live_shown = self.live_focused();
+        for (at, live) in self.live.iter_mut().enumerate() {
+            live.tile.focus.set(if live_shown && at == self.live_at { 1.0 } else { 0.0 });
+        }
+        self.live_offset.set(live_offset(self.live_at, self.live.len(), self.live_slot));
         self.veil_fade.set(slid);
         self.drop.set(slid);
         self.shine_x.set(tile_centre(col));
@@ -621,12 +692,18 @@ impl Home {
         for (at, pill) in self.top_focus.iter_mut().enumerate() {
             pill.go(if self.engaged && self.zone == Zone::Top && at == self.top_index { 1.0 } else { 0.0 }, focus_ms, &EASE_OUT, now);
         }
+        let live_shown = self.live_focused();
+        for (at, live) in self.live.iter_mut().enumerate() {
+            live.tile.focus.go(if live_shown && at == self.live_at { 1.0 } else { 0.0 }, focus_ms, &EASE_OUT, now);
+        }
+        let offset = live_offset(self.live_at, self.live.len(), self.live_slot);
+        self.live_offset.go(offset, self.ms(look.scroll_ms), &EASE_SCROLL, now);
         let (row, col) = self.place_of(self.focus);
         if row == 0 {
             self.shine_x.go(tile_centre(col), self.ms(look.scroll_ms), &EASE_SCROLL, now);
         }
         self.shine_alpha.go(if shown && row == 0 { 1.0 } else { 0.0 }, self.ms(200.0), &EASE, now);
-        let shift = if lower { lower_shift(row) } else { 0.0 };
+        let shift = if lower { self.shift_for(row) } else { 0.0 };
         if lower != was_lower {
             self.shift.go(shift, self.ms(if lower { look.down_ms } else { look.up_ms }), if lower { &EASE_DOWN } else { &EASE_UP }, now);
             self.veil_fade.go(slid, self.ms(if lower { look.veil_down_ms } else { look.veil_up_ms }), &EASE_VEIL, now);
@@ -658,7 +735,7 @@ impl Home {
         if !self.engaged || self.zone == Zone::Folder {
             return true;
         }
-        if self.zone != Zone::Rows {
+        if self.zone != Zone::Rows || self.in_live {
             return false;
         }
         self.moving.is_some() || self.tiles.get(self.focus).is_some_and(|t| t.app.inside.is_none())
@@ -709,10 +786,11 @@ impl Home {
 
     fn react(&mut self, key: Key) -> Option<Action> {
         if let Key::Digit(n) = key {
-            if self.moving.is_some() || !matches!(self.zone, Zone::Rows | Zone::Top) || n == 0 || n > self.bar_count {
+            if self.moving.is_some() || !matches!(self.zone, Zone::Rows | Zone::Top) || n == 0 || n > 6 || n > self.bar_count {
                 return None;
             }
             self.engaged = true;
+            self.in_live = false;
             self.zone = Zone::Rows;
             self.set_focus(n - 1);
             return self.open_focused();
@@ -796,8 +874,16 @@ impl Home {
                 Key::Digit(_) => None,
             };
         }
+        if self.in_live {
+            return self.live_key(key);
+        }
         let row = self.place_of(self.focus).0;
         match key {
+            Key::Down if row + 1 == self.row_count() && !self.live.is_empty() => {
+                self.in_live = true;
+                self.live_at = self.place_of(self.focus).1.min(self.live.len() - 1);
+                self.focus_changed = true;
+            }
             Key::Ok => return self.open_focused(),
             Key::Up if row == 0 => {
                 self.zone = Zone::Top;
@@ -811,6 +897,29 @@ impl Home {
             }
             _ => self.set_focus(moved(self.focus, key, self.tiles.len(), self.bar_count, self.cols)),
         }
+        None
+    }
+
+    fn live_key(&mut self, key: Key) -> Option<Action> {
+        let last_row = self.row_count() - 1;
+        match key {
+            Key::Left if self.live_at > 0 => self.live_at -= 1,
+            Key::Right if self.live_at + 1 < self.live.len() => self.live_at += 1,
+            Key::Up => {
+                self.in_live = false;
+                self.focus = first_of(last_row, self.bar_count, self.cols) + self.live_at.min(row_len(last_row, self.tiles.len(), self.bar_count, self.cols).max(1) - 1);
+            }
+            Key::Back => {
+                self.in_live = false;
+                self.focus = self.live_at.min(self.bar_count.saturating_sub(1));
+            }
+            Key::Ok => {
+                let id = &self.live.get(self.live_at)?.shown.id;
+                return Some(if id == GUIDE_TILE { Action::Guide } else { Action::Channel(id.clone()) });
+            }
+            _ => return None,
+        }
+        self.focus_changed = true;
         None
     }
 
@@ -900,6 +1009,7 @@ impl Home {
             Some((_, at)) => {
                 self.engaged = true;
                 self.zone = Zone::Rows;
+                self.in_live = false;
                 self.focus = at;
             }
             None if matches!(self.zone, Zone::Rows | Zone::Top) && self.moving.is_none() && !self.lower() => {
@@ -923,6 +1033,7 @@ impl Home {
         let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
         self.engaged = true;
         self.zone = Zone::Rows;
+        self.in_live = false;
         let col = self.place_of(self.focus).1;
         self.focus = col.min(self.bar_count.saturating_sub(1));
         self.animate_to_state(d, was_lower, was_shift, now);
@@ -936,6 +1047,7 @@ impl Home {
         self.engaged = true;
         self.zone = Zone::Rows;
         self.moving = None;
+        self.in_live = false;
         self.focus = self.bar_count;
         self.animate_to_state(d, was_lower, was_shift, now);
     }
@@ -946,6 +1058,7 @@ impl Home {
         self.moving = None;
         self.folder = None;
         self.engaged = false;
+        self.in_live = false;
         self.focus = 0;
         self.animate_to_state(d, was_lower, was_shift, now);
     }
@@ -954,6 +1067,8 @@ impl Home {
         let anims = [&self.wallpaper_fade, &self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
         anims.iter().any(|a| a.busy(now))
             || self.tiles.iter().any(|t| t.focus.busy(now))
+            || self.live.iter().any(|l| l.tile.focus.busy(now))
+            || self.live_offset.busy(now)
             || self.top_focus.iter().any(|a| a.busy(now))
             || (self.moving.is_some() && !self.reduce_motion)
             || self.toast.as_ref().is_some_and(|(_, _, until)| (until.wrapping_sub(now) as i32) > -300)
@@ -964,6 +1079,11 @@ impl Home {
         if self.engaged {
             match self.zone {
                 Zone::Top => focused.push(json!({"part": "pill", "label": TOP_ITEMS[self.top_index].1, "index": self.top_index, "in": "top"})),
+                Zone::Rows if self.in_live => {
+                    if let Some(live) = self.live.get(self.live_at) {
+                        focused.push(json!({"part": "tile", "label": live.tile.app.title, "id": live.shown.id, "index": self.live_at, "in": "Live TV"}));
+                    }
+                }
                 Zone::Rows | Zone::Menu => {
                     if let Some(tile) = self.tiles.get(self.focus) {
                         let (row, col) = self.place_of(self.focus);
@@ -1056,7 +1176,7 @@ impl Home {
         p.set3(c"u_bg", tile.bg);
         p.set3(c"u_shadow", shadow);
         p.set1(c"u_focus", focus);
-        p.set1(c"u_wide", if tile.app.inside.is_some() { 1.0 } else { 0.0 });
+        p.set1(c"u_wide", if tile.app.inside.is_some() || tile.app.id.starts_with(CHANNEL_PREFIX) { 1.0 } else { 0.0 });
     }
 
     fn resting_tile(d: &mut Draw, tile: &mut Tile, icon: Tex) -> Tex {
@@ -1482,6 +1602,12 @@ impl Home {
                 None
             });
         }
+        if self.live_top() - shift + grid_drop - LIVE_TITLE_H <= DESIGN_H {
+            for live in self.live.iter_mut().filter(|l| l.shown.id != GUIDE_TILE) {
+                let icon = Self::channel_icon(d, &live.tile);
+                Self::resting_tile(d, &mut live.tile, icon);
+            }
+        }
         let (lens, gloss) = self.bar_plates(d);
 
         d.gfx.into_screen();
@@ -1519,6 +1645,7 @@ impl Home {
         self.draw_caption(d, status_alpha);
         let focus_row = self.place_of(self.focus).0;
         let lifted = self.moving.as_ref().and_then(|id| self.tiles.iter().position(|t| &t.app.id == id));
+        self.draw_live(d, shift, grid_drop, now);
         let rows = self.row_count();
         for row in (0..rows).rev() {
             if row == 0 && self.sharp.tex != 0 {
@@ -1546,6 +1673,150 @@ impl Home {
         self.draw_folder(d, panel_alpha, now);
         self.draw_menu(d, panel_alpha);
         self.draw_toast(d, now);
+    }
+
+    pub fn set_live(&mut self, d: &mut Draw, shown: Vec<LiveShown>, now: u32) {
+        let slot = livetv::live_slot(self.cols, TILE_W, TILE_GAP);
+        if shown.iter().eq(self.live.iter().map(|l| &l.shown)) && slot == self.live_slot {
+            return;
+        }
+        let mut old: Vec<LiveTile> = std::mem::take(&mut self.live);
+        for s in shown {
+            let id = if s.id == GUIDE_TILE { GUIDE_TILE.to_string() } else { format!("{CHANNEL_PREFIX}{}", s.id) };
+            let kept = old.iter().position(|l| l.tile.app.id == id && l.shown.name == s.name && l.shown.logo == s.logo).map(|at| old.remove(at));
+            let tile = match kept {
+                Some(l) => l.tile,
+                None => {
+                    d.let_go(|key| key == icon_key(&id) || key == tile_key(&id));
+                    let color = (id != GUIDE_TILE).then(|| crate::card::colour_of(&s.name));
+                    let title = if id == GUIDE_TILE { "Guide".to_string() } else { s.name.clone() };
+                    Tile { bg: color.unwrap_or(TILE_WITHOUT_COLOUR), app: Shown { id, title, icon_file: s.logo.clone(), glyph: None, color, inside: None }, focus: Anim::still(0.0) }
+                }
+            };
+            self.live.push(LiveTile { shown: s, tile });
+        }
+        self.live_slot = slot;
+        if self.live.is_empty() && self.in_live {
+            self.in_live = false;
+            self.focus = first_of(self.row_count() - 1, self.bar_count, self.cols);
+        }
+        self.live_at = self.live_at.min(self.live.len().saturating_sub(1));
+        self.settle(now);
+    }
+
+    fn channel_icon(d: &mut Draw, tile: &Tile) -> Tex {
+        let key = icon_key(&tile.app.id);
+        if let Some(icon) = d.pictures.find(&key) {
+            return icon;
+        }
+        let face = crate::card::channel_card(&d.fonts, &tile.app.title, tile.app.icon_file.as_deref(), &crate::card::TILE_CARD);
+        let picture = d.gfx.upload_rgba(&face.rgba, face.w, face.h);
+        d.keep(&key, picture);
+        picture
+    }
+
+    fn draw_live(&mut self, d: &mut Draw, shift: f32, grid_drop: f32, now: u32) {
+        if self.live.is_empty() {
+            return;
+        }
+        let top = self.live_top() - shift + grid_drop;
+        if top - LIVE_TITLE_H > DESIGN_H {
+            return;
+        }
+        let lit = self.live_focused() || !self.engaged;
+        if let Some(title) = d.text("Live TV", &ROW_TITLE) {
+            title.draw(d, ROWS_EDGE, top - LIVE_TITLE_ABOVE, if lit { 1.0 } else { 0.72 });
+        }
+        let offset = self.live_offset.at(now);
+        let step = TILE_W + TILE_GAP;
+        let order: Vec<usize> = (0..self.live.len()).filter(|&at| at != self.live_at).chain(std::iter::once(self.live_at)).collect();
+        for at in order {
+            let left = ROWS_EDGE + at as f32 * step - offset;
+            if left + TILE_W + 80.0 < 0.0 || left - 80.0 > DESIGN_W {
+                continue;
+            }
+            let f = self.live[at].tile.focus.at(now);
+            let scale = 1.0 + (LIFT_GRID - 1.0) * f;
+            let (w, h) = (TILE_W * scale, TILE_H * scale);
+            let (x, y) = (left + TILE_W / 2.0 - w / 2.0, top + TILE_H / 2.0 - LIFT_RISE * f * scale - h / 2.0);
+            if self.live[at].shown.id == GUIDE_TILE {
+                d.glass(&Glass { x, y, w, h, radius: TILE_RADIUS * scale, blur: f, sheen: 1.0 + 1.6 * f, rim: 1.0 + 0.6 * f, alpha: 1.0 });
+                let g = TILE_H * 0.58 * scale;
+                let icon = d.glyph(GUIDE_GLYPH, (TILE_H * 0.58) as i32, 1.6);
+                d.inked_picture(icon, x + w / 2.0 - g / 2.0, y + h / 2.0 - g / 2.0, g, g, [INK_ON_PHOTO[0], INK_ON_PHOTO[1], INK_ON_PHOTO[2], 1.0]);
+                if f > 0.0 && !self.hide_names {
+                    if let Some(text) = d.text("Guide", &TILE_LABEL) {
+                        text.draw(d, left + TILE_W / 2.0 - text.advance / 2.0, top + GRID_LABEL_BELOW - GRID_LABEL_RISE * f, f);
+                    }
+                }
+                continue;
+            }
+            let icon = Self::channel_icon(d, &self.live[at].tile);
+            let resting = if f <= 0.0 { d.pictures.find(&tile_key(&self.live[at].tile.app.id)) } else { None };
+            if let Some(resting) = resting {
+                d.picture(resting, left - TILE_MARGIN, top - TILE_MARGIN, TILE_W + 2.0 * TILE_MARGIN, TILE_H + 2.0 * TILE_MARGIN, 1.0);
+            } else {
+                let shadow = [0, 1, 2].map(|i| SHADOW_REST[i] + (SHADOW_GRID[i] - SHADOW_REST[i]) * f);
+                let margin = shadow[0] + shadow[1] + 4.0;
+                Self::tile_uniforms(d, &self.live[at].tile, icon, (x, y, w, h), TILE_RADIUS * scale, shadow, f);
+                d.p.tile.set1(c"u_turn", 0.0);
+                d.gfx.quad(&d.p.tile, x - margin, y - margin, w + 2.0 * margin, h + 2.0 * margin);
+            }
+            let shown = self.live[at].shown.clone();
+            let done = shown.now.as_ref().map_or(0.0, |p| livetv::progress(p, self.unix_now));
+            let (bx, by, bw) = (x + 22.0 * scale, y + h - (16.0 + 6.0) * scale, w - 44.0 * scale);
+            d.plate(&BAR_PLATE, bx, by, bw, 6.0 * scale, 1.0);
+            if done > 0.0 {
+                d.plate(&BAR_FILL, bx, by, (bw * done).max(6.0 * scale), 6.0 * scale, 1.0);
+            }
+            if f > 0.0 {
+                self.draw_live_info(d, &shown, left, top + TILE_H + LIVE_INFO_GAP, f);
+            }
+        }
+    }
+
+    fn draw_live_info(&self, d: &mut Draw, shown: &LiveShown, left: f32, top: f32, alpha: f32) {
+        let clock = |t: u64| crate::clock::clock_text(t, self.twenty_four_hour);
+        if let Some(line) = d.text_fit(&format!("{} · {}", shown.number, shown.name), &INFO_LINE, LIVE_INFO_W) {
+            line.draw(d, left, top + 21.0, 0.78 * alpha);
+        }
+        let title = match (&shown.now, &shown.next) {
+            (Some(now), _) => now.title.clone(),
+            (None, Some(_)) => "Off air".to_string(),
+            (None, None) if shown.loading => "Loading…".to_string(),
+            (None, None) => "No guide data".to_string(),
+        };
+        if let Some(text) = d.text_fit(&title, &INFO_TITLE, LIVE_INFO_W) {
+            text.draw(d, left, top + 61.0, alpha);
+        }
+        let times_baseline = top + 97.7;
+        match (&shown.now, &shown.next) {
+            (Some(now), next) => {
+                let mut x = left;
+                if let Some(span) = d.text(&format!("{} – {}", clock(now.start), clock(now.end)), &INFO_LINE) {
+                    span.draw(d, x, times_baseline, 0.9 * alpha);
+                    x += span.advance + 16.0;
+                }
+                let meter_y = times_baseline - 7.7 - 2.5;
+                d.plate(&METER, x, meter_y, 160.0, 5.0, 0.9 * alpha);
+                d.plate(&METER_FILL, x, meter_y, (160.0 * livetv::progress(now, self.unix_now)).max(5.0), 5.0, 0.9 * alpha);
+                x += 160.0 + 16.0;
+                if let Some(left_text) = d.text(&livetv::time_left(now, self.unix_now), &INFO_LINE) {
+                    left_text.draw(d, x, times_baseline, 0.9 * alpha);
+                }
+                if let Some(next) = next {
+                    if let Some(text) = d.text_fit(&format!("Next {} · {}", clock(next.start), next.title), &INFO_LINE, LIVE_INFO_W) {
+                        text.draw(d, left, top + 134.0, 0.7 * alpha);
+                    }
+                }
+            }
+            (None, Some(next)) => {
+                if let Some(text) = d.text(&format!("Starts at {}", clock(next.start)), &INFO_LINE) {
+                    text.draw(d, left, times_baseline, 0.9 * alpha);
+                }
+            }
+            (None, None) => {}
+        }
     }
 
     pub fn frame_shown(&mut self, after: u32, draw_ms: f64) {
@@ -1744,6 +2015,32 @@ mod tests {
         assert_eq!(home.hit(tile_centre(0), FIRST_GRID_TOP + 70.0, 0), Some((Zone::Rows, 6)));
         assert_eq!(home.hit(pill_left(2) + PILL / 2.0, PILL_TOP + PILL / 2.0, 0), Some((Zone::Top, 2)));
         assert_eq!(home.hit(960.0, 400.0, 0), None);
+    }
+
+    #[test]
+    fn the_live_tv_row_keeps_its_focus_in_place_then_scrolls_and_stops_with_the_last_two_in_view() {
+        let step = TILE_W + TILE_GAP;
+        assert_eq!(live_offset(3, 12, 3), 0.0);
+        assert_eq!(live_offset(5, 12, 3), 2.0 * step);
+        assert_eq!(live_offset(11, 12, 3), 7.0 * step);
+        assert_eq!(live_offset(1, 2, 0), 0.0);
+    }
+
+    #[test]
+    fn down_from_the_last_row_reaches_live_tv_where_ok_opens_the_guide_or_a_channel() {
+        let mut home = Home::new();
+        home.tiles = ["a", "b", "c"].iter().map(|id| Tile { app: app(id), bg: [0.0; 3], focus: Anim::still(0.0) }).collect();
+        home.bar_count = 3;
+        let shown = |id: &str| LiveShown { id: id.into(), number: String::new(), name: id.into(), logo: None, now: None, next: None, loading: false };
+        home.live = [GUIDE_TILE, "1_41_1"].iter().map(|id| LiveTile { shown: shown(id), tile: Tile { app: app(id), bg: [0.0; 3], focus: Anim::still(0.0) } }).collect();
+        home.engaged = true;
+        home.react(Key::Right);
+        home.react(Key::Down);
+        assert_eq!(home.react(Key::Ok), Some(Action::Channel("1_41_1".into())));
+        home.react(Key::Left);
+        assert_eq!(home.react(Key::Ok), Some(Action::Guide));
+        home.react(Key::Up);
+        assert_eq!(home.react(Key::Ok), Some(Action::Open("a".into())));
     }
 
     #[test]

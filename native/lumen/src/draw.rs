@@ -67,6 +67,16 @@ pub struct Glass {
     pub alpha: f32,
 }
 
+#[derive(Clone, Copy)]
+pub struct Plate {
+    pub h: f32,
+    pub radius: f32,
+    pub fill: [f32; 4],
+    pub rim: f32,
+    pub shadow: [f32; 3],
+    pub ring: f32,
+}
+
 pub struct Decoded {
     pub rgba: Vec<u8>,
     pub w: i32,
@@ -83,6 +93,7 @@ pub struct Draw {
     pub glass_backdrop: Tex,
     pub veil_backdrop: Tex,
     measures: HashMap<String, (f32, f32, f32)>,
+    fits: HashMap<String, String>,
 }
 
 pub fn decoded(path: &str) -> Option<Decoded> {
@@ -134,6 +145,7 @@ impl Draw {
             glass_backdrop: Tex::default(),
             veil_backdrop: Tex::default(),
             measures: HashMap::new(),
+            fits: HashMap::new(),
         }
     }
 
@@ -154,6 +166,71 @@ impl Draw {
         }
         self.measures.insert(key, made);
         Some(Text { picture, left: made.0, baseline: made.1, advance: made.2 })
+    }
+
+    pub fn text_fit(&mut self, text: &str, style: &Style, max_w: f32) -> Option<Text> {
+        let key = format!("{}:{}:{}:{}", style.px, style.weight, max_w as i32, text);
+        if let Some(fitted) = self.fits.get(&key).cloned() {
+            return self.text(&fitted, style);
+        }
+        let full = self.text(text, style)?;
+        let chars: Vec<char> = text.chars().collect();
+        let mut keep = if full.advance <= max_w { chars.len() } else { ((chars.len() as f32 * max_w / full.advance) as usize).min(chars.len() - 1) };
+        let fitted = loop {
+            let shown: String = if keep == chars.len() { text.to_string() } else { format!("{}…", chars[..keep].iter().collect::<String>().trim_end()) };
+            if keep == 0 || self.text(&shown, style).is_some_and(|t| t.advance <= max_w) {
+                break shown;
+            }
+            keep -= 1;
+        };
+        if self.fits.len() > 500 {
+            self.fits.clear();
+        }
+        self.fits.insert(key, fitted.clone());
+        self.text(&fitted, style)
+    }
+
+    pub fn clip(&self, area: Option<(f32, f32, f32, f32)>) {
+        let Some((x, y, w, h)) = area else { return unsafe { glDisable(GL_SCISSOR_TEST) } };
+        let (sx, sy) = (self.gfx.screen_w as f32 / DESIGN_W, self.gfx.screen_h as f32 / DESIGN_H);
+        unsafe {
+            glEnable(GL_SCISSOR_TEST);
+            glScissor((x * sx) as i32, (self.gfx.screen_h as f32 - (y + h) * sy) as i32, (w * sx).ceil() as i32, (h * sy).ceil() as i32);
+        }
+    }
+
+    pub fn plate(&mut self, p: &Plate, x: f32, y: f32, w: f32, h: f32, alpha: f32) {
+        let margin = (p.shadow[0].abs() + p.shadow[1]).ceil();
+        let key = format!("plate:{}:{}:{:?}:{}:{:?}:{}", p.h, p.radius, p.fill, p.rim, p.shadow, p.ring);
+        let picture = match self.pictures.find(&key) {
+            Some(picture) => picture,
+            None => {
+                let made = plate_picture(p, margin);
+                let picture = self.gfx.upload_rgba(&made.rgba, made.w, made.h);
+                self.keep(&key, picture);
+                picture
+            }
+        };
+        let s = h / p.h;
+        let (m, cap) = (margin * s, (p.radius + margin) * s);
+        let pw = picture.w as f32;
+        let cap_u = (p.radius + margin) / pw;
+        let (top, tall) = (y - m, h + 2.0 * m);
+        let piece = |d: &Draw, from_u: f32, to_u: f32, at: f32, width: f32| {
+            if width <= 0.0 {
+                return;
+            }
+            let full = width / (to_u - from_u);
+            d.p.picture.bind(0, c"u_tex", picture.tex);
+            d.p.picture.set4(c"u_box", at - from_u * full, top, full, tall);
+            d.p.picture.set1(c"u_alpha", alpha);
+            d.gfx.quad(&d.p.picture, at, top, width, tall);
+        };
+        let left = x - m;
+        let middle = (w + 2.0 * m - 2.0 * cap).max(0.0);
+        piece(self, 0.0, cap_u, left, cap);
+        piece(self, cap_u, 1.0 - cap_u, left + cap, middle);
+        piece(self, 1.0 - cap_u, 1.0, left + cap + middle, cap);
     }
 
     pub fn glyph(&mut self, path: &str, size: i32, width: f32) -> Tex {
@@ -247,4 +324,39 @@ impl Draw {
         self.gfx.free(&mut other);
         current
     }
+}
+
+fn plate_picture(p: &Plate, margin: f32) -> Decoded {
+    let (w, h) = ((2.0 * (p.radius + margin) + 2.0) as usize, (p.h + 2.0 * margin) as usize);
+    let half = [(w as f32 - 2.0 * margin) / 2.0, p.h / 2.0];
+    let r = p.radius.min(half[0]).min(half[1]);
+    let sdf = |x: f32, y: f32| {
+        let q = [x.abs() - (half[0] - r), y.abs() - (half[1] - r)];
+        let outside = (q[0].max(0.0).powi(2) + q[1].max(0.0).powi(2)).sqrt();
+        let normal = if q[0] > 0.0 && q[1] > 0.0 { [q[0].signum() * x.signum() * q[0] / outside, y.signum() * q[1] / outside] } else if q[0] > q[1] { [x.signum(), 0.0] } else { [0.0, y.signum()] };
+        (outside + q[0].max(q[1]).min(0.0) - r, normal)
+    };
+    let mut rgba = vec![0u8; w * h * 4];
+    for py in 0..h {
+        for px in 0..w {
+            let (cx, cy) = (px as f32 + 0.5 - w as f32 / 2.0, py as f32 + 0.5 - h as f32 / 2.0);
+            let (d, n) = sdf(cx, cy);
+            let cover = (0.5 - d).clamp(0.0, 1.0) - if p.ring > 0.0 { (0.5 - d - p.ring).clamp(0.0, 1.0) } else { 0.0 };
+            let (sd, _) = sdf(cx, cy - p.shadow[0]);
+            let blur = p.shadow[1].max(1.0);
+            let shadow = p.shadow[2] * (1.0 - ((sd + 0.6 * blur) / (1.6 * blur)).clamp(0.0, 1.0)).powi(2);
+            let edge = 1.0 - ((-d - 0.5) / 1.5).clamp(0.0, 1.0);
+            let rim = p.rim * edge * (0.45 * (-n[1]).max(0.0) + 0.2 * (-n[0]).max(0.0));
+            let fill_a = p.fill[3] + (1.0 - p.fill[3]) * rim;
+            let fill_rgb: Vec<f32> = (0..3).map(|c| (p.fill[c] * p.fill[3] * (1.0 - rim) + rim) / fill_a.max(0.0001)).collect();
+            let a_shape = fill_a * cover;
+            let out_a = a_shape + (1.0 - a_shape) * shadow;
+            let at = (py * w + px) * 4;
+            for c in 0..3 {
+                rgba[at + c] = ((fill_rgb[c] * a_shape).clamp(0.0, 1.0) * 255.0) as u8;
+            }
+            rgba[at + 3] = (out_a.clamp(0.0, 1.0) * 255.0) as u8;
+        }
+    }
+    Decoded { rgba, w: w as i32, h: h as i32 }
 }

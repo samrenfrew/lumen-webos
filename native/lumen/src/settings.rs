@@ -28,6 +28,7 @@ pub struct Settings {
     pub wallpaper_dim: String,
     pub live_tv_row: bool,
     pub live_channels: Option<Vec<String>>,
+    pub guide_full: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -69,6 +70,7 @@ impl Settings {
             wallpaper_dim: "off".into(),
             live_tv_row: true,
             live_channels: None,
+            guide_full: false,
         }
     }
 
@@ -119,6 +121,7 @@ impl Settings {
             },
             live_tv_row: saved["liveTvRow"].as_bool() != Some(false),
             live_channels: strings(&saved["liveChannels"]),
+            guide_full: saved["guideFull"].as_bool() == Some(true),
         })
     }
 }

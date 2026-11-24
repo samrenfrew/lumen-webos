@@ -1,6 +1,7 @@
 mod anim;
 mod apps;
 mod bus;
+mod card;
 mod clock;
 #[cfg(feature = "dev")]
 mod control;
@@ -8,7 +9,9 @@ mod control_center;
 mod draw;
 mod ffi;
 mod gfx;
+mod guide;
 mod home;
+mod live;
 mod livetv;
 mod look;
 mod pictures;
@@ -75,6 +78,9 @@ pub struct App {
     home: Home,
     panel: Option<control_center::ControlCenter>,
     screen: Option<settings_screen::SettingsScreen>,
+    guide: Option<guide::Guide>,
+    live: live::Live,
+    over_live_tv: bool,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -115,8 +121,9 @@ fn gl_string(name: GLenum) -> String {
 
 fn key_of(sym: i32, scancode: c_int) -> Option<Key> {
     Some(match sym {
-        SDLK_1..=54 => Key::Digit((sym - SDLK_1 + 1) as usize),
-        _ if (SDLK_KP_1..SDLK_KP_1 + 6).contains(&sym) => Key::Digit((sym - SDLK_KP_1 + 1) as usize),
+        SDLK_0..=SDLK_9 => Key::Digit((sym - SDLK_0) as usize),
+        SDLK_KP_0 => Key::Digit(0),
+        _ if (SDLK_KP_1..SDLK_KP_1 + 9).contains(&sym) => Key::Digit((sym - SDLK_KP_1 + 1) as usize),
         SDLK_LEFT => Key::Left,
         SDLK_RIGHT => Key::Right,
         SDLK_UP => Key::Up,
@@ -136,7 +143,7 @@ fn key_named(name: &str) -> Option<Key> {
         "down" => Key::Down,
         "ok" | "enter" => Key::Ok,
         "back" => Key::Back,
-        digit if digit.len() == 1 && ("1"..="6").contains(&digit) => Key::Digit(digit.parse().unwrap_or(1)),
+        digit if digit.len() == 1 && ("0"..="9").contains(&digit) => Key::Digit(digit.parse().unwrap_or(0)),
         _ => return None,
     })
 }
@@ -161,6 +168,11 @@ fn strip_from_folders(config: &mut serde_json::Map<String, Value>, id: &str) {
 pub fn launch_view(launch_argument: &str) -> Option<String> {
     let launch: Value = serde_json::from_str(launch_argument).ok()?;
     launch["parameters"]["view"].as_str().map(String::from)
+}
+
+pub fn launched_as(launch_argument: &str) -> Option<String> {
+    let launch: Value = serde_json::from_str(launch_argument).ok()?;
+    launch["appId"].as_str().map(String::from)
 }
 
 impl App {
@@ -193,8 +205,10 @@ impl App {
         }
         self.show_wallpaper();
         self.mark("wallpaper");
+        self.live.load_kept();
         self.show_apps();
         self.tick_clock();
+        self.show_live();
     }
 
     fn show_wallpaper(&mut self) {
@@ -255,6 +269,7 @@ impl App {
         self.home.weather_line = self.settings.show_weather;
         self.home.forecast = self.settings.home_forecast;
         self.home.set_apps(&mut self.draw, shown, self.settings.first_row, ticks());
+        self.show_live();
         self.redraw = true;
         if !to_copy.is_empty() {
             note!("icons: asking for {} the app cannot read", to_copy.len());
@@ -386,6 +401,8 @@ impl App {
             Action::Open(id) if id == apps::SETTINGS_TILE => self.open_settings(),
             Action::Open(id) if id == apps::INPUTS_TILE => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),
             Action::Open(id) => self.open(id),
+            Action::Guide => self.open_guide(self.settings.guide_full),
+            Action::Channel(id) => self.watch(id),
             Action::Top("controls") => self.open_panel(control_center::Kind::Controls),
             Action::Top("inputs") => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),
             Action::Top("settings") => self.open_settings(),
@@ -586,6 +603,9 @@ impl App {
     }
 
     fn key(&mut self, key: Key) {
+        if self.guide.is_some() {
+            return self.guide_key(key);
+        }
         if self.screen.is_some() {
             return self.screen_key(key);
         }
@@ -599,7 +619,7 @@ impl App {
     }
 
     fn pointer_moved(&mut self, x: i32, y: i32) {
-        if self.screen.is_some() || self.panel.is_some() || self.hidden {
+        if self.screen.is_some() || self.panel.is_some() || self.guide.is_some() || self.hidden {
             return;
         }
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
@@ -617,7 +637,7 @@ impl App {
         if self.held_since.is_some() {
             return;
         }
-        if self.screen.is_some() || self.panel.is_some() || !self.home.can_hold() {
+        if self.screen.is_some() || self.panel.is_some() || self.guide.is_some() || !self.home.can_hold() {
             return self.key(Key::Ok);
         }
         self.held_since = Some(ticks());
@@ -661,6 +681,9 @@ impl App {
     }
 
     fn apply_view(&mut self, view: Option<&str>) {
+        if view != Some("guide") && self.guide.is_some() && !self.over_live_tv {
+            self.close_guide();
+        }
         match view {
             None => {
                 self.screen = None;
@@ -677,7 +700,12 @@ impl App {
                     self.open_panel(control_center::Kind::Controls);
                 }
             }
-            // ponytail: "guide" opens the Guide and "ambient" the screensaver once those screens are built
+            Some("guide") if self.settings.live_tv_row && !self.over_live_tv => {
+                self.screen = None;
+                self.panel = None;
+                self.open_guide(self.settings.guide_full);
+            }
+            // ponytail: "ambient" opens the screensaver once it is built
             Some(other) => note!("view {}: not built yet", other),
         }
         self.redraw = true;
@@ -714,6 +742,17 @@ impl App {
     }
 
     fn draw_frame(&mut self, now: u32) {
+        if let Some(guide) = self.guide.as_mut() {
+            self.draw.pictures.next_frame();
+            self.draw.gfx.into_screen();
+            unsafe {
+                glClearColor(0.0, 0.0, 0.0, if self.over_live_tv { 0.0 } else { 1.0 });
+                glClear(GL_COLOR_BUFFER_BIT);
+                glDisable(GL_BLEND);
+            }
+            guide.draw(&mut self.draw, now, &self.live, self.home.unix_now, self.home.twenty_four_hour);
+            return self.home.toast_over(&mut self.draw, now);
+        }
         if let Some(screen) = self.screen.as_mut() {
             self.draw.pictures.next_frame();
             self.draw.gfx.into_screen();
@@ -733,6 +772,9 @@ impl App {
     }
 
     fn moving(&self, now: u32) -> bool {
+        if let Some(guide) = &self.guide {
+            return guide.moving(now) || self.home.toast_showing(now);
+        }
         if let Some(screen) = &self.screen {
             return screen.moving(now) || self.home.toast_showing(now);
         }
@@ -752,6 +794,7 @@ impl App {
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
             "where" => said(&answer, match (&self.screen, &self.panel) {
+                _ if self.guide.is_some() => self.guide.as_ref().map(|g| g.where_now(&self.live)).unwrap_or_default(),
                 (Some(screen), _) => screen.where_now(),
                 (None, Some(panel)) => panel.where_now(),
                 (None, None) => self.home.where_now(),
@@ -906,6 +949,8 @@ fn run() -> i32 {
     let taking_a_shot = args.get(1).is_some_and(|a| a == "--shot");
     note!("start: {}", args.get(1).map_or("no launch argument", String::as_str));
     let start_view = args.get(1).and_then(|launch| launch_view(launch));
+    // ponytail: the Guide over Live TV runs from this binary when launched as its app id, but its appinfo.json, its own bus name, a see-through window and LIST and GUIDE on the remote are not packaged yet
+    let over_live_tv = args.get(1).and_then(|launch| launched_as(launch)).as_deref() == Some(guide::GUIDE_APP_ID);
 
     let (window, context, app_dir);
     let (mut screen_w, mut screen_h) = (0, 0);
@@ -981,6 +1026,9 @@ fn run() -> i32 {
         home: Home::new(),
         panel: None,
         screen: None,
+        guide: None,
+        live: live::Live::new(),
+        over_live_tv,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),
@@ -1005,7 +1053,9 @@ fn run() -> i32 {
     app.mark("programs");
     app.load_kept();
     app.refresh_from_tv();
-    if start_view.is_some() {
+    if over_live_tv {
+        app.open_guide(start_view.as_deref() == Some("full"));
+    } else if start_view.is_some() {
         app.apply_view(start_view.as_deref());
     }
 
@@ -1084,7 +1134,8 @@ fn run() -> i32 {
 
         let until_next_minute = app.tick_clock();
         app.change_wallpaper_if_due();
-        let hold_wait = app.hold_wait_ms();
+        app.live_tick();
+        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).min();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
             app.write_boot_line();
         }
@@ -1100,6 +1151,9 @@ fn run() -> i32 {
             }
             if app.settings.wp_auto_minutes > 0.0 {
                 wait_ms = wait_ms.min(30_000);
+            }
+            if app.settings.live_tv_row {
+                wait_ms = wait_ms.min(livetv::TICK_MS as u32);
             }
             continue;
         }
