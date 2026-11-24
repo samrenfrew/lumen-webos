@@ -9,6 +9,7 @@ mod draw;
 mod ffi;
 mod gfx;
 mod home;
+mod inputs;
 mod look;
 mod pictures;
 mod root;
@@ -16,6 +17,7 @@ mod settings;
 mod shaders;
 mod store;
 mod text;
+mod tvcontrols;
 mod util;
 mod vector;
 mod wallpaper;
@@ -617,6 +619,7 @@ impl App {
     }
 
     fn draw_frame(&mut self, now: u32) {
+        self.home.panel_open = self.panel.is_some();
         self.home.draw(&mut self.draw, now);
         if let Some(panel) = self.panel.as_mut() {
             panel.draw(&mut self.draw, now);

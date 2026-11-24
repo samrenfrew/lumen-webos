@@ -6,6 +6,11 @@ const HOMEHOOK: &str = "/var/lib/homehook";
 const LOG: &str = "/var/lib/homehook/lumen.log";
 const LOG_MAX_BYTES: usize = 64 * 1024;
 const SHARED_FILES: [&str; 2] = ["lumen-config.json", "recent"];
+const GET_SETTINGS: &str = "luna://com.webos.settingsservice/getSystemSettings";
+const SET_SETTINGS: &str = "luna://com.webos.settingsservice/setSystemSettings";
+const SCREEN_OFF: &str = "luna://com.webos.service.tvpower/power/turnOffScreen";
+pub const PICTURE_MODES: [&str; 7] = ["vivid", "normal", "eco", "cinema", "sports", "game", "filmMaker"];
+pub const SOUND_MODES: [&str; 7] = ["standard", "news", "movie", "music", "sports", "game", "aiSound"];
 
 pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
@@ -29,6 +34,57 @@ pub fn base64(bytes: &[u8]) -> String {
         }
     }
     out
+}
+
+fn luna_command(uri: &str, payload: serde_json::Value) -> String {
+    format!("luna-send -n 1 {} {}", shell_quote(uri), shell_quote(&payload.to_string()))
+}
+
+fn setting_category(key: &str) -> Option<&'static str> {
+    match key {
+        "pictureMode" | "backlight" | "eyeComfortMode" => Some("picture"),
+        "soundMode" => Some("sound"),
+        _ => None,
+    }
+}
+
+fn setting_value_allowed(key: &str, value: &str) -> bool {
+    match key {
+        "pictureMode" => PICTURE_MODES.contains(&value),
+        "soundMode" => SOUND_MODES.contains(&value),
+        "backlight" => value.parse::<u8>().is_ok_and(|level| level <= 100 && level.to_string() == value),
+        "eyeComfortMode" => value == "on" || value == "off",
+        _ => false,
+    }
+}
+
+fn get_setting_command(key: &str) -> Option<String> {
+    let category = setting_category(key)?;
+    Some(luna_command(GET_SETTINGS, json!({"category": category, "keys": [key]})))
+}
+
+fn set_setting_command(key: &str, value: &str) -> Option<String> {
+    let category = setting_category(key)?;
+    if !setting_value_allowed(key, value) {
+        return None;
+    }
+    Some(luna_command(SET_SETTINGS, json!({"category": category, "settings": {key: value}})))
+}
+
+fn setting_in_reply(key: &str, text: &str) -> Result<String, String> {
+    let reply: serde_json::Value = serde_json::from_str(text).map_err(|e| format!("not JSON: {e}"))?;
+    if reply["returnValue"].as_bool() == Some(false) {
+        return Err(format!("the TV did not read {key}"));
+    }
+    Ok(match &reply["settings"][key] {
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::String(text) => text.clone(),
+        other => other.to_string(),
+    })
+}
+
+fn screen_off_command() -> String {
+    luna_command(SCREEN_OFF, json!({}))
 }
 
 fn copy_shared_file_command(name: &str, into_dir: &str) -> Option<String> {
@@ -105,6 +161,24 @@ pub fn uninstall(id: &str, then: impl FnOnce(Result<bool, String>) + Send + 'sta
     run(uninstall_command(id), 30000, move |out| then(out.map(|text| text.contains("gone"))));
 }
 
+pub fn get_setting(key: &'static str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(get_setting_command(key), 6000, move |out| then(out.and_then(|text| setting_in_reply(key, &text))));
+}
+
+pub fn set_setting(key: &str, value: &str, then: impl FnOnce(Result<(), String>) + Send + 'static) {
+    let refused = format!("the TV refused {key}={value}");
+    run(set_setting_command(key, value), 6000, move |out| {
+        then(out.and_then(|text| match serde_json::from_str::<serde_json::Value>(&text) {
+            Ok(reply) if reply["returnValue"].as_bool() == Some(false) => Err(refused),
+            _ => Ok(()),
+        }))
+    });
+}
+
+pub fn screen_off(then: impl FnOnce(Result<(), String>) + Send + 'static) {
+    run(Some(screen_off_command()), 6000, move |out| then(out.map(|_| ())));
+}
+
 pub fn append_log(text: &str) {
     run(Some(append_log_command(text)), 6000, |_| {});
 }
@@ -156,6 +230,34 @@ mod tests {
         }
         let command = uninstall_command("bbc.iplayer.3.0").unwrap();
         assert!(command.contains("dev/remove") && command.contains("'{\"id\":\"bbc.iplayer.3.0\",\"subscribe\":false}'"));
+    }
+
+    #[test]
+    fn a_setting_is_changed_only_to_a_value_on_its_list() {
+        assert_eq!(
+            set_setting_command("pictureMode", "vivid").as_deref(),
+            Some(r#"luna-send -n 1 'luna://com.webos.settingsservice/setSystemSettings' '{"category":"picture","settings":{"pictureMode":"vivid"}}'"#)
+        );
+        assert!(set_setting_command("soundMode", "aiSound").is_some());
+        assert!(set_setting_command("backlight", "0").is_some() && set_setting_command("backlight", "100").is_some());
+        for (key, value) in [("pictureMode", "expert1"), ("backlight", "101"), ("backlight", "07"), ("backlight", "-1"), ("eyeComfortMode", "on'; reboot"), ("energySaving", "off")] {
+            assert_eq!(set_setting_command(key, value), None, "{key}={value}");
+        }
+    }
+
+    #[test]
+    fn only_known_settings_are_read_and_the_value_comes_back_as_text() {
+        assert_eq!(get_setting_command("backlight").as_deref(), Some(r#"luna-send -n 1 'luna://com.webos.settingsservice/getSystemSettings' '{"category":"picture","keys":["backlight"]}'"#));
+        assert_eq!(get_setting_command("soundMode; reboot"), None);
+        let reply = r#"{"subscribed":false,"category":"picture","settings":{"pictureMode":"normal","backlight":"80"},"returnValue":true}"#;
+        assert_eq!(setting_in_reply("backlight", reply), Ok("80".to_string()));
+        assert_eq!(setting_in_reply("eyeComfortMode", reply), Ok(String::new()));
+        assert!(setting_in_reply("backlight", r#"{"returnValue":false}"#).is_err());
+    }
+
+    #[test]
+    fn the_screen_goes_off_through_the_tvs_power_service() {
+        assert_eq!(screen_off_command(), "luna-send -n 1 'luna://com.webos.service.tvpower/power/turnOffScreen' '{}'");
     }
 
     #[test]

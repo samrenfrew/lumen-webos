@@ -5,6 +5,7 @@ pub static EASE_DOWN: Curve = [0.25, 0.1, 0.25, 1.0];
 pub static EASE_VEIL: Curve = [0.45, 0.0, 0.55, 1.0];
 pub static EASE_OUT: Curve = [0.0, 0.0, 0.58, 1.0];
 pub static EASE_SCROLL: Curve = [0.2, 0.7, 0.2, 1.0];
+pub static EASE_GROW: Curve = [0.2, 0.8, 0.2, 1.0];
 
 #[derive(Clone, Copy)]
 pub struct Anim {
@@ -95,7 +96,7 @@ mod tests {
 
     #[test]
     fn a_curve_starts_at_zero_ends_at_one_and_never_goes_back() {
-        for curve in [&EASE_UP, &EASE_DOWN, &EASE_VEIL, &EASE_OUT, &EASE_SCROLL, &EASE] {
+        for curve in [&EASE_UP, &EASE_DOWN, &EASE_VEIL, &EASE_OUT, &EASE_SCROLL, &EASE_GROW, &EASE] {
             assert_eq!(eased(curve, 0.0), 0.0);
             assert_eq!(eased(curve, 1.0), 1.0);
             let mut last = 0.0;

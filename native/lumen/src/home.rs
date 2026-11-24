@@ -230,6 +230,7 @@ pub struct Home {
     pub last_move: String,
     pub refresh_ms: f32,
     pub reduce_motion: bool,
+    pub panel_open: bool,
 }
 
 pub fn place(index: usize, bar_count: usize, cols: usize) -> (usize, usize) {
@@ -421,6 +422,7 @@ impl Home {
             last_move: String::new(),
             refresh_ms: 20.0,
             reduce_motion: false,
+            panel_open: false,
         }
     }
 
@@ -1240,7 +1242,7 @@ impl Home {
             let icon = d.glyph(glyph, 28, 1.8);
             let g = 28.0 * scale;
             d.inked_picture(icon, cx - g / 2.0, cy - g / 2.0, g, g, [1.0, 1.0, 1.0, 0.62 * alpha]);
-            if f > 0.0 {
+            if f > 0.0 && !self.panel_open {
                 if let Some(text) = d.text(label, &PILL_LABEL) {
                     let x = if at == TOP_ITEMS.len() - 1 { pill_left(at) + PILL - text.advance } else { cx - text.advance / 2.0 };
                     text.draw(d, x, PILL_LABEL_BASELINE, f * alpha);
