@@ -441,7 +441,6 @@ impl Guide {
         picture
     }
 
-    // ponytail: the web Guide's live preview of the focused channel beside the list is not drawn; it needs the TV's media service under the window
     pub fn draw(&mut self, d: &mut Draw, now: u32, live: &Live, t: u64, twenty_four_hour: bool) {
         if !self.over_live_tv {
             d.copy_whole(d.veil_backdrop, 1.0, 1.0, 0.0, 0.0);

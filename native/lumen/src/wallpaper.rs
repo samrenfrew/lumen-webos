@@ -8,7 +8,6 @@ pub const NEXT: &str = "wallpaper-next.jpg";
 pub const NEXT_PICK: &str = "wallpaper-next.pick";
 
 pub fn url_of(pictures_tsv: &str, pick: &str) -> Option<String> {
-    // ponytail: local:N picks (the five bundled pictures) are skipped; bundle them when someone picks one
     let id = pick.strip_prefix("cloud:")?;
     listed(pictures_tsv, id).map(|fields| fields[1].to_string())
 }

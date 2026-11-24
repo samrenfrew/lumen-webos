@@ -285,7 +285,6 @@ pub fn merge_listings(sch: &Listings, pf: &Listings) -> Listings {
     out
 }
 
-// ponytail: the focused channel tile's live preview (utp.broadcast open, setAudioMute, changeChannel, close: docs/research/spikes.md) starts beside now_next_at once the row is drawn
 pub fn now_next_at(list: Option<&[Programme]>, t: u64) -> NowNext<'_> {
     let mut found = NowNext::default();
     for p in list.unwrap_or(&[]) {
@@ -460,7 +459,6 @@ pub fn read_logos(channels: &[Channel], then: impl FnOnce(HashMap<String, String
         if missing.is_empty() {
             return then(found_logos(&paths));
         }
-        // ponytail: a logo new to both apps is kept as the TV's small file, not sharpened at three times its size and not shared back to /var/lib/homehook/logos as the web Lumen does
         root::copy_icons(&missing, &dir, move |_| then(found_logos(&paths)));
     });
 }

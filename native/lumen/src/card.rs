@@ -40,6 +40,15 @@ fn corner_cover(card: &Card, x: f32, y: f32) -> f32 {
     (0.5 - d).clamp(0.0, 1.0)
 }
 
+const STRETCHED: f32 = 1.2;
+
+fn crisp(ink: [f32; 4]) -> [f32; 4] {
+    let t = ((ink[3] * 255.0 - 48.0) / 160.0).clamp(0.0, 1.0);
+    let a = t * t * (3.0 - 2.0 * t);
+    let k = if ink[3] > 0.0 { a / ink[3] } else { 0.0 };
+    [ink[0] * k, ink[1] * k, ink[2] * k, a]
+}
+
 fn sample(src: &Decoded, u: f32, v: f32) -> [f32; 4] {
     let (x, y) = ((u - 0.5).clamp(0.0, (src.w - 1) as f32), (v - 0.5).clamp(0.0, (src.h - 1) as f32));
     let (x0, y0) = (x.floor() as i32, y.floor() as i32);
@@ -90,9 +99,11 @@ pub fn channel_card(fonts: &Fonts, name: &str, logo: Option<&str>, card: &Card) 
             let scale = (bw / src.w as f32).min(bh / src.h as f32);
             let (w, h) = (src.w as f32 * scale, src.h as f32 * scale);
             let (left, top) = (bx + (bw - w) / 2.0, by + (bh - h) / 2.0);
+            let stretched = scale > STRETCHED;
             for y in (top.floor() as usize)..((top + h).ceil() as usize).min(card.h) {
                 for x in (left.floor() as usize)..((left + w).ceil() as usize).min(card.w) {
-                    ink[y * card.w + x] = sample(src, (x as f32 + 0.5 - left) / scale, (y as f32 + 0.5 - top) / scale);
+                    let soft = sample(src, (x as f32 + 0.5 - left) / scale, (y as f32 + 0.5 - top) / scale);
+                    ink[y * card.w + x] = if stretched { crisp(soft) } else { soft };
                 }
             }
         }
@@ -126,4 +137,20 @@ pub fn channel_card(fonts: &Fonts, name: &str, logo: Option<&str>, card: &Card) 
         }
     }
     Decoded { rgba, w: card.w as i32, h: card.h as i32 }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_stretched_logos_soft_edge_is_pushed_towards_solid_or_clear() {
+        let faint = crisp([0.15, 0.15, 0.15, 0.15]);
+        let strong = crisp([0.85, 0.85, 0.85, 0.85]);
+        assert_eq!(faint[3], 0.0);
+        assert_eq!(strong[3], 1.0);
+        assert!((strong[0] - strong[3]).abs() < 1e-5, "white stays white");
+        let middle = crisp([0.5, 0.5, 0.5, 0.5]);
+        assert!((middle[3] - 0.5).abs() < 0.02, "the very middle of the edge stays soft so it does not jag");
+    }
 }
