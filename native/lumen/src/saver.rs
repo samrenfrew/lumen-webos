@@ -16,6 +16,7 @@ const CROSSFADE_MS: u32 = 2400;
 const SHOW_ANYWAY_MS: u32 = 8000;
 const FETCH_LEAD_MS: u32 = 10_000;
 const RETRY_MS: u32 = 5000;
+const SERVER_COPY_WAITS: u32 = 15;
 const SHADE_H: f32 = 520.0;
 const SHADE_STOPS: [(f32, f32); 6] = [(0.0, 0.0), (0.25, 0.03), (0.45, 0.09), (0.65, 0.17), (0.82, 0.24), (1.0, 0.28)];
 const LEFT: f32 = 125.0;
@@ -117,6 +118,12 @@ pub fn shade_alpha(t: f32) -> f32 {
 fn fetch(setup: &Setup, w: i32, h: i32, then: impl FnOnce(Option<Decoded>) + Send + 'static) {
     let (app_dir, wants, night) = (setup.app_dir.clone(), setup.wants.clone(), setup.night);
     std::thread::spawn(move || {
+        for _ in 0..SERVER_COPY_WAITS {
+            if !wants.immich || std::path::Path::new(&picker::own_server_copy()).exists() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
         let Ok(mut held) = PICKER.lock() else { return then(None) };
         let picker = held.get_or_insert_with(|| Picker::for_screensaver(&app_dir, wants.clone()));
         picker.set_wants(wants);
