@@ -15,6 +15,7 @@ SAME(offsetof(SDL_KeyboardEvent, keysym), 20);
 SAME(offsetof(SDL_KeyboardEvent, repeat), 13);
 SAME(offsetof(SDL_KeyboardEvent, keysym), 16);
 #endif
+SAME(offsetof(SDL_WindowEvent, event), 12);
 SAME(offsetof(SDL_Keysym, sym), 4);
 SAME(offsetof(SDL_Surface, format), sizeof(void *));
 SAME(offsetof(SDL_Surface, w), 2 * sizeof(void *));

@@ -397,3 +397,44 @@ On the TV (2026-11-24, installed with `npm run deploy:rtest`, both apps with the
   not reinstalled.
 
 In CI (not run yet): this fork's workflows only run on `main`, so the Rust build has not run on a GitHub runner.
+
+## TV calls from a native app (2026-11-24)
+Spike 2 of `native-rewrite.md`. Answer: **the first route works. The app calls the TV itself, with the TV's own `libluna-service2`,
+and needs no role file and no helper.** Tried from inside Lumen Rust Test with a probe (`native/rtest/src/probe.rs`): it reads
+`/tmp/rtest-probe` whenever that file changes and runs each line (`open <name>`, `call <uri> <json>`, `sub <uri> <json>`, `ls`,
+`read`, `write`, `id`), logging each answer as a `probe` line. So calls can be tried live, with no rebuild.
+
+- A native app does get a role file at install, `/var/palm/ls2-dev/roles/prv/<id>.json`, which allows its own id as a bus name
+  and the empty name, with every outbound call. The spec was wrong that it has none.
+- **LG's SDL takes the app's own id on the bus** as soon as the window opens (it listens for the app manager's events). So
+  `LSRegister("<id>")` fails with "already exists". **`LSRegister(NULL)`, a nameless handle, works**, and so do the
+  `com.webos.vt.*` and `com.webos.chromium.media.*` names the role file allows. Use the nameless one.
+- The glue is C (`native/rtest/src/luna.c`, 70 lines: open, call with a time limit, subscribe, pump), built against the SDK's
+  headers and called from Rust. It runs the bus on its own GLib context, so it can live on a thread away from drawing.
+- Proved, each from the jail, with the time the call took: the app list (`listLaunchPoints` 9 ms for 20 kB, `listApps` 23 ms
+  for 174 kB), `getAppInfo` 1 ms, `running` 4 ms, the foreground app 1 ms, reading picture settings 14 ms and **writing one**
+  (`setSystemSettings` backlight, 15 ms), volume 5 ms, inputs 4 ms, network 15 ms, the last channel 35 ms, the channel list
+  12 ms, mute status, the sleep timer, the config service, **launching an app** (`applicationManager/launch` opened the C test
+  app), and **a root command**: `org.webosbrew.hbchannel.service/exec` ran `id -u` as `0` in 43 to 59 ms.
+- Subscriptions work: `getForegroundAppInfo` and `audio/getVolume` with `"subscribe":true` both sent their first answer.
+- Its permissions are the web app's ("public" plus the Homebrew Channel's exec), so anything the web Lumen calls, this can.
+- Not needed: a role file written by the TV scripts, or a root helper on a socket. A helper would still save the 45 ms a root
+  command costs, if a screen ever needs many at once.
+
+## A place to keep things (2026-11-24)
+Spike 3. The jail's view, from the same probe (the app runs as its own user, uid 5725 here, group 5000):
+
+- **Lasting and writable: `/media/developer`** (mode 777, the developer partition) and the app's own folder under
+  `/media/developer/apps/usr/palm/applications/<id>/`. An install replaces the app's own folder, so settings and caches go in
+  a folder of Lumen's own under `/media/developer`. (verify) that the app's uid is the same after a reinstall; if it is not,
+  the folder must be made writable to all, or made by a root command.
+- **`/tmp` is the TV's real `/tmp`**, shared with root: the log and the tuning files already use it. Lost at power off.
+- **Not there at all: `/var/lib/homehook`, `/home`, `/var/preferences`, `/usr/palm/applications`, `/media/cryptofs`.**
+  `/media/internal` is read-only. So the TV scripts' files (`lumen.log`, the settings they share) are reached with a root
+  command, or the scripts move what the app needs into `/media/developer`.
+- **Other apps' icons.** Sideloaded apps' folders can be read directly (`com.samrenfrew.lumen/appinfo.json`, its icons).
+  LG's and store apps' folders cannot be seen, so their icons come through a root command once, as the web app does now,
+  and are kept in the cache folder.
+- The app can also write into other sideloaded apps' folders, the web Lumen's among them. Nothing should.
+- Launch parameters arrive as the program's second argument, as JSON:
+  `{"event":"launch","appId":"…","parameters":{"view":"ambient"},"interfaceVersion":2,…}`.

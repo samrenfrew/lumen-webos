@@ -194,9 +194,19 @@ pub struct SDL_KeyboardEvent {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SDL_WindowEvent {
+    pub kind: u32,
+    pub timestamp: u32,
+    pub window_id: u32,
+    pub event: u8,
+}
+
+#[repr(C)]
 pub union SDL_Event {
     pub kind: u32,
     pub key: SDL_KeyboardEvent,
+    pub window: SDL_WindowEvent,
     pub padding: [u64; 7],
 }
 
@@ -251,4 +261,13 @@ extern "C" {
     pub fn lumen_abi_checked() -> c_int;
     #[cfg(feature = "webos")]
     pub fn lumen_claim_window(window: *mut SDL_Window) -> c_int;
+}
+
+#[cfg(feature = "webos")]
+extern "C" {
+    pub fn lumen_luna_open(name: *const c_char) -> *mut c_char;
+    pub fn lumen_luna_call(uri: *const c_char, payload: *const c_char, timeout_ms: c_int) -> *mut c_char;
+    pub fn lumen_luna_subscribe(uri: *const c_char, payload: *const c_char, call: extern "C" fn(*const c_char, *mut c_void), user: *mut c_void) -> *mut c_char;
+    pub fn lumen_luna_pump();
+    pub fn lumen_luna_free(text: *mut c_char);
 }

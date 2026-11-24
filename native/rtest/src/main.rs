@@ -1,5 +1,7 @@
 mod ffi;
 mod gfx;
+#[cfg(feature = "webos")]
+mod probe;
 mod shaders;
 mod util;
 
@@ -970,6 +972,8 @@ fn run() -> i32 {
     note!("first frame ready {} ms after start, RSS {} kB", ticks().wrapping_sub(started_at), status_kb("VmRSS"));
     let (mut redraw, mut running) = (true, true);
     let per_ms = ms_per_count();
+    #[cfg(feature = "webos")]
+    let mut probe = probe::Probe::open("com.samrenfrew.lumen.rtest");
 
     while running {
         let mut e = SDL_Event { padding: [0; 7] };
@@ -980,6 +984,7 @@ fn run() -> i32 {
                 running = false;
             }
             if kind == SDL_WINDOWEVENT {
+                note!("window event {}", unsafe { e.window.event });
                 redraw = true;
             }
             if kind != SDL_KEYDOWN || unsafe { e.key.repeat } != 0 {
@@ -1026,6 +1031,8 @@ fn run() -> i32 {
         if !running {
             break;
         }
+        #[cfg(feature = "webos")]
+        probe.tick();
 
         let now = ticks();
         let moving = app.anything_moving(now);
