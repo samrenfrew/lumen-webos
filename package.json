@@ -10,6 +10,7 @@
     "deploy:quick": "sh tools/deploy_quick.sh",
     "deploy:saver": "sh tools/deploy_saver.sh",
     "deploy:ntest": "sh tools/deploy_ntest.sh",
+    "deploy:rtest": "sh tools/deploy_rtest.sh",
     "push-font": "sh tools/push_sf_font.sh",
     "dev": "npm --prefix app run dev",
     "release": "python3 tools/build_release.py"
