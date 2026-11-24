@@ -16,6 +16,7 @@ On the TV now (each list is LG's list plus the ids named):
 - Lumen is in `com.webos.memorymanager.KeepAlive`: the memory manager never closes it.
 - Lumen Guide (`com.samrenfrew.lumen.guide`, the overlay) was added to `KeepAlive` on 2026-11-07 (docs/plans/guide-overlay.md, Status).
 - Lumen Quick Settings (`com.samrenfrew.lumen.quick`, the gear button's overlay) was added to `KeepAlive` on 2026-11-10 (docs/plans/quick-settings.md, Status).
+- Lumen Native (`com.samrenfrew.lumen.native`, docs/plans/native-rewrite.md phase 1) was added to `KeepAlive` and `KeepOnLaunchEx` on 2026-11-24.
 - Lumen, iPlayer, YouTube, Plex, Channel 4 and Channel 5 are in `com.webos.memorymanager.KeepOnLaunchEx`: opening another app does not
   close them, but the memory manager still can when it needs room.
 - iPlayer's appinfo is patched to `"closeOnBackground": false` (original at `/var/lib/homehook/iplayer-appinfo.backup.json`).

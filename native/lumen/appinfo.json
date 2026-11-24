@@ -1,0 +1,17 @@
+{
+  "id": "com.samrenfrew.lumen.native",
+  "version": "0.1.0",
+  "vendor": "samrenfrew",
+  "type": "native",
+  "main": "lumen",
+  "title": "Lumen Native",
+  "appDescription": "Lumen, rewritten as a native app. The home screen so far.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
+  "visible": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 60
+}

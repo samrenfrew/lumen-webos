@@ -95,6 +95,16 @@ The web app's rule is "DevTools first, build last". The native app needs its own
   tests that run on the NUC, to the `testing-standards` skill. Screens get a kept picture each, compared on every build.
 - `CLAUDE.md` is rewritten for the native app when it becomes the daily one (phase 7), not before.
 
+What exists (phase 1), all in `native/lumen/` unless said:
+
+- `test.sh` runs the tests in the `lumen-native` container. `tools/build_native.sh` makes the `.ipk`; `npm run deploy:native`
+  installs it (`LUMEN_LAUNCH=1` also opens it).
+- `host-shot.sh <out.png> [--at <ms>] [--against <kept.png>] [keys...]` draws a screen with software graphics on the NUC.
+  `shots.sh` compares every screen in `shots/list` with its kept picture in `shots/`; `shots.sh --keep` takes them again.
+- `tools/tv/nctl.mjs` talks to the control channel on `127.0.0.1:9997` over an SSH tunnel to port 19997: `where`, `stats`, `get`,
+  `set <name> <value>`, `reset`, `key <left|right|up|down|ok|back>...`, `shot <out.png>`, `call <uri> <json>`, `quit`.
+- The app's log is `/tmp/lumen-native-<uid>/log` on the TV; the boot line also goes to `lumen.log`.
+
 ## Spikes first (phase 0)
 
 Each is small, answers one question on the TV, and is written up in `docs/research/spikes.md`. The rewrite does not start until
@@ -142,6 +152,16 @@ reach the native one, so Settings can be ported late.
 
 1. **Foundation.** The layers above up to Services, the control channel, the NUC build, the first tests. Shows the test app's
    scene with Sam's real apps, wallpaper and clock, and OK opens an app. Done when the budgets hold.
+   **Built and on the TV 2026-11-24.** Registers, takes its settings, app list, icons and a wallpaper, keys work, OK opens an
+   app, and it stays alive in the back once on the keep-alive lists (`docs/keep-alive.md`). Measured, not yet tuned (Sam: build
+   first, tune once the whole app is on the TV):
+   - Drawing 10.4 to 11.5 ms a frame on moves with the GPU finishing each frame, worst 15.5, no frame late.
+   - First frame 0.7 to 1.0 s on a quiet TV, 2.0 and 3.7 s while the TV's own services were busy.
+   - Graphics memory in front 30 to 33 MB, but 41 MB on a first launch (peak 52 while the wallpaper swaps). Over budget.
+   - Hidden: 22.8 MB against 10 MB. It keeps the icons and both backdrops (11 MB). Over budget.
+   - Coming back: not measured, the log has whole seconds only.
+   Choices made without Sam: the glass is "Blur only" with a light blur; `serde_json` is the one library; shared files and
+   icons are copied by root into the app's folder; no shared tree of screen parts until a second screen needs it.
 2. **Home, complete.** The status block and weather, top buttons, the bar and grid with scrolling, Recent, folders, open-app dots,
    re-order and the hold-OK menu, captions, toasts, the pointer, in English. Then the Home
    button points at it and Sam uses it daily.
