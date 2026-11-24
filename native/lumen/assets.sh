@@ -8,6 +8,7 @@ cp "$APP/public/wallpapers/default-0.jpg" "$PKG/wallpaper.jpg"
 if [ "$2" != saver ]; then
   mkdir -p "$PKG/icons" && cp -r "$APP/public/icons/apps" "$PKG/icons/apps"
   cp -r "$APP/public/icons/inputs" "$PKG/icons/inputs"
+  mkdir -p "$PKG/tv" && for f in watch.sh stadia.sh resume.sh home-setup.sh privacy.sh gear.sh 60-homehook hosts-extra; do cp "$HERE/../../tools/tv/$f" "$PKG/tv/"; done
   cp "$HERE/assets/catalog.tsv" "$PKG/assets/"
 fi
 cp "$HERE/assets/wallpapers.tsv" "$HERE/assets/cities.tsv" "$PKG/assets/"

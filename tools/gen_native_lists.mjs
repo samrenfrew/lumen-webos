@@ -12,16 +12,18 @@ function cloudUrl(id, ext, u) {
 }
 
 const pictures = [];
-for (const m of read('app/src/config/wallpapers.ts').matchAll(/^\t\{id: "([^"]+)", ext: "([jp])", title: "((?:[^"\\]|\\.)*)", category: "[^"]*"(?:, url: "([^"]*)")?(?:, credit: "((?:[^"\\]|\\.)*)")?\},?$/gm)) {
-	pictures.push([m[1], cloudUrl(m[1], m[2], m[4]), clean(JSON.parse(`"${m[3]}"`)), clean(m[5] ? JSON.parse(`"${m[5]}"`) : '')].join('\t'));
+for (const m of read('app/src/config/wallpapers.ts').matchAll(/^\t\{id: "([^"]+)", ext: "([jp])", title: "((?:[^"\\]|\\.)*)", category: "([^"]*)"(?:, url: "([^"]*)")?(?:, credit: "((?:[^"\\]|\\.)*)")?\},?$/gm)) {
+	pictures.push([m[1], cloudUrl(m[1], m[2], m[5]), clean(JSON.parse(`"${m[3]}"`)), clean(m[6] ? JSON.parse(`"${m[6]}"`) : ''), m[4]].join('\t'));
 }
 if (pictures.length < 100) throw new Error(`only ${pictures.length} pictures found`);
 writeFileSync(new URL('native/lumen/assets/wallpapers.tsv', root), pictures.join('\n') + '\n');
 
 const cities = [];
-const text = read('app/src/config/cities.ts');
-for (const m of text.matchAll(/"name":\s*"([^"]+)",\s*"lat":\s*(-?[\d.]+),\s*"lon":\s*(-?[\d.]+)/g)) {
-	if (!cities.some((line) => line.startsWith(m[1] + '\t'))) cities.push([m[1], m[2], m[3]].join('\t'));
+const countries = JSON.parse(read('app/src/config/cities.ts').match(/export const COUNTRIES: Country\[\] = (\[[\s\S]*?\n\]);/)[1]);
+for (const country of countries) {
+	for (const city of country.cities) {
+		if (!cities.some((line) => line.startsWith(city.name + '\t'))) cities.push([city.name, city.lat, city.lon, country.code, clean(country.name)].join('\t'));
+	}
 }
 if (cities.length < 50) throw new Error(`only ${cities.length} cities found`);
 writeFileSync(new URL('native/lumen/assets/cities.tsv', root), cities.join('\n') + '\n');

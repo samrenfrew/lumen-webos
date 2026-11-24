@@ -6,3 +6,11 @@ cc right up ok
 cc-list right up ok ok down
 inputs right up right right ok down
 saver saver
+settings right up right ok
+settings-apps right up right ok ok
+settings-sources right up right ok down ok
+settings-wallpaper right up right ok down down down ok
+settings-picker right up right ok down down down ok down ok down
+settings-region-country right up right ok down down down down down down down down ok down ok
+settings-immich-address right up right ok down down down down down down down ok ok right ok
+settings-system right up right ok down down down down down down down down down down down down ok

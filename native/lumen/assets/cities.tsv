@@ -1,178 +1,178 @@
-Karachi	24.86	67.01
-Lahore	31.56	74.35
-Islamabad	33.72	73.04
-Faisalabad	31.42	73.09
-Rawalpindi	33.6	73.05
-Multan	30.2	71.48
-Peshawar	34.01	71.58
-Quetta	30.18	67.0
-Hyderabad	25.4	68.38
-Mumbai	19.07	72.88
-Delhi	28.65	77.23
-Bengaluru	12.97	77.59
-Hyderabad (IN)	17.38	78.46
-Chennai	13.09	80.28
-Kolkata	22.56	88.36
-Ahmedabad	23.03	72.59
-Surat	21.2	72.83
-Pune	18.52	73.86
-Jaipur	26.92	75.79
-Lucknow	26.84	80.92
-Nagpur	21.15	79.08
-Bardoli	21.12	73.11
-Dubai	25.08	55.31
-Abu Dhabi	24.45	54.4
-Sharjah	25.33	55.41
-Al Ain	24.19	55.76
-Riyadh	24.69	46.72
-Jeddah	21.49	39.19
-Mecca	21.43	39.83
-Medina	24.47	39.61
-Dammam	26.43	50.1
-Doha	25.29	51.53
-Kuwait City	29.37	47.97
-Manama	26.23	50.59
-Muscat	23.58	58.41
-Istanbul	41.01	28.95
-Ankara	39.92	32.85
-Izmir	38.41	27.14
-Bursa	40.2	29.06
-Antalya	36.91	30.7
-Cairo	30.06	31.25
-Alexandria	31.2	29.92
-Giza	30.01	31.21
-Casablanca	33.59	-7.61
-Rabat	34.01	-6.83
-Marrakesh	31.63	-8.0
-Algiers	36.73	3.09
-Oran	35.7	-0.64
-Tunis	36.82	10.17
-Amman	31.96	35.95
-Beirut	33.89	35.5
-Baghdad	33.34	44.4
-Basra	30.51	47.78
-Dhaka	23.71	90.41
-Chittagong	22.34	91.83
-Colombo	6.94	79.85
-Kathmandu	27.7	85.32
-Jakarta	-6.21	106.85
-Surabaya	-7.25	112.75
-Bandung	-6.92	107.61
-Kuala Lumpur	3.14	101.69
-George Town	5.41	100.34
-Singapore	1.29	103.85
-Bangkok	13.75	100.5
-Chiang Mai	18.79	98.98
-Hanoi	21.02	105.84
-Ho Chi Minh City	10.82	106.63
-Manila	14.6	120.98
-Cebu City	10.32	123.89
-Tokyo	35.69	139.69
-Osaka	34.69	135.5
-Kyoto	35.02	135.75
-Nagoya	35.18	136.91
-Sapporo	43.07	141.35
-Seoul	37.57	126.98
-Busan	35.1	129.03
-Beijing	39.91	116.4
-Shanghai	31.22	121.46
-Guangzhou	23.12	113.25
-Shenzhen	22.55	114.07
-Chengdu	30.67	104.07
-Hong Kong	22.28	114.17
-London	51.51	-0.13
-Birmingham	52.48	-1.9
-Manchester	53.48	-2.24
-Glasgow	55.87	-4.26
-Leeds	53.8	-1.55
-Liverpool	53.41	-2.98
-Edinburgh	55.95	-3.2
-Bristol	51.46	-2.6
-Cardiff	51.48	-3.18
-Dublin	53.33	-6.25
-Cork	51.9	-8.47
-Berlin	52.52	13.41
-Hamburg	53.55	9.99
-Munich	48.14	11.58
-Cologne	50.93	6.95
-Frankfurt	50.12	8.68
-Stuttgart	48.78	9.18
-Düsseldorf	51.22	6.78
-Paris	48.85	2.35
-Marseille	43.3	5.38
-Lyon	45.75	4.85
-Toulouse	43.6	1.44
-Nice	43.7	7.27
-Madrid	40.42	-3.7
-Barcelona	41.39	2.16
-Valencia	39.47	-0.38
-Seville	37.38	-5.97
-Lisbon	38.73	-9.15
-Porto	41.15	-8.61
-Rome	41.89	12.51
-Milan	45.46	9.19
-Naples	40.85	14.27
-Turin	45.07	7.69
-Florence	43.78	11.25
-Amsterdam	52.37	4.89
-Rotterdam	51.92	4.48
-The Hague	52.08	4.3
-Utrecht	52.09	5.12
-Brussels	50.85	4.35
-Antwerp	51.22	4.4
-Zurich	47.37	8.55
-Geneva	46.2	6.15
-Basel	47.56	7.57
-Bern	46.95	7.45
-Lausanne	46.52	6.63
-Vienna	48.21	16.37
-Graz	47.07	15.44
-Salzburg	47.8	13.04
-Stockholm	59.33	18.07
-Gothenburg	57.71	11.97
-Oslo	59.91	10.75
-Bergen	60.39	5.32
-Copenhagen	55.68	12.57
-Helsinki	60.17	24.94
-Warsaw	52.23	21.01
-Krakow	50.06	19.94
-Athens	37.98	23.73
-Thessaloniki	40.64	22.93
-Moscow	55.75	37.62
-Saint Petersburg	59.94	30.31
-Tirana	41.33	19.82
-Durres	41.32	19.45
-Pristina	42.67	21.17
-Sarajevo	43.85	18.36
-New York	40.71	-74.01
-Los Angeles	34.05	-118.24
-Chicago	41.85	-87.65
-Houston	29.76	-95.36
-Phoenix	33.45	-112.07
-Philadelphia	39.95	-75.16
-San Francisco	37.77	-122.42
-Seattle	47.61	-122.33
-Miami	25.77	-80.19
-Dallas	32.78	-96.81
-Toronto	43.71	-79.4
-Vancouver	49.25	-123.12
-Montreal	45.51	-73.59
-Calgary	51.05	-114.09
-Mexico City	19.43	-99.13
-Guadalajara	20.68	-103.35
-São Paulo	-23.55	-46.64
-Rio de Janeiro	-22.91	-43.18
-Buenos Aires	-34.61	-58.38
-Bogotá	4.61	-74.08
-Sydney	-33.87	151.21
-Melbourne	-37.81	144.96
-Brisbane	-27.47	153.03
-Perth	-31.95	115.86
-Auckland	-36.85	174.76
-Wellington	-41.29	174.78
-Johannesburg	-26.2	28.04
-Cape Town	-33.93	18.42
-Durban	-29.86	31.03
-Lagos	6.45	3.39
-Abuja	9.06	7.5
-Nairobi	-1.28	36.82
+Karachi	24.86	67.01	PK	Pakistan
+Lahore	31.56	74.35	PK	Pakistan
+Islamabad	33.72	73.04	PK	Pakistan
+Faisalabad	31.42	73.09	PK	Pakistan
+Rawalpindi	33.6	73.05	PK	Pakistan
+Multan	30.2	71.48	PK	Pakistan
+Peshawar	34.01	71.58	PK	Pakistan
+Quetta	30.18	67	PK	Pakistan
+Hyderabad	25.4	68.38	PK	Pakistan
+Mumbai	19.07	72.88	IN	India
+Delhi	28.65	77.23	IN	India
+Bengaluru	12.97	77.59	IN	India
+Hyderabad (IN)	17.38	78.46	IN	India
+Chennai	13.09	80.28	IN	India
+Kolkata	22.56	88.36	IN	India
+Ahmedabad	23.03	72.59	IN	India
+Surat	21.2	72.83	IN	India
+Pune	18.52	73.86	IN	India
+Jaipur	26.92	75.79	IN	India
+Lucknow	26.84	80.92	IN	India
+Nagpur	21.15	79.08	IN	India
+Bardoli	21.12	73.11	IN	India
+Dubai	25.08	55.31	AE	United Arab Emirates
+Abu Dhabi	24.45	54.4	AE	United Arab Emirates
+Sharjah	25.33	55.41	AE	United Arab Emirates
+Al Ain	24.19	55.76	AE	United Arab Emirates
+Riyadh	24.69	46.72	SA	Saudi Arabia
+Jeddah	21.49	39.19	SA	Saudi Arabia
+Mecca	21.43	39.83	SA	Saudi Arabia
+Medina	24.47	39.61	SA	Saudi Arabia
+Dammam	26.43	50.1	SA	Saudi Arabia
+Doha	25.29	51.53	QA	Qatar
+Kuwait City	29.37	47.97	KW	Kuwait
+Manama	26.23	50.59	BH	Bahrain
+Muscat	23.58	58.41	OM	Oman
+Istanbul	41.01	28.95	TR	Turkey
+Ankara	39.92	32.85	TR	Turkey
+Izmir	38.41	27.14	TR	Turkey
+Bursa	40.2	29.06	TR	Turkey
+Antalya	36.91	30.7	TR	Turkey
+Cairo	30.06	31.25	EG	Egypt
+Alexandria	31.2	29.92	EG	Egypt
+Giza	30.01	31.21	EG	Egypt
+Casablanca	33.59	-7.61	MA	Morocco
+Rabat	34.01	-6.83	MA	Morocco
+Marrakesh	31.63	-8	MA	Morocco
+Algiers	36.73	3.09	DZ	Algeria
+Oran	35.7	-0.64	DZ	Algeria
+Tunis	36.82	10.17	TN	Tunisia
+Amman	31.96	35.95	JO	Jordan
+Beirut	33.89	35.5	LB	Lebanon
+Baghdad	33.34	44.4	IQ	Iraq
+Basra	30.51	47.78	IQ	Iraq
+Dhaka	23.71	90.41	BD	Bangladesh
+Chittagong	22.34	91.83	BD	Bangladesh
+Colombo	6.94	79.85	LK	Sri Lanka
+Kathmandu	27.7	85.32	NP	Nepal
+Jakarta	-6.21	106.85	ID	Indonesia
+Surabaya	-7.25	112.75	ID	Indonesia
+Bandung	-6.92	107.61	ID	Indonesia
+Kuala Lumpur	3.14	101.69	MY	Malaysia
+George Town	5.41	100.34	MY	Malaysia
+Singapore	1.29	103.85	SG	Singapore
+Bangkok	13.75	100.5	TH	Thailand
+Chiang Mai	18.79	98.98	TH	Thailand
+Hanoi	21.02	105.84	VN	Vietnam
+Ho Chi Minh City	10.82	106.63	VN	Vietnam
+Manila	14.6	120.98	PH	Philippines
+Cebu City	10.32	123.89	PH	Philippines
+Tokyo	35.69	139.69	JP	Japan
+Osaka	34.69	135.5	JP	Japan
+Kyoto	35.02	135.75	JP	Japan
+Nagoya	35.18	136.91	JP	Japan
+Sapporo	43.07	141.35	JP	Japan
+Seoul	37.57	126.98	KR	South Korea
+Busan	35.1	129.03	KR	South Korea
+Beijing	39.91	116.4	CN	China
+Shanghai	31.22	121.46	CN	China
+Guangzhou	23.12	113.25	CN	China
+Shenzhen	22.55	114.07	CN	China
+Chengdu	30.67	104.07	CN	China
+Hong Kong	22.28	114.17	HK	Hong Kong
+London	51.51	-0.13	GB	United Kingdom
+Birmingham	52.48	-1.9	GB	United Kingdom
+Manchester	53.48	-2.24	GB	United Kingdom
+Glasgow	55.87	-4.26	GB	United Kingdom
+Leeds	53.8	-1.55	GB	United Kingdom
+Liverpool	53.41	-2.98	GB	United Kingdom
+Edinburgh	55.95	-3.2	GB	United Kingdom
+Bristol	51.46	-2.6	GB	United Kingdom
+Cardiff	51.48	-3.18	GB	United Kingdom
+Dublin	53.33	-6.25	IE	Ireland
+Cork	51.9	-8.47	IE	Ireland
+Berlin	52.52	13.41	DE	Germany
+Hamburg	53.55	9.99	DE	Germany
+Munich	48.14	11.58	DE	Germany
+Cologne	50.93	6.95	DE	Germany
+Frankfurt	50.12	8.68	DE	Germany
+Stuttgart	48.78	9.18	DE	Germany
+Düsseldorf	51.22	6.78	DE	Germany
+Paris	48.85	2.35	FR	France
+Marseille	43.3	5.38	FR	France
+Lyon	45.75	4.85	FR	France
+Toulouse	43.6	1.44	FR	France
+Nice	43.7	7.27	FR	France
+Madrid	40.42	-3.7	ES	Spain
+Barcelona	41.39	2.16	ES	Spain
+Valencia	39.47	-0.38	ES	Spain
+Seville	37.38	-5.97	ES	Spain
+Lisbon	38.73	-9.15	PT	Portugal
+Porto	41.15	-8.61	PT	Portugal
+Rome	41.89	12.51	IT	Italy
+Milan	45.46	9.19	IT	Italy
+Naples	40.85	14.27	IT	Italy
+Turin	45.07	7.69	IT	Italy
+Florence	43.78	11.25	IT	Italy
+Amsterdam	52.37	4.89	NL	Netherlands
+Rotterdam	51.92	4.48	NL	Netherlands
+The Hague	52.08	4.3	NL	Netherlands
+Utrecht	52.09	5.12	NL	Netherlands
+Brussels	50.85	4.35	BE	Belgium
+Antwerp	51.22	4.4	BE	Belgium
+Zurich	47.37	8.55	CH	Switzerland
+Geneva	46.2	6.15	CH	Switzerland
+Basel	47.56	7.57	CH	Switzerland
+Bern	46.95	7.45	CH	Switzerland
+Lausanne	46.52	6.63	CH	Switzerland
+Vienna	48.21	16.37	AT	Austria
+Graz	47.07	15.44	AT	Austria
+Salzburg	47.8	13.04	AT	Austria
+Stockholm	59.33	18.07	SE	Sweden
+Gothenburg	57.71	11.97	SE	Sweden
+Oslo	59.91	10.75	NO	Norway
+Bergen	60.39	5.32	NO	Norway
+Copenhagen	55.68	12.57	DK	Denmark
+Helsinki	60.17	24.94	FI	Finland
+Warsaw	52.23	21.01	PL	Poland
+Krakow	50.06	19.94	PL	Poland
+Athens	37.98	23.73	GR	Greece
+Thessaloniki	40.64	22.93	GR	Greece
+Moscow	55.75	37.62	RU	Russia
+Saint Petersburg	59.94	30.31	RU	Russia
+Tirana	41.33	19.82	AL	Albania
+Durres	41.32	19.45	AL	Albania
+Pristina	42.67	21.17	XK	Kosovo
+Sarajevo	43.85	18.36	BA	Bosnia and Herzegovina
+New York	40.71	-74.01	US	United States
+Los Angeles	34.05	-118.24	US	United States
+Chicago	41.85	-87.65	US	United States
+Houston	29.76	-95.36	US	United States
+Phoenix	33.45	-112.07	US	United States
+Philadelphia	39.95	-75.16	US	United States
+San Francisco	37.77	-122.42	US	United States
+Seattle	47.61	-122.33	US	United States
+Miami	25.77	-80.19	US	United States
+Dallas	32.78	-96.81	US	United States
+Toronto	43.71	-79.4	CA	Canada
+Vancouver	49.25	-123.12	CA	Canada
+Montreal	45.51	-73.59	CA	Canada
+Calgary	51.05	-114.09	CA	Canada
+Mexico City	19.43	-99.13	MX	Mexico
+Guadalajara	20.68	-103.35	MX	Mexico
+São Paulo	-23.55	-46.64	BR	Brazil
+Rio de Janeiro	-22.91	-43.18	BR	Brazil
+Buenos Aires	-34.61	-58.38	AR	Argentina
+Bogotá	4.61	-74.08	CO	Colombia
+Sydney	-33.87	151.21	AU	Australia
+Melbourne	-37.81	144.96	AU	Australia
+Brisbane	-27.47	153.03	AU	Australia
+Perth	-31.95	115.86	AU	Australia
+Auckland	-36.85	174.76	NZ	New Zealand
+Wellington	-41.29	174.78	NZ	New Zealand
+Johannesburg	-26.2	28.04	ZA	South Africa
+Cape Town	-33.93	18.42	ZA	South Africa
+Durban	-29.86	31.03	ZA	South Africa
+Lagos	6.45	3.39	NG	Nigeria
+Abuja	9.06	7.5	NG	Nigeria
+Nairobi	-1.28	36.82	KE	Kenya

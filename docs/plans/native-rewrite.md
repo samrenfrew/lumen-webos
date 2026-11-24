@@ -173,6 +173,11 @@ reach the native one, so Settings can be ported late.
    `/var/lib/homehook/logos` into the store's `logos/`. A logo new to both apps is copied unsharpened.
 5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
+   **Built 2026-11-24, not yet on the TV.** `settings_screen.rs` (pages and drawing), `settings_options.rs` (rows and what
+   each writes, tested), `settings_tv.rs` (TV state, inputs, side app releases, Immich), `thumbs.rs` (picker thumbnails), and
+   the new root commands in `root.rs`. Kept pictures `shots/settings*.png`. Gaps, each a `ponytail:` in the code: no Channels
+   page until the Live TV channel list; Home and power-on can be turned off but not pointed at Lumen Native until
+   `home-setup.sh` knows its id; home still shows only picked pictures (no plain, Immich or timed change yet).
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
    the screensaver share the photo picker.
 7. **Ship.** The new ids in the release workflow and the Channel, release notes, the README, `CLAUDE.md` and the `tv` skill
