@@ -1381,6 +1381,7 @@ fn run() -> i32 {
     let per_ms = 1000.0 / unsafe { SDL_GetPerformanceFrequency() } as f64;
     let mut first_frame_shown = false;
     let mut wait_ms = 0;
+    let mut was_moving = false;
 
     while app.running {
         let mut e = SDL_Event { padding: [0; 7] };
@@ -1460,6 +1461,10 @@ fn run() -> i32 {
         if !moving && app.home.move_ended(now) {
             app.redraw = true;
         }
+        if was_moving && !moving {
+            app.redraw = true;
+        }
+        was_moving = moving;
         if app.hidden || (!moving && !app.redraw) {
             wait_ms = if app.boot_written { until_next_minute } else { until_next_minute.min(1000) };
             if let Some(hold) = hold_wait {

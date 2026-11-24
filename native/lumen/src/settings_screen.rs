@@ -56,6 +56,7 @@ const GRID_END_ROOM: f32 = 30.0;
 const LIFT: f32 = 1.14;
 const LIFT_RISE: f32 = 7.5;
 const LIFTED: f32 = 1.2;
+const LIFT_ROOM: f32 = 22.0;
 const SHADOW_REST: [f32; 3] = [8.0, 16.0, 0.30];
 const SHADOW_LIFT: [f32; 3] = [26.0, 40.0, 0.46];
 const TILE_WITHOUT_COLOUR: [f32; 3] = [0.16, 0.17, 0.22];
@@ -1659,7 +1660,7 @@ impl SettingsScreen {
         }
         let offset = self.grid_scroll.at(now);
         let focused = (self.zone == Zone::Content).then_some(self.grid_index);
-        clip(d, 0.0, CONTENT_TOP, DESIGN_W, GRID_VIEW_H + 2.0 * GRID_PAD);
+        clip(d, 0.0, CONTENT_TOP - LIFT_ROOM, DESIGN_W, GRID_VIEW_H + 2.0 * GRID_PAD + LIFT_ROOM);
         let lifted = self.held.as_ref().map(|h| h.index);
         let order: Vec<usize> = (0..items.len()).filter(|i| Some(*i) != focused && Some(*i) != lifted).chain(focused).chain(lifted.filter(|l| Some(*l) != focused)).collect();
         for i in order {
