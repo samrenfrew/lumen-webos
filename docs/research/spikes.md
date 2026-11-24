@@ -347,3 +347,53 @@ The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 m
 - Wake-on-LAN resumes the TV from Suspend straight into Live TV. LG Home never opens, so a wake rule that only replaced LG Home did nothing. `watch.sh` now opens Lumen over whatever is in front after any wake.
 - Remote power-on with LG's "Home on power-on" (`general` / `homeAutoLaunch`) `"on"`: LG Home holds the screen for about 7 s, whatever is launched over it (about 9 s to Lumen). With it `"off"` (set 2026-10-24), nothing opens first and Lumen is in front about 5 s after the wake.
 - `luna-send` over SSH prints nothing without `ssh -tt`, unless its stdin is redirected (`</dev/null`). It looks like a dead bus but is not.
+
+## Rust (2026-11-24)
+Spike 1 of `docs/plans/native-rewrite.md`: the home screen test app's scene (`native/home/`, C) written again in Rust, as an app of
+its own, `native/rtest/` (`com.samrenfrew.lumen.rtest`, "Lumen Rust Test"). Same shaders, same keys, same readout, and it reads the
+same `/tmp/ntest-tune` and `/tmp/ntest-bench`, so the two can be compared move for move. Its log is `/tmp/lumen-rtest-<uid>/log`.
+
+On the NUC (done):
+- **It builds in a container.** `sh tools/build_rust_test.sh` makes the package, `npm run deploy:rtest` installs it. Rust 1.100.0
+  (pinned in `native/rtest/rust-toolchain.toml`), target `armv7-unknown-linux-gnueabi`, linked with the webOS SDK's gcc against
+  the SDK's libraries. The image (`native/rtest/Dockerfile`) is Debian bookworm with rustup, built once.
+- **It draws the same picture.** `sh native/rtest/host-shot.sh` and `sh native/home/host-shot.sh` drew five scenes each with
+  software graphics (bar, bar with another tile and Blur only, both grid rows, No blur, and mid slide). All five pairs match in
+  every pixel.
+- **No Rust libraries.** SDL, SDL_image, SDL_ttf and OpenGL ES are called through declarations written by hand in `src/ffi.rs`
+  (82 functions). The one build-time library is `cc`, which compiles the C that is linked in.
+- **C links in.** `src/webos_shell.c` (the Back key claim, which needs Wayland header macros) is the C test app's code unchanged,
+  compiled by `build.rs` and called from Rust. That is the route for `picker.c`, `weather.c` and `compose.c`.
+- **LG's SDL is not stock SDL.** Its key event has an extra field (`inputSource`) before the key, so a key event declared from
+  SDL's public headers reads the wrong bytes on the TV. `src/abi_check.c` is compiled with the real headers on every build and
+  fails the build if a size, offset or constant in `ffi.rs` differs. It caught this one. Any Rust SDL library from crates.io
+  would need the same care, which is a reason to keep our own declarations.
+- **The SDK's C library is older than Rust needs.** The SDK links against glibc 2.12 so apps run on every webOS; Rust's standard
+  library needs 2.17. Only one function was missing, `getauxval`, and `src/getauxval_missing_from_sdk_libc.c` supplies it.
+- **Float maths needs a flag that Rust is retiring.** The TV's calling convention passes floats in ordinary registers (softfp).
+  Rust's matching target also does all float maths in software. `build.sh` turns the chip's float unit on with
+  `-C target-feature=+vfp3,+neon,-soft-float`, which works on 1.100.0 but prints "will become a hard error in a future
+  release" (rust-lang/rust issue 162235). `LUMEN_RUSTFLAGS=` builds without it. If the flag goes, the choices are a pinned
+  Rust, a nightly Rust with its own target file, or software float maths (the heavy maths is on the graphics chip anyway).
+- **Size.** The program is 413 kB against the C one's 40 kB. Most of it is Rust's standard library.
+- **Tests.** `cargo test` runs four on the NUC (the easing curves, an animation turned round mid way, the tuning file, log dates).
+
+On the TV (2026-11-24, installed with `npm run deploy:rtest`, both apps with the same `/tmp/ntest-tune`):
+- **It starts and draws.** The shaders compile and the scene is on screen (`NL_VSC` visible, `rtest` in front).
+- **Frame times are the same.** The timing test (`/tmp/ntest-bench`), draw time per frame, Rust against the C app's run of 11:13
+  the same day: all at rest 10.1 ms against 10.2, mid slide 11.8 against 12.3, down in the grid 9.7 against 9.5, wallpaper only
+  6.2 against 6.2, at rest held to the screen's beat 12.2 against 12.2, and 20.0 ms a frame in both.
+- **Memory is the same.** Its own memory 13.6 to 13.8 MB against 13.7 (peak 33.2 against 33.1). Graphics memory 63.1 to 66.1 MB
+  against 63.1 to 63.4 (`MemoryUsageAllocGPUMemUMA` in the driver's `process_stats`), three launches each.
+- **Start time is the same to within what three launches can show.** The window opened 136 to 202 ms after start against 130 to
+  164. The first frame was ready at 1253, 1263 and 1442 ms against 1145, 1150 and 1330 (both now include about 0.4 s spent
+  measuring the screen's refresh). Rust was about 0.1 s later each time; not looked into.
+- A C run started 4 s after the Rust app closed was slow and odd (blur 1145 ms, a frame every 40.8 ms) and is left out. With 6 s
+  between runs both behaved.
+- **Keys work, and every frame shows.** Sam pressed Left, Right, Down, Up and OK (12:29): 30 moves logged, none with a late
+  frame, slowest frame 25 ms, draw 10.5 to 13.2 ms a frame. OK changed the glass. So the key event fix is right on the TV.
+- **Back closes it.** The TV sends Back as scancode 482 with key code 0, which neither test app took as Back, so the C app never
+  closed on Back either. Both now close on scancode 482. Seen by Sam on the Rust app (12:33); the C app is fixed in source but
+  not reinstalled.
+
+In CI (not run yet): this fork's workflows only run on `main`, so the Rust build has not run on a GitHub runner.
