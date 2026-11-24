@@ -93,9 +93,9 @@ const LIVE_BELOW: f32 = 150.0;
 const LIVE_INFO_GAP: f32 = 36.0;
 const LIVE_INFO_W: f32 = livetv::LIVE_INFO_W;
 const GUIDE_GLYPH: &str = "M3.5 5.5h17v13h-17zM3.5 9.5h17M9 9.5v9";
-const BAR_PLATE: Plate = Plate { h: 6.0, radius: 3.0, fill: [1.0, 1.0, 1.0, 0.22], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
+const BAR_PLATE: Plate = Plate { h: 6.0, radius: 3.0, fill: [1.0, 1.0, 1.0, 0.22], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
 const BAR_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..BAR_PLATE };
-const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
+const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
 const METER_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..METER };
 
 const TIME_SHADOW: [Shadow; 1] = [Shadow { drop: 4, blur: 24, strength: 0.28 }];

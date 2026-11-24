@@ -61,6 +61,7 @@ look! {
     tint = 0.3, 0.0, 1.0;
     finish = 0.0, 0.0, 1.0;
     glass_shadow = 0.1, 0.0, 1.0;
+    guide_glass = 1.0, 0.0, 4.0;
     cc_close_ms = 280.0, 1.0, 2000.0;
     cc_close_to = 0.25, 0.0, 1.0;
     cc_close_fade = 0.3, 0.0, 1.0;
