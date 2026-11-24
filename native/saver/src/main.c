@@ -6,56 +6,41 @@
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include <wayland-webos-shell-client-protocol.h>
-#include <dirent.h>
-#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <sys/stat.h>
+#include <unistd.h>
+#include "http.h"
+#include "picker.h"
+#include "util.h"
 
-#define LOG_PATH "/tmp/nsaver.log"
-#define LUMEN_PHOTO_DIR "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/wallpapers"
 #define CLOCK_FONT "/usr/share/fonts/LG_Smart_UI-Light.ttf"
-#define MAX_PHOTOS 64
-
 #define TUNING_PATH "/tmp/nsaver-tune"
 
-enum { FADE_IN_MS = 600, FADE_OUT_MS = 500, PRELOAD_MS = 2000, SLOW_FRAME_MS = 20, IDLE_WAIT_MS = 250 };
+enum {
+    FADE_IN_MS = 600, FADE_OUT_MS = 500, SHOW_ANYWAY_MS = 8000, SLOW_FRAME_MS = 20, IDLE_WAIT_MS = 250,
+    PAIR_WIDTH = 956
+};
 
-static Uint32 crossfade_ms = 1600;
-static Uint32 photo_ms = 8000;
-
+static Uint32 crossfade_ms = 2400;
+static Uint32 photo_ms;
 static Uint32 started_at;
 static struct wl_webos_shell *webos_shell;
+static volatile int quitting;
 
-static void note(const char *fmt, ...) {
-    FILE *f = fopen(LOG_PATH, "a");
-    if (!f) return;
-    fchmod(fileno(f), 0666);
-    char stamp[32];
-    time_t now = time(NULL);
-    strftime(stamp, sizeof stamp, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
-    fprintf(f, "%s nsaver ", stamp);
-    va_list ap;
-    va_start(ap, fmt);
-    vfprintf(f, fmt, ap);
-    va_end(ap);
-    fputc('\n', f);
-    fclose(f);
-}
+typedef struct {
+    int count;
+    SDL_Texture *tex[2];
+    float x[2], y[2];
+} Shown;
 
-static long status_kb(const char *field) {
-    FILE *f = fopen("/proc/self/status", "r");
-    if (!f) return -1;
-    char line[128];
-    long kb = -1;
-    size_t n = strlen(field);
-    while (fgets(line, sizeof line, f))
-        if (!strncmp(line, field, n)) { kb = strtol(line + n + 1, NULL, 10); break; }
-    fclose(f);
-    return kb;
-}
+static struct {
+    SDL_mutex *lock;
+    SDL_cond *emptied;
+    Picture pic;
+    int full;
+} slot;
 
 static void shell_global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t version) {
     (void)data; (void)version;
@@ -89,48 +74,6 @@ static void claim_window(SDL_Window *window, const char *window_type) {
     note("window: %s", window_type);
 }
 
-static int is_photo(const char *name) {
-    size_t n = strlen(name);
-    return n > 4 && !strcmp(name + n - 4, ".jpg") && !strstr(name, "-bg.");
-}
-
-static int list_photos(const char *dir, char paths[][256]) {
-    DIR *d = opendir(dir);
-    if (!d) return 0;
-    int count = 0;
-    struct dirent *e;
-    while ((e = readdir(d)) && count < MAX_PHOTOS)
-        if (is_photo(e->d_name))
-            snprintf(paths[count++], 256, "%s/%s", dir, e->d_name);
-    closedir(d);
-    return count;
-}
-
-static SDL_Texture *load_photo(SDL_Renderer *r, const char *path) {
-    Uint32 t0 = SDL_GetTicks();
-    SDL_Surface *s = IMG_Load(path);
-    if (!s) { note("photo: %s did not load: %s", path, IMG_GetError()); return NULL; }
-    Uint32 t1 = SDL_GetTicks();
-    SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
-    SDL_FreeSurface(s);
-    note("photo: %s decoded in %u ms, uploaded in %u ms", strrchr(path, '/') + 1, t1 - t0, SDL_GetTicks() - t1);
-    return t;
-}
-
-static SDL_Texture *render_clock(SDL_Renderer *r, TTF_Font *font, int *w, int *h) {
-    char text[8];
-    time_t now = time(NULL);
-    strftime(text, sizeof text, "%H:%M", localtime(&now));
-    SDL_Color white = {255, 255, 255, 255};
-    SDL_Surface *s = TTF_RenderUTF8_Blended(font, text, white);
-    if (!s) return NULL;
-    SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
-    *w = s->w;
-    *h = s->h;
-    SDL_FreeSurface(s);
-    return t;
-}
-
 static void read_tuning(void) {
     FILE *f = fopen(TUNING_PATH, "r");
     if (!f) return;
@@ -161,26 +104,126 @@ static void end_tv_screensaver(void) {
     note("turnOnScreen: %d", rc);
 }
 
-static float ease(float x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
+static int fetcher(void *unused) {
+    (void)unused;
+    int failures = 0;
+    while (!quitting) {
+        SDL_LockMutex(slot.lock);
+        while (slot.full && !quitting) SDL_CondWait(slot.emptied, slot.lock);
+        SDL_UnlockMutex(slot.lock);
+        if (quitting) break;
+        Picture pic;
+        if (!picker_next(&pic)) {
+            failures++;
+            for (int i = 0; i < (failures > 5 ? 300 : 50) && !quitting; i++) SDL_Delay(100);
+            continue;
+        }
+        failures = 0;
+        SDL_LockMutex(slot.lock);
+        slot.pic = pic;
+        slot.full = 1;
+        SDL_UnlockMutex(slot.lock);
+    }
+    return 0;
+}
 
-static void draw_cover(SDL_Renderer *r, SDL_Texture *t, int sw, int sh, float alpha, SDL_BlendMode mode) {
-    if (!t || alpha <= 0) return;
+static int take_from_slot(SDL_Renderer *r, Shown *out) {
+    if (SDL_TryLockMutex(slot.lock) != 0) return 0;
+    if (!slot.full) { SDL_UnlockMutex(slot.lock); return 0; }
+    Picture pic = slot.pic;
+    picker_shown(&pic);
+    slot.full = 0;
+    SDL_CondSignal(slot.emptied);
+    SDL_UnlockMutex(slot.lock);
+
+    Uint32 t0 = SDL_GetTicks();
+    memset(out, 0, sizeof *out);
+    out->count = pic.count;
+    for (int i = 0; i < pic.count; i++) {
+        out->tex[i] = SDL_CreateTextureFromSurface(r, pic.img[i]);
+        out->x[i] = pic.x[i];
+        out->y[i] = pic.y[i];
+    }
+    picture_free(&pic);
+    note("upload: %u ms", SDL_GetTicks() - t0);
+    return out->count > 0 && out->tex[0];
+}
+
+static void shown_free(Shown *s) {
+    for (int i = 0; i < 2; i++) if (s->tex[i]) SDL_DestroyTexture(s->tex[i]);
+    memset(s, 0, sizeof *s);
+}
+
+static void draw_texture(SDL_Renderer *r, SDL_Texture *t, SDL_Rect box, int fit_width, float px, float py, float alpha, SDL_BlendMode mode) {
     int tw, th;
     SDL_QueryTexture(t, NULL, NULL, &tw, &th);
-    float scale = (float)sw / tw > (float)sh / th ? (float)sw / tw : (float)sh / th;
-    SDL_Rect dst = {(int)(sw - tw * scale) / 2, (int)(sh - th * scale) / 2, (int)(tw * scale), (int)(th * scale)};
+    float scale = fit_width ? (float)box.w / tw : ((float)box.w / tw > (float)box.h / th ? (float)box.w / tw : (float)box.h / th);
+    int dw = (int)(tw * scale + 0.5f), dh = (int)(th * scale + 0.5f);
+    SDL_Rect dst = {box.x + (int)((box.w - dw) * px), box.y + (int)((box.h - dh) * py), dw, dh};
+    SDL_RenderSetClipRect(r, &box);
     SDL_SetTextureBlendMode(t, mode);
     SDL_SetTextureAlphaMod(t, (Uint8)(alpha * 255));
     SDL_RenderCopy(r, t, NULL, &dst);
+    SDL_RenderSetClipRect(r, NULL);
 }
+
+static void draw_shown(SDL_Renderer *r, const Shown *s, int sw, int sh, float alpha, SDL_BlendMode mode) {
+    if (!s->count || alpha <= 0) return;
+    if (s->count == 1) {
+        draw_texture(r, s->tex[0], (SDL_Rect){0, 0, sw, sh}, 0, s->x[0], s->y[0], alpha, mode);
+        return;
+    }
+    SDL_SetRenderDrawBlendMode(r, mode);
+    SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(alpha * 255));
+    SDL_RenderFillRect(r, NULL);
+    int w = PAIR_WIDTH * sw / 1920;
+    draw_texture(r, s->tex[0], (SDL_Rect){0, 0, w, sh}, 1, 0, s->y[0], alpha, mode);
+    draw_texture(r, s->tex[1], (SDL_Rect){sw - w, 0, w, sh}, 1, 0, s->y[1], alpha, mode);
+}
+
+static SDL_Texture *render_clock(SDL_Renderer *r, TTF_Font *font, int *w, int *h) {
+    char text[8];
+    time_t now = time(NULL);
+    strftime(text, sizeof text, "%H:%M", localtime(&now));
+    SDL_Color white = {255, 255, 255, 255};
+    SDL_Surface *s = TTF_RenderUTF8_Blended(font, text, white);
+    if (!s) return NULL;
+    SDL_Texture *t = SDL_CreateTextureFromSurface(r, s);
+    *w = s->w;
+    *h = s->h;
+    SDL_FreeSurface(s);
+    return t;
+}
+
+static int pick_only(const char *app_dir, int count) {
+    SDL_Init(0);
+    IMG_Init(IMG_INIT_JPG);
+    http_init(&quitting);
+    SaverConfig config;
+    picker_init(app_dir, &config);
+    for (int i = 0; i < count; i++) {
+        Picture pic;
+        if (!picker_next(&pic)) { printf("pick %d: none\n", i); continue; }
+        printf("pick %d: %s, %d photo(s), %dx%d, at %.2f %.2f / %.2f %.2f\n", i, pic.id, pic.count, pic.img[0]->w, pic.img[0]->h, pic.x[0], pic.y[0], pic.x[1], pic.y[1]);
+        picker_shown(&pic);
+        picture_free(&pic);
+    }
+    printf("RSS %ld kB, peak %ld kB, log in %s/log\n", status_kb("VmRSS"), status_kb("VmHWM"), state_dir());
+    return 0;
+}
+
+static float ease(float x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
 
 int main(int argc, char **argv) {
     started_at = SDL_GetTicks();
     setenv("EGL_PLATFORM", "wayland", 0);
     setenv("XDG_RUNTIME_DIR", "/tmp/xdg", 0);
+    util_init();
+    srand((unsigned)time(NULL) ^ (unsigned)getpid());
+    if (argc > 2 && !strcmp(argv[1], "--pick")) return pick_only(argv[2], argc > 3 ? atoi(argv[3]) : 3);
     int in_lg_place = argc > 1 && strstr(argv[1], "com.webos.app.screensaver") != NULL;
     const char *window_type = in_lg_place ? "_WEBOS_WINDOW_TYPE_SCREENSAVER" : "_WEBOS_WINDOW_TYPE_OVERLAY";
-    note("open: args %s", argc > 1 ? argv[1] : "(none)");
+    note("open: %s", in_lg_place ? "in LG's screensaver's place" : "as an overlay");
     if (in_lg_place && lumen_own_saver_up()) {
         note("open: Lumen's own screensaver is up, ending");
         end_tv_screensaver();
@@ -193,8 +236,23 @@ int main(int argc, char **argv) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) { note("SDL_Init: %s", SDL_GetError()); return 1; }
     IMG_Init(IMG_INIT_JPG);
     TTF_Init();
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+    http_init(&quitting);
 
+    char *base = SDL_GetBasePath();
+    char app_dir[256] = ".";
+    if (base) { snprintf(app_dir, sizeof app_dir, "%s", base); SDL_free(base); }
+    size_t n = strlen(app_dir);
+    if (n > 1 && app_dir[n - 1] == '/') app_dir[n - 1] = 0;
+    SaverConfig config;
+    picker_init(app_dir, &config);
+    photo_ms = (Uint32)config.seconds * 1000;
+    read_tuning();
+
+    slot.lock = SDL_CreateMutex();
+    slot.emptied = SDL_CreateCond();
+    SDL_Thread *worker = SDL_CreateThread(fetcher, "fetcher", NULL);
+
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
     SDL_DisplayMode mode = {0};
     if (SDL_GetCurrentDisplayMode(0, &mode) != 0 || !mode.w) { mode.w = 1920; mode.h = 1080; }
     SDL_Window *window = SDL_CreateWindow("Lumen Screensaver", 0, 0, mode.w, mode.h, SDL_WINDOW_FULLSCREEN | SDL_WINDOW_SHOWN);
@@ -202,11 +260,9 @@ int main(int argc, char **argv) {
     claim_window(window, window_type);
     SDL_Renderer *r = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!r) { note("renderer: %s", SDL_GetError()); return 1; }
-    SDL_RendererInfo ri;
-    SDL_GetRendererInfo(r, &ri);
     int sw, sh;
     SDL_GetRendererOutputSize(r, &sw, &sh);
-    note("renderer: %s, %dx%d, %u ms after start", ri.name, sw, sh, SDL_GetTicks() - started_at);
+    note("renderer: %dx%d, %u ms after start", sw, sh, SDL_GetTicks() - started_at);
 
     SDL_BlendMode window_alpha_only = SDL_ComposeCustomBlendMode(
         SDL_BLENDFACTOR_ZERO, SDL_BLENDFACTOR_ONE, SDL_BLENDOPERATION_ADD,
@@ -219,31 +275,15 @@ int main(int argc, char **argv) {
     SDL_RenderClear(r);
     SDL_RenderPresent(r);
 
-    static char photos[MAX_PHOTOS][256];
-    char own_dir[200] = "";
-    char *base = SDL_GetBasePath();
-    if (base) { snprintf(own_dir, sizeof own_dir, "%sphotos", base); SDL_free(base); }
-    const char *photo_dir = own_dir;
-    int count = list_photos(photo_dir, photos);
-    if (!count) { photo_dir = LUMEN_PHOTO_DIR; count = list_photos(photo_dir, photos); }
-    note("photos: %d in %s", count, photo_dir);
-    int next = 0;
-    SDL_Texture *shown = count ? load_photo(r, photos[next++ % count]) : NULL;
-    SDL_Texture *incoming = NULL;
-
     TTF_Font *font = TTF_OpenFont(CLOCK_FONT, 120);
     if (!font) note("font: %s", TTF_GetError());
     int clock_w = 0, clock_h = 0, clock_minute = -1;
     SDL_Texture *clock = NULL;
 
-    Uint32 shown_at = SDL_GetTicks();
-    read_tuning();
-    Uint32 swap_at = shown_at + photo_ms;
-    Uint32 leaving_at = 0;
-    Uint32 last_frame = shown_at;
-    int first_frame_logged = 0, redraw = 1;
+    Shown shown = {0}, incoming = {0};
+    Uint32 shown_at = 0, swap_at = 0, leaving_at = 0, last_frame = 0;
+    int redraw = 1;
     struct { int frames, slow; Uint32 slowest; } fade = {0, 0, 0};
-    note("first photo ready %u ms after start, RSS %ld kB", shown_at - started_at, status_kb("VmRSS"));
 
     for (;;) {
         SDL_Event e;
@@ -252,10 +292,23 @@ int main(int argc, char **argv) {
             if (e.type == SDL_KEYDOWN && !leaving_at) {
                 note("key %d", e.key.keysym.sym);
                 leaving_at = SDL_GetTicks();
+                if (!shown_at) { note("close: key before the first picture"); goto done; }
             }
             if (e.type == SDL_WINDOWEVENT) redraw = 1;
         }
         Uint32 now = SDL_GetTicks();
+
+        if (!shown_at) {
+            if (take_from_slot(r, &shown) || now - started_at >= SHOW_ANYWAY_MS) {
+                shown_at = SDL_GetTicks();
+                swap_at = shown_at + photo_ms;
+                note("first picture %u ms after start%s", shown_at - started_at, shown.count ? "" : " (none ready, on black)");
+            } else {
+                SDL_Delay(20);
+                continue;
+            }
+            now = shown_at;
+        }
 
         time_t wall = time(NULL);
         int minute = localtime(&wall)->tm_min;
@@ -266,21 +319,20 @@ int main(int argc, char **argv) {
             redraw = 1;
         }
 
-        if (!incoming && count > 1 && now + PRELOAD_MS >= swap_at) {
+        if (!incoming.count && !leaving_at && take_from_slot(r, &incoming)) {
             read_tuning();
-            incoming = load_photo(r, photos[next++ % count]);
             now = SDL_GetTicks();
-            if (now > swap_at) swap_at = now;
+            if (!shown.count) swap_at = now;
         }
-        int crossfading = incoming && now >= swap_at;
+        int crossfading = incoming.count && now >= swap_at;
         float cross = crossfading ? ease((float)(now - swap_at) / crossfade_ms) : 0;
         if (crossfading && now >= swap_at + crossfade_ms) {
             note("crossfade: %u ms, %d frames, %d slower than %d ms, slowest %u ms", crossfade_ms, fade.frames, fade.slow, SLOW_FRAME_MS, fade.slowest);
             fade.frames = fade.slow = 0;
             fade.slowest = 0;
-            SDL_DestroyTexture(shown);
+            shown_free(&shown);
             shown = incoming;
-            incoming = NULL;
+            memset(&incoming, 0, sizeof incoming);
             swap_at = now + photo_ms;
             crossfading = 0;
             cross = 0;
@@ -300,28 +352,29 @@ int main(int argc, char **argv) {
         }
         redraw = 0;
 
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
         SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(scene * 255));
         SDL_RenderClear(r);
         if (scene < 1) {
-            draw_cover(r, shown, sw, sh, scene, SDL_BLENDMODE_BLEND);
-            if (crossfading) draw_cover(r, incoming, sw, sh, scene * cross, SDL_BLENDMODE_BLEND);
+            draw_shown(r, &shown, sw, sh, scene, SDL_BLENDMODE_BLEND);
+            if (crossfading) draw_shown(r, &incoming, sw, sh, scene * cross, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawBlendMode(r, window_alpha_only);
             SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(scene * 255));
             SDL_RenderFillRect(r, NULL);
-            SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
         } else {
-            draw_cover(r, shown, sw, sh, 1, SDL_BLENDMODE_NONE);
-            if (crossfading) draw_cover(r, incoming, sw, sh, cross, over_keeping_alpha);
+            draw_shown(r, &shown, sw, sh, 1, SDL_BLENDMODE_NONE);
+            if (crossfading) draw_shown(r, &incoming, sw, sh, cross, over_keeping_alpha);
         }
+        SDL_SetRenderDrawBlendMode(r, SDL_BLENDMODE_NONE);
         if (clock) {
             SDL_Rect dst = {96, sh - 72 - clock_h, clock_w, clock_h};
+            SDL_SetTextureBlendMode(clock, over_keeping_alpha);
             SDL_SetTextureAlphaMod(clock, (Uint8)(scene * 255));
             SDL_RenderCopy(r, clock, NULL, &dst);
         }
         SDL_RenderPresent(r);
 
         Uint32 after = SDL_GetTicks();
-        if (!first_frame_logged) { note("first frame %u ms after start", after - started_at); first_frame_logged = 1; }
         if (crossfading) {
             Uint32 gap = after - last_frame;
             fade.frames++;
@@ -332,10 +385,16 @@ int main(int argc, char **argv) {
     }
 
 done:
+    quitting = 1;
     if (in_lg_place) end_tv_screensaver();
+    SDL_LockMutex(slot.lock);
+    SDL_CondSignal(slot.emptied);
+    SDL_UnlockMutex(slot.lock);
+    SDL_WaitThread(worker, NULL);
+    if (slot.full) picture_free(&slot.pic);
     note("RSS %ld kB, peak %ld kB", status_kb("VmRSS"), status_kb("VmHWM"));
-    if (shown) SDL_DestroyTexture(shown);
-    if (incoming) SDL_DestroyTexture(incoming);
+    shown_free(&shown);
+    shown_free(&incoming);
     if (clock) SDL_DestroyTexture(clock);
     if (font) TTF_CloseFont(font);
     SDL_DestroyRenderer(r);
