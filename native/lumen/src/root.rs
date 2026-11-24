@@ -25,7 +25,12 @@ const BOOT_DIR: &str = "/var/lib/webosbrew/init.d";
 const BOOT_HOOK: &str = "/var/lib/webosbrew/init.d/60-homehook";
 const DEV_APPS: &str = "/media/developer/apps/usr/palm/applications";
 pub const SIDE_APPS: [&str; 3] = ["com.samrenfrew.lumen.guide", "com.samrenfrew.lumen.quick", "com.samrenfrew.lumen.native.saver"];
-const HOME_ACTIONS: [(&str, &str); 2] = [("nativeOff", "native-home off"), ("powerOnOff", "power-on off")];
+const HOME_ACTIONS: [(&str, &str); 4] = [
+    ("nativeOn", "native-home on com.samrenfrew.lumen.native"),
+    ("nativeOff", "native-home off"),
+    ("powerOnOn", "power-on on com.samrenfrew.lumen.native"),
+    ("powerOnOff", "power-on off"),
+];
 const PRIVACY_ACTIONS: [(&str, &str); 12] = [
     ("agreementsOff", "agreements off"),
     ("agreementsRestore", "agreements restore"),
@@ -656,7 +661,8 @@ mod tests {
         assert_eq!(privacy_command("hostsOn").as_deref(), Some("sh /var/lib/homehook/privacy.sh hosts on 2>&1; true"));
         assert_eq!(home_setup_command("nativeOff").as_deref(), Some("sh /var/lib/homehook/home-setup.sh native-home off 2>&1; true"));
         assert_eq!(privacy_command("hosts on; reboot"), None);
-        assert_eq!(home_setup_command("nativeOn"), None);
+        assert_eq!(home_setup_command("nativeOn").as_deref(), Some("sh /var/lib/homehook/home-setup.sh native-home on com.samrenfrew.lumen.native 2>&1; true"));
+        assert_eq!(home_setup_command("native-home on com.samrenfrew.lumen"), None);
     }
 
     #[test]

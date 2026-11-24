@@ -899,8 +899,8 @@ impl SettingsScreen {
             }
             "tv-home" if lumen(&s.home) => "nativeOff",
             "tv-power-on" if lumen(&s.power_on) => "powerOnOff",
-            // ponytail: home-setup.sh points Home and power-on only at the web Lumen's ids, so Lumen Native can turn them off but not on
-            "tv-home" | "tv-power-on" => return Outcome::Toast("Lumen Native cannot be the Home or power-on app yet".into(), true),
+            "tv-home" => "nativeOn",
+            "tv-power-on" => "powerOnOn",
             "privacy-agreements" if s.agreements == Some(0) && !s.backup => return Outcome::Toast("Already withdrawn. LG's own menus can give them again.".into(), false),
             "privacy-agreements" if s.agreements == Some(0) => "agreementsRestore",
             "privacy-agreements" => "agreementsOff",
