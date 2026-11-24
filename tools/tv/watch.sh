@@ -199,13 +199,14 @@ guide_follow() {
 
 # the gear button (139): bound to gear.sh while Lumen Quick Settings is installed, and left to the TV when it is not. gear.sh asks which
 # app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
-# Lumen over the app.) Every other bind is kept; the file is written only when it changes.
+# Lumen over the app.) Home (773) opens the installed Lumen build, and is left to the TV when none is: a bind naming an uninstalled
+# Lumen made Home do nothing. Every other bind is kept; the file is written only when it changes.
 gear_bind() {
   pick_side_apps
   quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
-  python3 - "$KEYBINDS" "$quick" <<'PY' 2>>/tmp/homehook.log
+  python3 - "$KEYBINDS" "$quick" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
 import json, os, sys
-path, gear = sys.argv[1:3]
+path, gear, lumen = sys.argv[1:4]
 try:
     with open(path) as f: binds = json.load(f)
 except Exception:
@@ -215,6 +216,10 @@ if gear:
     want['139'] = {'action': 'exec', 'command': 'sh ' + gear}
 else:
     want.pop('139', None)
+if lumen:
+    want['773'] = {'action': 'launch', 'id': lumen}
+else:
+    want.pop('773', None)
 if want != binds:
     with open(path + '.tmp', 'w') as f: json.dump(want, f)
     os.rename(path + '.tmp', path)

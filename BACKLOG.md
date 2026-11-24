@@ -36,4 +36,4 @@
 - Lumen Native: in the Full guide, the subtitles mark is drawn over the first letters of the programme name ("This is BBC Three").
 - Lumen Native: the first Down into the Live TV row drops frames (23 of 30, one of 159 ms) while the guide loads.
 - Lumen Native: now the frame rate allows it, try tiles that squash together a little as they slide off screen on Up and Down.
-- TV scripts: the Home key bind (773) in keybinds.json still launches the uninstalled web Lumen, `com.samrenfrew.lumen`. Point it at Lumen Native or drop it.
+- TV scripts: the web Quick Settings, `com.samrenfrew.lumen.quick`, is still installed and running beside Lumen Native's, holding memory. Uninstall it.
