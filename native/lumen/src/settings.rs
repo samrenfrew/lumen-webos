@@ -71,7 +71,7 @@ impl Settings {
             wallpaper_picks: Vec::new(),
             new_wallpaper_on_launch: true,
             reduce_motion: false,
-            liquid_glass: false,
+            liquid_glass: true,
             show_weather: true,
             home_forecast: Forecast::Off,
             weather_city: String::new(),
@@ -124,7 +124,7 @@ impl Settings {
             wallpaper_picks: strings(&saved["wallpaperPicks"]).unwrap_or(defaults.wallpaper_picks),
             new_wallpaper_on_launch: saved["wpNewOnLaunch"].as_bool() != Some(false),
             reduce_motion: saved["reduceMotion"].as_bool() == Some(true),
-            liquid_glass: saved["liquidGlass"].as_bool() == Some(true),
+            liquid_glass: saved["liquidGlass"].as_bool() != Some(false),
             show_weather: saved["showWeather"].as_bool() != Some(false),
             home_forecast: match (saved["homeForecast"].as_bool(), saved["homeForecastSize"].as_str()) {
                 (Some(true), Some("large")) => Forecast::Large,

@@ -77,6 +77,17 @@ look! {
     glow = 0.5, 0.0, 8.0;
     side_width = 1.0, 0.2, 2.0;
     side_bend = 1.0, 0.0, 1.0;
+    peel_down_ms = 60.0, 0.0, 400.0;
+    peel_up_ms = 35.0, 0.0, 400.0;
+    peel_catch = 0.7, 0.0, 1.0;
+    peel_down_x1 = 0.6, 0.0, 1.0;
+    peel_down_y1 = 0.0, -2.0, 3.0;
+    peel_down_x2 = 0.25, 0.0, 1.0;
+    peel_down_y2 = 1.12, -2.0, 3.0;
+    peel_up_x1 = 0.65, 0.0, 1.0;
+    peel_up_y1 = 0.0, -2.0, 3.0;
+    peel_up_x2 = 0.25, 0.0, 1.0;
+    peel_up_y2 = 1.0, -2.0, 3.0;
 }
 
 impl Look {

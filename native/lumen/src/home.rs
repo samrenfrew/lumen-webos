@@ -255,6 +255,7 @@ pub struct Home {
     shift: Anim,
     veil_fade: Anim,
     drop: Anim,
+    rows_at: Vec<Anim>,
     shine_x: Anim,
     shine_alpha: Anim,
     status_alpha: Anim,
@@ -483,6 +484,7 @@ impl Home {
             shift: Anim::still(0.0),
             veil_fade: Anim::still(0.0),
             drop: Anim::still(0.0),
+            rows_at: Vec::new(),
             shine_x: Anim::still(tile_centre(0)),
             shine_alpha: Anim::still(0.0),
             status_alpha: Anim::still(1.0),
@@ -662,6 +664,32 @@ impl Home {
         Some((shown.id.clone(), [x, y, w, h]))
     }
 
+    fn row_target(&self) -> f32 {
+        -self.shift.target() + self.drop.target() * GRID_DROP
+    }
+
+    fn place_rows(&mut self) {
+        let target = self.row_target();
+        self.rows_at = vec![Anim::still(target); self.row_count() + 1];
+    }
+
+    fn peel_rows(&mut self, ms: f32, delay: f32, catch_up: f32, curve: &crate::anim::Curve, now: u32) {
+        let target = self.row_target();
+        self.rows_at.resize(self.row_count() + 1, Anim::still(target));
+        for (row, at) in self.rows_at.iter_mut().enumerate().skip(1) {
+            let wait = delay * row as f32;
+            at.go_after(wait, target, (ms - wait * catch_up).max(ms * 0.3), curve, now);
+        }
+    }
+
+    fn row_offset(&self, row: usize, now: u32) -> f32 {
+        let shift = self.shift.at(now);
+        if row == 0 {
+            return -shift;
+        }
+        self.rows_at.get(row).map_or(-shift + self.drop.at(now) * GRID_DROP, |at| at.at(now))
+    }
+
     fn live_top(&self) -> f32 {
         row_top(self.row_count()) + LIVE_TITLE_H
     }
@@ -690,6 +718,7 @@ impl Home {
         self.live_offset.set(live_offset(self.live_at, self.live.len(), self.live_slot));
         self.veil_fade.set(slid);
         self.drop.set(slid);
+        self.place_rows();
         self.shine_x.set(tile_centre(col));
         self.shine_alpha.set(if shown && row == 0 { 1.0 } else { 0.0 });
         self.status_alpha.set(1.0 - slid);
@@ -739,10 +768,15 @@ impl Home {
         if lower != was_lower {
             self.shift.go(shift, self.ms(if lower { look.down_ms } else { look.up_ms }), &if lower { [look.down_x1, look.down_y1, look.down_x2, look.down_y2] } else { [look.up_x1, look.up_y1, look.up_x2, look.up_y2] }, now);
             self.veil_fade.go(slid, self.ms(if lower { look.veil_down_ms } else { look.veil_up_ms }), &EASE_VEIL, now);
-            self.drop.go(slid, self.ms(200.0), &EASE_OUT, now);
+            let dock_ms = self.ms(if lower { look.down_ms } else { look.up_ms });
+            self.drop.go(slid, dock_ms, &if lower { [look.down_x1, look.down_y1, look.down_x2, look.down_y2] } else { [look.up_x1, look.up_y1, look.up_x2, look.up_y2] }, now);
+            let delay = self.ms(if lower { look.peel_down_ms } else { look.peel_up_ms });
+            let curve = if lower { [look.peel_down_x1, look.peel_down_y1, look.peel_down_x2, look.peel_down_y2] } else { [look.peel_up_x1, look.peel_up_y1, look.peel_up_x2, look.peel_up_y2] };
+            self.peel_rows(dock_ms, delay, look.peel_catch, &curve, now);
             self.status_alpha.go_after(self.ms(if lower { look.hide_top_wait_ms } else { look.show_top_wait_ms }), 1.0 - slid, self.ms(look.fade_ms), &EASE, now);
         } else if shift != was_shift {
             self.shift.go(shift, self.ms(look.scroll_ms), &EASE_SCROLL, now);
+            self.peel_rows(self.ms(look.scroll_ms), 0.0, 0.0, &EASE_SCROLL, now);
         }
         self.panel_alpha.go(if matches!(self.zone, Zone::Menu | Zone::Folder) { 1.0 } else { 0.0 }, self.ms(200.0), &EASE_OUT, now);
     }
@@ -1018,11 +1052,9 @@ impl Home {
                 }
             }
         }
-        let shift = self.shift.at(now);
-        let grid_drop = self.drop.at(now) * GRID_DROP;
         (0..self.tiles.len()).find_map(|at| {
             let (row, col) = self.place_of(at);
-            let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+            let top = row_top(row) + self.row_offset(row, now);
             let left = tile_left(col) - TILE_GAP / 2.0;
             (x >= left && x < left + TILE_W + TILE_GAP && y >= top - 20.0 && y < top + TILE_H + 20.0).then_some((Zone::Rows, at))
         })
@@ -1102,6 +1134,7 @@ impl Home {
     pub fn moving(&self, now: u32) -> bool {
         let anims = [&self.wallpaper_fade, &self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
         anims.iter().any(|a| a.busy(now))
+            || self.rows_at.iter().any(|a| a.busy(now))
             || self.tiles.iter().any(|t| t.focus.busy(now))
             || self.live.iter().any(|l| l.tile.focus.busy(now))
             || self.live_offset.busy(now)
@@ -1280,11 +1313,11 @@ impl Home {
         }
     }
 
-    fn tile_box(&self, at: usize, shift: f32, grid_drop: f32, now: u32) -> (f32, f32, f32, f32, f32) {
+    fn tile_box(&self, at: usize, now: u32) -> (f32, f32, f32, f32, f32) {
         let (row, col) = self.place_of(at);
         let f = self.tile_focus(at, now);
         let left = tile_left(col);
-        let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+        let top = row_top(row) + self.row_offset(row, now);
         let lifting = self.moving.as_ref().is_some_and(|id| *id == self.tiles[at].app.id);
         let scale = if lifting { LIFT_MOVING } else { 1.0 + ((if row > 0 { LIFT_GRID } else { LIFT_BAR }) - 1.0) * f };
         let rise = if lifting { MOVING_RISE } else { LIFT_RISE * f * scale };
@@ -1292,13 +1325,13 @@ impl Home {
         (left + TILE_W / 2.0 - w / 2.0, top + TILE_H / 2.0 - rise - h / 2.0, w, h, f)
     }
 
-    fn draw_tile(&self, d: &Draw, at: usize, resting: Tex, icon: Tex, shift: f32, grid_drop: f32, now: u32) {
+    fn draw_tile(&self, d: &Draw, at: usize, resting: Tex, icon: Tex, now: u32) {
         let tile = &self.tiles[at];
         let (row, col) = self.place_of(at);
         let lifting = self.moving.as_ref().is_some_and(|id| *id == tile.app.id);
-        let (x, y, w, h, f) = self.tile_box(at, shift, grid_drop, now);
+        let (x, y, w, h, f) = self.tile_box(at, now);
         if f <= 0.0 && !lifting {
-            let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+            let top = row_top(row) + self.row_offset(row, now);
             let (rw, rh) = (TILE_W + 2.0 * TILE_MARGIN, TILE_H + 2.0 * TILE_MARGIN);
             return d.picture(resting, tile_left(col) - TILE_MARGIN, top - TILE_MARGIN, rw, rh, 1.0);
         }
@@ -1357,7 +1390,7 @@ impl Home {
         }
     }
 
-    fn draw_labels(&mut self, d: &mut Draw, row: usize, shift: f32, grid_drop: f32, now: u32) {
+    fn draw_labels(&mut self, d: &mut Draw, row: usize, now: u32) {
         if self.hide_names {
             return;
         }
@@ -1370,7 +1403,7 @@ impl Home {
                 continue;
             }
             let (row, col) = self.place_of(at);
-            let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+            let top = row_top(row) + self.row_offset(row, now);
             let baseline = top + if row == 0 { BAR_LABEL_BELOW } else { GRID_LABEL_BELOW - GRID_LABEL_RISE * f };
             let title = self.tiles[at].app.title.clone();
             if let Some(text) = d.text(&title, &TILE_LABEL) {
@@ -1657,14 +1690,13 @@ impl Home {
         d.pictures.next_frame();
         let shift = self.shift.at(now);
         let veiled = self.veil_fade.at(now);
-        let grid_drop = self.drop.at(now) * GRID_DROP;
         let status_alpha = self.status_alpha.at(now);
         let panel_alpha = self.panel_alpha.at(now);
 
         let mut pictures: Vec<Option<(Tex, Tex)>> = Vec::with_capacity(self.tiles.len());
         for at in 0..self.tiles.len() {
             let row = self.place_of(at).0;
-            let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+            let top = row_top(row) + self.row_offset(row, now);
             let seen = top - 80.0 <= DESIGN_H && top + TILE_H + 80.0 >= 0.0;
             pictures.push(if seen {
                 let tile = &mut self.tiles[at];
@@ -1674,7 +1706,7 @@ impl Home {
                 None
             });
         }
-        if self.live_top() - shift + grid_drop - LIVE_TITLE_H <= DESIGN_H {
+        if self.live_top() + self.row_offset(self.row_count(), now) - LIVE_TITLE_H <= DESIGN_H {
             let offset = self.live_offset.at(now);
             for (_, live) in self.live.iter_mut().enumerate().filter(|(at, l)| l.shown.id != GUIDE_TILE && live_in_view(*at, offset)) {
                 let icon = Self::channel_icon(d, &live.tile);
@@ -1721,7 +1753,7 @@ impl Home {
         }
         let focus_row = self.place_of(self.focus).0;
         let lifted = self.moving.as_ref().and_then(|id| self.tiles.iter().position(|t| &t.app.id == id));
-        self.draw_live(d, shift, grid_drop, now);
+        self.draw_live(d, now);
         let rows = self.row_count();
         for row in (0..rows).rev() {
             if row == 0 && self.sharp.tex != 0 {
@@ -1732,11 +1764,11 @@ impl Home {
             let last = if lifted.is_some_and(|at| self.place_of(at).0 == row) { lifted } else { (row == focus_row).then_some(self.focus) };
             for at in (0..self.tiles.len()).filter(in_row).filter(|&at| Some(at) != last).chain(last) {
                 if let Some(Some((resting, icon))) = pictures.get(at) {
-                    self.draw_tile(d, at, *resting, *icon, shift, grid_drop, now);
+                    self.draw_tile(d, at, *resting, *icon, now);
                 }
             }
             if !in_lab {
-                self.draw_labels(d, row, shift, grid_drop, now);
+                self.draw_labels(d, row, now);
             }
         }
 
@@ -1798,11 +1830,11 @@ impl Home {
         picture
     }
 
-    fn draw_live(&mut self, d: &mut Draw, shift: f32, grid_drop: f32, now: u32) {
+    fn draw_live(&mut self, d: &mut Draw, now: u32) {
         if self.live.is_empty() {
             return;
         }
-        let top = self.live_top() - shift + grid_drop;
+        let top = self.live_top() + self.row_offset(self.row_count(), now);
         if top - LIVE_TITLE_H > DESIGN_H {
             return;
         }

@@ -274,7 +274,7 @@ pub fn options(config: &Value, facts: &Facts) -> Vec<Opt> {
     }
 
     r.switch("reduce-motion", Group::Appearance, "Reduce motion", "Focus, rows and panels change at once, without sliding, fading or zooming.", "reduceMotion", false);
-    r.switch("liquid-glass", Group::Appearance, "Liquid glass", "The glass bends the picture behind it at its edges, with a faint colour fringe, on the app bar and every glass button.", "liquidGlass", false);
+    r.switch("liquid-glass", Group::Appearance, "Liquid glass", "The glass bends the picture behind it at its edges, with a faint colour fringe, on the app bar and every glass button.", "liquidGlass", true);
     if facts.dev {
         r.action("glass-lab", Group::Appearance, "Glass lab", "Opens the home screen with sliders for every part of the glass, to try them on the wallpaper. Back leaves it. What you set stays.".into(), "Open".into());
     }
@@ -411,7 +411,7 @@ pub fn switched(id: &str, config: &Value) -> Option<Vec<(String, Value)>> {
         "show-weather" => ("showWeather", true),
         "wp-new" => ("wpNewOnLaunch", true),
         "reduce-motion" => ("reduceMotion", false),
-        "liquid-glass" => ("liquidGlass", false),
+        "liquid-glass" => ("liquidGlass", true),
         "show-ampm" => ("showAmPm", true),
         "show-all-apps" => ("showAllApps", false),
         _ => return None,

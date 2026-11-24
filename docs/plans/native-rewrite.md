@@ -48,6 +48,12 @@ Left out:
   `bezel` 27, `bend` 36, `rim_light` 0.5, `colour_rims` 0.35, `button_colour_rims` 0.1, `glow` 0.5. Added after:
   `side_width` and `side_bend`, which make the band of bend on the left and right edges narrower or weaker than on the top and
   bottom, blending round the corners, so a pill reads more like a drop of water than an even ring. **(verify)** their look.
+  Liquid glass is on by default from 2026-11-24 (Sam).
+- **Down and Up peel the rows (2026-11-24, (verify)).** The gap under the app bar now grows and shrinks over the same time and curve
+  as the slide, not in 200 ms ahead of it. Each row below the bar also slides on its own, starting `peel_down_ms` (60) later than
+  the row above on Down and `peel_up_ms` (35) on Up, and catches up by `peel_catch` (0.7 of its delay), so later rows move faster.
+  On Down the rows use `peel_down_*`, a curve that overshoots a little (y2 1.12) so each row snaps up; on Up they use `peel_up_*`,
+  with no overshoot, so each row closes onto the one below. All tunable live with `nctl.mjs set`.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.
