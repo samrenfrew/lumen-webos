@@ -48,6 +48,8 @@ const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const FOCUS_INK: [f32; 3] = [0.067, 0.067, 0.067];
 const LIST: &str = "M8.5 6.5h12M8.5 12h12M8.5 17.5h12M4 6.5h.01M4 12h.01M4 17.5h.01";
 const NEXT: &str = "M4 12h15M13.5 6.5 19 12l-5.5 5.5";
+const STARTED_EARLIER: &str = "M15 5.5 8.5 12l6.5 6.5";
+const STARTED_EARLIER_W: f32 = 20.0;
 const GRID: &str = "M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z";
 
 const ROW: Plate = Plate { h: ROW_H, radius: 30.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0 };
@@ -753,9 +755,14 @@ impl Guide {
                 d.plate(if lit { &CELL_FOCUS } else { &CELL }, FG_LINE + left, y, width, FG_ROW_H, alpha);
                 if width > 60.0 {
                     let ink = if lit { FOCUS_INK } else { WHITE };
-                    let title = if p.start < win { format!("‹ {}", p.title) } else { p.title.clone() };
-                    if let Some(text) = d.text_fit(&title, &style(26, "600", -0.01, ink), width - 36.0) {
-                        text.draw(d, FG_LINE + left + 18.0, y + 32.0, alpha);
+                    let began_earlier = p.start < win;
+                    let indent = if began_earlier { STARTED_EARLIER_W } else { 0.0 };
+                    if began_earlier {
+                        let chevron = d.glyph(STARTED_EARLIER, 20, 2.4);
+                        d.inked_picture(chevron, FG_LINE + left + 14.0, y + 14.0, 20.0, 20.0, [ink[0], ink[1], ink[2], alpha]);
+                    }
+                    if let Some(text) = d.text_fit(&p.title, &style(26, "600", -0.01, ink), width - 36.0 - indent) {
+                        text.draw(d, FG_LINE + left + 18.0 + indent, y + 32.0, alpha);
                     }
                     if let Some(text) = d.text(&clock(p.start), &style(18, "500", 0.0, ink)) {
                         text.draw(d, FG_LINE + left + 18.0, y + 58.0, 0.75 * alpha);

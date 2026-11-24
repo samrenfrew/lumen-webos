@@ -77,7 +77,7 @@ impl Preview {
     }
 
     pub fn loading(&self) -> Option<&str> {
-        let waiting = matches!(self.phase, Phase::Tuning | Phase::Muted) || (self.phase == Phase::Dwelling && self.opening);
+        let waiting = matches!(self.phase, Phase::Dwelling | Phase::Tuning | Phase::Muted);
         self.wanted.as_ref().filter(|_| waiting).map(|w| w.channel.as_str())
     }
 
@@ -349,10 +349,10 @@ mod tests {
     }
 
     #[test]
-    fn the_spinner_shows_from_the_end_of_the_dwell_until_the_picture_shows_and_not_while_flicking_past() {
+    fn the_spinner_shows_from_landing_on_a_channel_until_the_picture_shows() {
         let mut p = Preview::new();
         p.want(bbc([0.0; 4]), 0);
-        assert_eq!(p.loading(), None);
+        assert!(p.loading().is_some());
         p.step(DWELL_MS);
         assert!(p.loading().is_some());
         p.opened(Some("b1".into()));
