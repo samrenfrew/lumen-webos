@@ -14,6 +14,7 @@ use util::status_kb;
 const TUNING_PATH: &str = "/tmp/ntest-tune";
 const BENCH_PATH: &str = "/tmp/ntest-bench";
 const WEBOS_BACK_SCANCODE: c_int = 482;
+const STEPS_PATH: &str = "/tmp/rtest-steps";
 
 const ROWS: usize = 3;
 const COLS: usize = 6;
@@ -81,6 +82,8 @@ struct Tune {
     mode: f32,
     hud: f32,
     finish: f32,
+    one_fbo: f32,
+    no_depth: f32,
     wallpaper: String,
 }
 
@@ -105,6 +108,8 @@ impl Tune {
             mode: LIQUID as f32,
             hud: 1.0,
             finish: 1.0,
+            one_fbo: 0.0,
+            no_depth: 0.0,
             wallpaper: String::new(),
         }
     }
@@ -129,6 +134,8 @@ impl Tune {
             "mode" => (&mut self.mode, 0.0, (MODE_NAMES.len() - 1) as f32),
             "hud" => (&mut self.hud, 0.0, 1.0),
             "finish" => (&mut self.finish, 0.0, 1.0),
+            "one_fbo" => (&mut self.one_fbo, 0.0, 1.0),
+            "no_depth" => (&mut self.no_depth, 0.0, 1.0),
             _ => return None,
         })
     }
@@ -323,6 +330,14 @@ fn c_path(path: &str) -> CString {
     CString::new(path).unwrap_or_default()
 }
 
+fn step(name: &str) {
+    if std::path::Path::new(STEPS_PATH).exists() {
+        unsafe { glFinish() }
+        note!("step {}", name);
+        std::thread::sleep(std::time::Duration::from_millis(2500));
+    }
+}
+
 fn tile_centre(col: usize) -> f32 {
     ROWS_EDGE + col as f32 * (TILE_W + TILE_GAP) + TILE_W / 2.0
 }
@@ -511,8 +526,9 @@ impl App {
     fn bake_tiles(&mut self) {
         unsafe { glDisable(GL_BLEND) }
         let (w, h) = (TILE_W + 2.0 * TILE_MARGIN, TILE_H + 2.0 * TILE_MARGIN);
+        let shared = if self.tune.one_fbo != 0.0 { self.gfx.shared_fbo() } else { 0 };
         for i in 0..TILES {
-            self.tiles[i].resting = self.gfx.target(w as i32, h as i32);
+            self.tiles[i].resting = if shared != 0 { self.gfx.target_on(shared, w as i32, h as i32) } else { self.gfx.target(w as i32, h as i32) };
             self.gfx.into_plate(&self.tiles[i].resting);
             self.tile_uniforms(&self.tiles[i], TILE_MARGIN, TILE_MARGIN, 1.0, SHADOW_REST, 0.0);
             self.gfx.quad(&self.p.tile, 0.0, 0.0, w, h);
@@ -877,6 +893,10 @@ fn run() -> i32 {
         SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+        if tune.no_depth != 0.0 {
+            SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+            SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 0);
+        }
         #[cfg(feature = "webos")]
         {
             let mut display = SDL_DisplayMode { format: 0, w: 0, h: 0, refresh_rate: 0, driverdata: ptr::null_mut() };
@@ -908,6 +928,7 @@ fn run() -> i32 {
         SDL_GL_SetSwapInterval(1);
         SDL_GL_GetDrawableSize(window, &mut screen_w, &mut screen_h);
     }
+    step("window and context");
     note!("open: {}x{}, {}, {}, {} ms after start", screen_w, screen_h, gl_string(GL_RENDERER), gl_string(GL_VERSION), ticks().wrapping_sub(started_at));
 
     let mut app = App {
@@ -950,12 +971,17 @@ fn run() -> i32 {
         leave_out: 0,
         mv: Move::default(),
     };
+    step("eleven programs");
     if !app.build_backdrops() {
         return 1;
     }
+    step("wallpaper at screen size and its two blurred copies");
     app.load_tiles();
+    step("18 icons");
     app.bake_tiles();
+    step("18 resting tiles");
     app.bake_bar();
+    step("the bar's two pictures");
     app.open_font();
     app.shine_x.set(tile_centre(0));
     app.focus_on(0, 0, ticks(), true);
@@ -966,6 +992,10 @@ fn run() -> i32 {
 
     app.draw_hud_text();
     app.refresh_ms = measured_refresh(window);
+    step("24 frames swapped");
+    app.draw_scene(0);
+    unsafe { SDL_GL_SwapWindow(window) }
+    step("the scene drawn once");
     if std::path::Path::new(BENCH_PATH).exists() {
         app.bench(window);
     }

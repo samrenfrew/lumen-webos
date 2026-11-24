@@ -438,3 +438,50 @@ Spike 3. The jail's view, from the same probe (the app runs as its own user, uid
 - The app can also write into other sideloaded apps' folders, the web Lumen's among them. Nothing should.
 - Launch parameters arrive as the program's second argument, as JSON:
   `{"event":"launch","appId":"…","parameters":{"view":"ambient"},"interfaceVersion":2,…}`.
+
+## 50 or 60 a second (2026-11-24)
+Spike 8. Answer: **the panel runs at the rate of the last video source it showed, and stays there.** `vbe_outputFrameRate` in
+`/proc/lgtv-driver/vbe/vbe-status` is the panel's real rate.
+
+- After Live TV (UK broadcast, 50 a second) it is 50, and it stayed 50 in Lumen, in YouTube's browse screen and in the native
+  test app (a frame every 18.5 to 20 ms).
+- After HDMI 1 (the Chromecast, 59.9 a second) it is 60, and it stayed 60 when the native test app opened over it (a frame every
+  15.6 ms measured over 20 swaps) and in Lumen afterwards.
+- So a native app is given the panel's true beat by `SDL_GL_SwapWindow` and must fit both. The 12 ms drawing budget does.
+- **The web page always draws 60 a second**, whatever the panel does: `requestAnimationFrame` came every 16.67 ms (median of
+  120, min 16.6, max 16.8) while the panel was at 50. So with the panel at 50, which is its usual state on this TV, the web
+  Lumen makes six frames for every five the panel shows, and one in six is dropped. `frame-rate.md` assumed 60 throughout.
+  A native Lumen draws one frame per panel frame at either rate.
+- Animations must be timed by the clock, not by counting frames, as the test apps already do.
+
+## The test app's memory (2026-11-24)
+Spike 7. Answer: **of the 62 MB of graphics memory, about 21 MB is pictures. 16 MB is a depth buffer nobody asked for, and
+12 MB is the cost of giving each tile its own drawing target. Without those two it is 33 MB**, inside the 40 MB budget.
+
+Measured with `touch /tmp/rtest-steps`: Lumen Rust Test then stops for 2.5 s after each start-up step (a `step` line in its
+log), while `MemoryUsageAllocGPUMemUMA` for its pid is read from the driver's `process_stats` three times a second.
+
+| After | Graphics memory | Added | The pixels alone |
+|---|---|---|---|
+| The window and context | 1.6 MB | | |
+| Eleven shader programs | 1.6 MB | 0 | |
+| The wallpaper at screen size, and its two blurred copies | 19.0 MB | 17.4 | 10.5 MB |
+| 18 icons, 130x130 | 20.5 MB | 1.5 | 1.2 MB |
+| 18 resting tiles, 296x200, each its own target | 38.3 MB | 17.8 | 4.3 MB |
+| The bar's two pictures, 1890x364 | 44.7 MB | 6.4 | 5.5 MB |
+| 24 empty frames swapped | 45.1 MB | 0.4 | |
+| The scene drawn once to the screen | 61.5 MB | 16.4 | |
+
+The window's own three buffers are counted apart (`MemoryUsageDmaBufImport`): 6.3 MB each, 19 MB once three are in use.
+The program's own memory is 13 MB.
+
+- **The 16.4 MB on the first real frame is a depth and stencil buffer** (`ZSBufferRequestsByApp` goes to 1). SDL asks for a
+  16-bit depth buffer unless told not to. With `SDL_GL_DEPTH_SIZE` and `SDL_GL_STENCIL_SIZE` set to 0 (`no_depth=1` in
+  `/tmp/ntest-tune`) it never appears: 44.9 MB. Lumen draws flat pictures back to front and needs neither.
+- **A drawing target costs about 0.7 MB on top of its pixels.** 18 tile targets cost 13 MB more than their pixels. With one
+  target shared by all 18, each tile's picture attached to it in turn (`one_fbo=1`), the tiles cost 5.8 MB: 49.8 MB in all.
+  (verify) by eye that the tiles look the same drawn this way; the code path is the same but nobody looked.
+- Both together: **33.1 MB**.
+- The wallpaper step is 7 MB over its pixels, not explained. It makes five targets and frees two.
+- Rules for the picture cache: ask for no depth or stencil buffer; pictures are plain textures; one drawing target (or a few)
+  is reused to draw into them; never one target per picture.

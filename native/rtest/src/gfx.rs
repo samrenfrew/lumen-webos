@@ -190,6 +190,21 @@ impl Gfx {
         target
     }
 
+    pub fn shared_fbo(&self) -> GLuint {
+        let mut fbo = 0;
+        unsafe { glGenFramebuffers(1, &mut fbo) }
+        fbo
+    }
+
+    pub fn target_on(&self, shared_fbo: GLuint, w: i32, h: i32) -> Target {
+        let target = Target { fbo: shared_fbo, t: Tex { tex: new_texture(w, h, ptr::null()), w, h } };
+        unsafe {
+            glBindFramebuffer(GL_FRAMEBUFFER, shared_fbo);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, target.t.tex, 0);
+        }
+        target
+    }
+
     pub fn target_free(&self, target: &mut Target) {
         if target.fbo != 0 {
             unsafe { glDeleteFramebuffers(1, &target.fbo) }
