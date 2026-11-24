@@ -167,6 +167,10 @@ reach the native one, so Settings can be ported late.
    button points at it and Sam uses it daily.
 3. **Control Center and Inputs**, in Lumen and as Quick Settings over any app. The brightness schedule.
 4. **Live TV.** The row, Now and Next, the Full guide, typed channel numbers, and the Guide over Live TV.
+   **Data ported 2026-11-24, not yet drawn:** `native/lumen/src/livetv.rs` reads the channels, Now and Next, the guide
+   service and the schedule through root (the app's bus role is public only, so it cannot call `iepg` or `epgdb` itself),
+   keeps the last answer in the store's `livetv.json`, and copies the logos the web Lumen keeps in
+   `/var/lib/homehook/logos` into the store's `logos/`. A logo new to both apps is copied unsharpened.
 5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
