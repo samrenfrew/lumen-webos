@@ -162,7 +162,8 @@ After each start, a dev build writes a "boot" line to `/var/lib/homehook/lumen.l
 | `npm run release` | Builds the public `.ipk` into `release/`, with no `app/private/`. |
 | `npm --prefix app run build:guide` | Builds Lumen Guide (the overlay) into `app/dist-guide/`. |
 | `npm run deploy:guide` | Installs Lumen Guide on the TV over SSH. `npm run deploy:home` also does this, after Lumen. |
-| `npm --prefix app run build:quick`, `build:saver` | Build Lumen Quick Settings and Lumen Screensaver into `app/dist-quick/` and `app/dist-saver/`. |
+| `npm --prefix app run build:quick` | Build Lumen Quick Settings into `app/dist-quick/`. |
+| `sh tools/build_native_saver.sh` | Build Lumen Screensaver, the native app in `native/saver/`, and print its `.ipk` path. Needs the webOS SDK (`~/toolchains/arm-webos-linux-gnueabi_sdk-buildroot`, or `WEBOS_SDK`); runs in `debian:bookworm-slim` when the host's glibc is older than 2.36. |
 | `npm run deploy:quick`, `deploy:saver` | Install them on the TV over SSH. `npm run deploy:home` installs all three side apps after Lumen. |
 | `npm run push-font` | Copies the SF font to `/var/lib/homehook/fonts/` on the TV. Lumen copies it into its own folder after each update. |
 | `python3 tools/build_catalog.py` | Turns `tools/catalog.json` into the cloud wallpaper list. |

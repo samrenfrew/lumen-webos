@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds Lumen Screensaver (the third overlay app, docs/plans/side-apps.md) and installs it on the TV over SSH, the way tools/deploy.sh installs Lumen.
+# Builds Lumen Screensaver (the third overlay app, docs/plans/side-apps.md), now the native one in native/saver/, with tools/build_native_saver.sh
+# (private font included), and installs it on the TV over SSH, the way tools/deploy.sh installs Lumen.
 # It is not launched: watch.sh opens it when the TV's screensaver starts over an app. npm run deploy:saver, or as part of npm run deploy:home.
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -7,13 +8,7 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 [ -n "$LUMEN_TV_HOST" ] || { echo "LUMEN_TV_HOST is not set. Copy .env.example to .env and set it." >&2; exit 1; }
 if [ -n "$LUMEN_SIDE_IF_INSTALLED" ] && ! ssh -o BatchMode=yes -o LogLevel=ERROR "$LUMEN_TV_HOST" 'test -d /media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.saver'; then echo "Lumen Screensaver is off on the TV (Settings > Side apps), so it is left off."; exit 0; fi
 OUT=${LUMEN_BUILD_DIR:-$ROOT/build}
-cd "$ROOT/app"
-[ -d node_modules ] || npm ci --no-audit --no-fund
-LUMEN_DEV=${LUMEN_DEV:-1} npm run build:saver
-mkdir -p "$OUT"
-rm -f "$OUT/com.samrenfrew.lumen.saver_"*.ipk
-npx ares-package dist-saver --no-minify -o "$OUT"
-IPK=$(ls "$OUT/com.samrenfrew.lumen.saver_"*.ipk)
+IPK=$(LUMEN_BUILD_DIR="$OUT" sh "$ROOT/tools/build_native_saver.sh")
 
 REMOTE_IPK="/tmp/$(basename "$IPK")"
 echo "Copying $(basename "$IPK") to $LUMEN_TV_HOST..."

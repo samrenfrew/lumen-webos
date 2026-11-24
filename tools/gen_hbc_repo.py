@@ -2,7 +2,7 @@
 """Writes a Homebrew Channel repository for one or more .ipk files: <out>/apps.json (the index the Channel reads, same format as
 https://repo.webosbrew.org/api/apps.json), and for each app <out>/<id>.manifest.json and <out>/<id>.png. Used by .github/workflows/release.yml.
 Usage: gen_hbc_repo.py <base-url-of-out-dir> <out-dir> <ipk> <ipk-url> <dist-dir> [<ipk> <ipk-url> <dist-dir> ...]
-<dist-dir> is the built app folder the .ipk was packaged from; its appinfo.json and largeIcon.png describe the app."""
+<dist-dir> is the built app folder (native/saver/build/pkg for the native screensaver) the .ipk was packaged from; its appinfo.json and largeIcon.png describe the app."""
 import hashlib, json, os, shutil, sys
 base, out = sys.argv[1:3]
 apps = sys.argv[3:]
@@ -15,7 +15,7 @@ for i in range(0, len(apps), 3):
     app_id = info['id']
     shutil.copy(f'{dist}/largeIcon.png', f'{out}/{app_id}.png')
     manifest = {
-        'id': app_id, 'version': info['version'], 'type': 'web', 'title': info['title'],
+        'id': app_id, 'version': info['version'], 'type': info.get('type', 'web'), 'title': info['title'],
         'appDescription': info.get('appDescription', ''), 'iconUri': f'{base}/{app_id}.png',
         'sourceUrl': 'https://github.com/samrenfrew/lumen-webos', 'rootRequired': True,
         'ipkUrl': ipk_url, 'ipkHash': {'sha256': hashlib.sha256(open(ipk, 'rb').read()).hexdigest()}, 'ipkSize': os.path.getsize(ipk),

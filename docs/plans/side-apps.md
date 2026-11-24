@@ -65,10 +65,11 @@ wallpapers and Immich photos load from the network, as in Lumen.
 
 ### How it is built
 
-- `app/saver.html` and `app/src/saver/main.tsx`, which mount `components/Ambient.tsx` unchanged apart from an `onShown` callback.
-  Styles: `theme/home.css` (the clock), `forecast.css`, `ambient.css`, and `theme/lsaver.css` for the clear page and the fade in.
-- Appinfo in `app/public-saver/`. `npm --prefix app run build:saver` builds it into `app/dist-saver/` (`LUMEN_TARGET=saver`).
-  `npm run deploy:saver` installs it over SSH, and `npm run deploy:home` installs it after the other two.
+- It is the native app in `native/saver/` (`docs/plans/native-saver.md`), under the same id. Appinfo in `native/saver/appinfo.json`
+  (version 1.1.0, above the web app's 1.0.0); the icons come from `app/public-saver/`. `tools/build_native_saver.sh` builds and packages
+  it into an `.ipk` (the webOS SDK in `~/toolchains/`; in `debian:bookworm-slim` when the host's glibc is older than 2.36), with the
+  private font from `app/private/fonts/sf-*.ttf` unless `LUMEN_PRIVATE=0`. `npm run deploy:saver` installs it over SSH, and
+  `npm run deploy:home` installs it after the other two.
 - watch.sh: `SAVER=com.samrenfrew.lumen.saver`. In the photo-screensaver branch, with no Lumen build in front and the app installed, it
   launches the screensaver with `{"from":"<app>"}` (for the log only). While `/tmp/lumen-ambient-on` exists and the screensaver is
   running, LG's screensaver is only ended, as it is while Lumen's own shows.
@@ -118,9 +119,10 @@ Each side app has its own version, and it goes up only when that app changes. Lu
 - Side apps share code with Lumen (Control Center, the guide rows, the screensaver), so a change to shared code can change a side app
   with nobody touching its folder. So the release decides, not a person:
   - `tools/build_release.py` builds each side app and takes a SHA-256 of its built files (every file's path and bytes, with the
-    `version` taken out of `appinfo.json`).
+    `version` taken out of `appinfo.json`). For the native screensaver the hash covers its source files, icons and `appinfo.json`
+    instead, and the version is passed to the build (`LUMEN_SAVER_VERSION`).
   - It compares that with the last release's, kept in `stable/side-apps.json` on the `hbc-repo` branch.
-  - The same: the version stays. Different: the patch goes up by one. A version raised by hand in `public-<app>/appinfo.json` above the
+  - The same: the version stays. Different: the patch goes up by one. A version raised by hand in `public-<app>/appinfo.json` (`native/saver/appinfo.json` for the screensaver) above the
     last release's wins, for a minor or major step.
   - It writes the new `side-apps.json` beside the `.ipk` files, and the workflow puts it on `hbc-repo` with the listing.
 - A side app whose version stayed is still built and listed (its `.ipk` is the same app), so the listing always has all of them; the

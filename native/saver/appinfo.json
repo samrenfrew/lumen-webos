@@ -1,13 +1,18 @@
 {
-  "id": "com.samrenfrew.lumen.nsaver",
-  "version": "0.0.1",
-  "vendor": "Sam Renfrew",
+  "id": "com.samrenfrew.lumen.saver",
+  "version": "1.1.0",
+  "vendor": "samrenfrew",
   "type": "native",
   "main": "lumen-saver",
-  "title": "Lumen Native Saver",
+  "title": "Lumen Screensaver",
+  "appDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after.",
   "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
   "visible": false,
   "transparent": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
   "nativeLifeCycleInterfaceVersion": 2,
   "requiredMemory": 60
 }
