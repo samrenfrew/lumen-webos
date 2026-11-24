@@ -37,10 +37,10 @@ static int request(const char *url, const char *key, const char *accept, const c
     CURL *c = curl_easy_init();
     if (!c) return -1;
     char key_header[256];
-    snprintf(key_header, sizeof key_header, "x-api-key: %s", key);
+    if (key) snprintf(key_header, sizeof key_header, "x-api-key: %s", key);
     char accept_header[64];
     snprintf(accept_header, sizeof accept_header, "accept: %s", accept);
-    struct curl_slist *headers = curl_slist_append(NULL, key_header);
+    struct curl_slist *headers = key ? curl_slist_append(NULL, key_header) : NULL;
     headers = curl_slist_append(headers, accept_header);
     if (body) headers = curl_slist_append(headers, "content-type: application/json");
     curl_easy_setopt(c, CURLOPT_URL, url);
