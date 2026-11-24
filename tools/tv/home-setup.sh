@@ -289,7 +289,9 @@ EOF
       || { rm -rf "$SAVER_COPY.new"; return 1; }
   done
   saver_sum > "$SAVER_COPY.new/.lumen-sum"
-  rm -rf "$SAVER_COPY" && mv "$SAVER_COPY.new" "$SAVER_COPY"
+  # the screensaver's jail keeps the folder itself bound, so the folder stays and only what is in it is replaced
+  mkdir -p "$SAVER_COPY" && find "$SAVER_COPY" -mindepth 1 -maxdepth 1 -exec rm -rf {} + \
+    && find "$SAVER_COPY.new" -mindepth 1 -maxdepth 1 -exec mv {} "$SAVER_COPY/" \; && rmdir "$SAVER_COPY.new"
 }
 
 saver_give_back () {
