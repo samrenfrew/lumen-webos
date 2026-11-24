@@ -56,6 +56,23 @@ static EASE_OUT: Curve = [0.0, 0.0, 0.58, 1.0];
 static EASE_SCROLL: Curve = [0.2, 0.7, 0.2, 1.0];
 static EASE: Curve = [0.25, 0.1, 0.25, 1.0];
 
+const TEXT_SAMPLES: [(&str, i32, f32); 11] = [
+    ("The quick brown fox jumps over the lazy dog. Settings, Wallpaper, Live TV", 34, 0.0),
+    ("Zwölf Boxkämpfer jagen Viktor quer über den großen Sylter Deich. Einstellungen", 34, 0.0),
+    ("El veloz murciélago hindú comía feliz cardillo y kiwi. Configuración, ¿Qué ver?", 34, 0.0),
+    ("Portez ce vieux whisky au juge blond qui fume. Paramètres, Fond d’écran, Télé", 34, 0.0),
+    ("Pranzo d'acqua fa volti sghembi. Impostazioni, Sfondo, TV in diretta, Più", 34, 0.0),
+    ("À noite, vovô Kowalsky vê o ímã cair no pé do pinguim. Configurações, Não", 34, 0.0),
+    ("Pa's wijze lynx bezag vroom het fikse aquaduct. Instellingen, Achtergrond, IJ", 34, 0.0),
+    ("Pijamalı hasta yağız şoföre çabucak güvendi. Ayarlar, Duvar kâğıdı, İĞŞ ığş", 34, 0.0),
+    ("सेटिंग्स, वॉलपेपर, लाइव टीवी। ऋषियों को सताने वाले दुष्ट राक्षसों के राजा रावण का सर्वनाश", 34, 0.0),
+    ("AV To Wa Ty LT P. 11° 21:17 fi fl", 64, 0.0),
+    ("Letter-spacing of -0.02em: Recently watched, Continue watching", 34, -0.68),
+];
+const TEXT_LEFT: f32 = 80.0;
+const TEXT_TOP: f32 = 50.0;
+const TEXT_STEP: f32 = 90.0;
+
 const NO_BACKDROP: u32 = 1;
 const NO_GRID: u32 = 2;
 const NO_BAR: u32 = 4;
@@ -84,6 +101,7 @@ struct Tune {
     finish: f32,
     one_fbo: f32,
     no_depth: f32,
+    text: f32,
     wallpaper: String,
 }
 
@@ -110,6 +128,7 @@ impl Tune {
             finish: 1.0,
             one_fbo: 0.0,
             no_depth: 0.0,
+            text: 0.0,
             wallpaper: String::new(),
         }
     }
@@ -136,6 +155,7 @@ impl Tune {
             "finish" => (&mut self.finish, 0.0, 1.0),
             "one_fbo" => (&mut self.one_fbo, 0.0, 1.0),
             "no_depth" => (&mut self.no_depth, 0.0, 1.0),
+            "text" => (&mut self.text, 0.0, 1.0),
             _ => return None,
         })
     }
@@ -300,6 +320,7 @@ struct App {
     last_move: String,
     leave_out: u32,
     mv: Move,
+    text_sheet: Vec<(Tex, f32, f32)>,
 }
 
 fn ticks() -> u32 {
@@ -513,6 +534,43 @@ impl App {
         }
     }
 
+    fn build_text_sheet(&mut self) {
+        let first_there = |places: &[String]| places.iter().find(|p| std::path::Path::new(p).exists()).cloned().unwrap_or_default();
+        let font = first_there(&[format!("{}/fonts/sf-500.ttf", self.app_dir), "/usr/share/fonts/LG_Smart_UI-Regular.ttf".into(), "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into()]);
+        let other = first_there(&["/usr/share/fonts/LG_Smart_UI_Devanagari.ttf".into(), "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf".into()]);
+        note!("text: HarfBuzz {}, {}, {}", unsafe { CStr::from_ptr(lumen_text_shaper()) }.to_string_lossy(), font, other);
+        let (font, other) = (c_path(&font), c_path(&other));
+        let began = std::time::Instant::now();
+        for (i, (text, px, spacing)) in TEXT_SAMPLES.iter().enumerate() {
+            let (mut rgba, mut w, mut h) = (ptr::null_mut(), 0, 0);
+            let line = c_path(text);
+            if unsafe { lumen_text_line(font.as_ptr(), other.as_ptr(), *px, *spacing, line.as_ptr(), &mut rgba, &mut w, &mut h) } == 0 {
+                note!("text line {}: not drawn", i);
+                continue;
+            }
+            self.text_sheet.push((self.gfx.upload_rgba(rgba, w, h), TEXT_LEFT, TEXT_TOP + i as f32 * TEXT_STEP));
+            unsafe { lumen_text_free(rgba) }
+            note!("text line {}: {} px wide at {} px", i, w - 6, px);
+        }
+        note!("text: {} lines in {} ms", self.text_sheet.len(), began.elapsed().as_millis());
+    }
+
+    fn draw_text_sheet(&self) {
+        unsafe {
+            glClearColor(0.06, 0.06, 0.08, 1.0);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glClearColor(0.0, 0.0, 0.0, 1.0);
+            glEnable(GL_BLEND);
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        }
+        self.gfx.into_screen();
+        for (tex, x, y) in &self.text_sheet {
+            self.p.text.bind(0, c"u_tex", tex.tex);
+            self.p.text.set4(c"u_box", *x, *y, tex.w as f32, tex.h as f32);
+            self.gfx.quad(&self.p.text, *x, *y, tex.w as f32, tex.h as f32);
+        }
+    }
+
     fn tile_uniforms(&self, t: &Tile, x: f32, y: f32, scale: f32, shadow: [f32; 3], focus: f32) {
         let p = &self.p.tile;
         p.bind(0, c"u_icon", t.icon.tex);
@@ -641,6 +699,9 @@ impl App {
     }
 
     fn draw_scene(&self, now: u32) {
+        if !self.text_sheet.is_empty() {
+            return self.draw_text_sheet();
+        }
         let shift = self.slide.at(now) * LOWER_SHIFT;
         let veiled = self.veil_fade.at(now);
         let grid_drop = self.drop.at(now) * GRID_DROP;
@@ -970,6 +1031,7 @@ fn run() -> i32 {
         last_move: "Down and Up slide, Left and Right move, OK changes the glass, Back closes".to_string(),
         leave_out: 0,
         mv: Move::default(),
+        text_sheet: Vec::new(),
     };
     step("eleven programs");
     if !app.build_backdrops() {
@@ -983,6 +1045,9 @@ fn run() -> i32 {
     app.bake_bar();
     step("the bar's two pictures");
     app.open_font();
+    if app.tune.text != 0.0 || std::env::var_os("LUMEN_TEXT").is_some() {
+        app.build_text_sheet();
+    }
     app.shine_x.set(tile_centre(0));
     app.focus_on(0, 0, ticks(), true);
 

@@ -265,6 +265,12 @@ extern "C" {
     pub fn lumen_claim_window(window: *mut SDL_Window) -> c_int;
 }
 
+extern "C" {
+    pub fn lumen_text_shaper() -> *const c_char;
+    pub fn lumen_text_line(font: *const c_char, other_script_font: *const c_char, px: c_int, letter_spacing: f32, utf8: *const c_char, rgba: *mut *mut u8, w: *mut c_int, h: *mut c_int) -> c_int;
+    pub fn lumen_text_free(rgba: *mut u8);
+}
+
 #[cfg(feature = "webos")]
 extern "C" {
     pub fn lumen_luna_open(name: *const c_char) -> *mut c_char;

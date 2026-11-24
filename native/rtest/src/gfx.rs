@@ -170,6 +170,10 @@ impl Gfx {
         }
     }
 
+    pub fn upload_rgba(&self, pixels: *const u8, w: i32, h: i32) -> Tex {
+        Tex { tex: new_texture(w, h, pixels.cast()), w, h }
+    }
+
     pub fn free(&self, t: &mut Tex) {
         if t.tex != 0 {
             unsafe { glDeleteTextures(1, &t.tex) }

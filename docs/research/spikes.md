@@ -485,3 +485,30 @@ The program's own memory is 13 MB.
 - The wallpaper step is 7 MB over its pixels, not explained. It makes five targets and frees two.
 - Rules for the picture cache: ask for no depth or stencil buffer; pictures are plain textures; one drawing target (or a few)
   is reused to draw into them; never one target per picture.
+
+## Text with FreeType and HarfBuzz (2026-11-24)
+Spike 6. Answer: **yes. The TV's own FreeType (2.11) and HarfBuzz (4.0.1) shape and draw all nine languages, with kerning,
+letter-spacing and joined-up Hindi, and the result sits within 2% of the web page's line widths.**
+
+`text=1` in `/tmp/ntest-tune` (or `LUMEN_TEXT=1 sh native/rtest/host-shot.sh out.png` on the NUC) makes Lumen Rust Test show a
+sheet of eleven lines: a sentence in each language at 34 px, a line of awkward pairs and digits at 64 px, and a line with
+-0.02em letter-spacing. `native/rtest/src/text.c` (120 lines of C, called from Rust) splits a line into runs by script, shapes
+each with HarfBuzz, and draws the glyphs with FreeType into one picture per line. The same lines were put into the live web
+page over DevTools, in the page's own font stack at weight 500, measured and captured.
+
+- **Line widths, native then web, in px:** English 1055 and 1076, German 1158 and 1184, Spanish 1108 and 1134, French 1117 and
+  1140, Italian 1024 and 1049, Portuguese 1074 and 1096, Dutch 1094 and 1114, Turkish 1063 and 1084, Hindi 1003 and 977, the
+  64 px line 819 and 823, the letter-spaced line 909 and 922.
+- At 34 px the web's lines are 2% wider; at 64 px they match. The web page loads SF from `sf.woff2` and the native app from
+  `sf-500.ttf`, so the likely cause is the font file, not the shaping. Not chased. If the port must match the web to the
+  pixel, it loads the same file.
+- **Hindi is right in both**: the conjuncts and the marks above the line join as they should. The native sheet uses
+  `LG_Smart_UI_Devanagari.ttf` for the Hindi run, punctuation included, which is why its commas are heavier and its line wider.
+- Kerning shows in "AV", "To", "Wa", "Ty" and "P."; digits are proportional (the 1s in "11°" sit close), as `CLAUDE.md` asks.
+- **Time on the TV: 88 ms for the eleven lines, fonts loaded included** (17 ms on the NUC). So a line is drawn once into a
+  cached picture, as the spec says, and a screen of new text is a frame or two of work on a worker thread.
+- **The SDK has FreeType's headers but no HarfBuzz at all.** The build declares the nine HarfBuzz functions it uses by hand
+  and links against a stand-in library with the TV's library name (`src/harfbuzz_missing_from_sdk.c`); the TV's real one
+  loads at run time. The NUC build uses Debian's HarfBuzz.
+- Not done: right-to-left text (no language needs it), line breaking, an ellipsis for text that is too long, and font
+  fallback glyph by glyph (the splitter knows Latin and Devanagari only).
