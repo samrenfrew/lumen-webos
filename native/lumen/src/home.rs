@@ -93,9 +93,9 @@ const LIVE_BELOW: f32 = 150.0;
 const LIVE_INFO_GAP: f32 = 36.0;
 const LIVE_INFO_W: f32 = livetv::LIVE_INFO_W;
 const GUIDE_GLYPH: &str = "M3.5 5.5h17v13h-17zM3.5 9.5h17M9 9.5v9";
-const BAR_PLATE: Plate = Plate { h: 6.0, radius: 3.0, fill: [1.0, 1.0, 1.0, 0.22], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const BAR_PLATE: Plate = Plate { h: 6.0, radius: 3.0, fill: [1.0, 1.0, 1.0, 0.22], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
 const BAR_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..BAR_PLATE };
-const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
 const METER_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..METER };
 
 const TIME_SHADOW: [Shadow; 1] = [Shadow { drop: 4, blur: 24, strength: 0.28 }];
@@ -352,6 +352,14 @@ fn tile_centre(col: usize) -> f32 {
 
 fn tile_key(id: &str) -> String {
     format!("tile:{id}")
+}
+
+fn resting_key(id: &str, shade: f32) -> String {
+    if shade == 1.0 { tile_key(id) } else { format!("tile:{id}:{shade}") }
+}
+
+fn shaded(shadow: [f32; 3], shade: f32) -> [f32; 3] {
+    [shadow[0], shadow[1], shadow[2] * shade]
 }
 
 fn icon_key(id: &str) -> String {
@@ -1249,8 +1257,8 @@ impl Home {
         p.set1(c"u_wide", if tile.app.inside.is_some() || tile.app.id.starts_with(CHANNEL_PREFIX) { 1.0 } else { 0.0 });
     }
 
-    fn resting_tile(d: &mut Draw, tile: &mut Tile, icon: Tex) -> Tex {
-        let key = tile_key(&tile.app.id);
+    fn resting_tile(d: &mut Draw, tile: &mut Tile, icon: Tex, shade: f32) -> Tex {
+        let key = resting_key(&tile.app.id, shade);
         if let Some(resting) = d.pictures.find(&key) {
             return resting;
         }
@@ -1258,7 +1266,7 @@ impl Home {
         let resting = d.gfx.blank(w as i32, h as i32);
         unsafe { glDisable(GL_BLEND) }
         d.gfx.at_design_scale_into(&resting);
-        Self::tile_uniforms(d, tile, icon, (TILE_MARGIN, TILE_MARGIN, TILE_W, TILE_H), TILE_RADIUS, SHADOW_REST, 0.0);
+        Self::tile_uniforms(d, tile, icon, (TILE_MARGIN, TILE_MARGIN, TILE_W, TILE_H), TILE_RADIUS, shaded(SHADOW_REST, shade), 0.0);
         d.gfx.quad(&d.p.tile, 0.0, 0.0, w, h);
         d.keep(&key, resting);
         resting
@@ -1336,7 +1344,7 @@ impl Home {
             return d.picture(resting, tile_left(col) - TILE_MARGIN, top - TILE_MARGIN, rw, rh, 1.0);
         }
         let lifted = if row > 0 { SHADOW_GRID } else { SHADOW_BAR };
-        let shadow = [0, 1, 2].map(|i| SHADOW_REST[i] + (lifted[i] - SHADOW_REST[i]) * f.max(if lifting { 1.0 } else { 0.0 }));
+        let shadow = shaded([0, 1, 2].map(|i| SHADOW_REST[i] + (lifted[i] - SHADOW_REST[i]) * f.max(if lifting { 1.0 } else { 0.0 })), if row > 0 { d.look.grid_shadow } else { 1.0 });
         let margin = shadow[0] + shadow[1] + 4.0;
         Self::tile_uniforms(d, tile, icon, (x, y, w, h), TILE_RADIUS * w / TILE_W, shadow, f);
         let angle = if lifting { self.wobble(now) } else { 0.0 };
@@ -1701,7 +1709,8 @@ impl Home {
             pictures.push(if seen {
                 let tile = &mut self.tiles[at];
                 let icon = Self::icon_of(d, tile);
-                Some((Self::resting_tile(d, tile, icon), icon))
+                let shade = if row > 0 { d.look.grid_shadow } else { 1.0 };
+                Some((Self::resting_tile(d, tile, icon, shade), icon))
             } else {
                 None
             });
@@ -1710,7 +1719,8 @@ impl Home {
             let offset = self.live_offset.at(now);
             for (_, live) in self.live.iter_mut().enumerate().filter(|(at, l)| l.shown.id != GUIDE_TILE && live_in_view(*at, offset)) {
                 let icon = Self::channel_icon(d, &live.tile);
-                Self::resting_tile(d, &mut live.tile, icon);
+                let shade = d.look.grid_shadow;
+                Self::resting_tile(d, &mut live.tile, icon, shade);
             }
         }
         let (lens, gloss) = self.bar_plates(d);
@@ -1802,7 +1812,7 @@ impl Home {
             let tile = match kept {
                 Some(l) => l.tile,
                 None => {
-                    d.let_go(|key| key == icon_key(&id) || key == tile_key(&id));
+                    d.let_go(|key| key == icon_key(&id) || key == tile_key(&id) || key.starts_with(&format!("{}:", tile_key(&id))));
                     let color = (id != GUIDE_TILE).then(|| crate::card::colour_of(&s.name));
                     let title = if id == GUIDE_TILE { "Guide".to_string() } else { s.name.clone() };
                     Tile { bg: color.unwrap_or(TILE_WITHOUT_COLOUR), app: Shown { id, title, icon_file: s.logo.clone(), glyph: None, color, inside: None }, focus: Anim::still(0.0) }
@@ -1867,11 +1877,11 @@ impl Home {
                 continue;
             }
             let icon = Self::channel_icon(d, &self.live[at].tile);
-            let resting = if f <= 0.0 { d.pictures.find(&tile_key(&self.live[at].tile.app.id)) } else { None };
+            let resting = if f <= 0.0 { d.pictures.find(&resting_key(&self.live[at].tile.app.id, d.look.grid_shadow)) } else { None };
             if let Some(resting) = resting {
                 d.picture(resting, left - TILE_MARGIN, top - TILE_MARGIN, TILE_W + 2.0 * TILE_MARGIN, TILE_H + 2.0 * TILE_MARGIN, 1.0);
             } else {
-                let shadow = [0, 1, 2].map(|i| SHADOW_REST[i] + (SHADOW_GRID[i] - SHADOW_REST[i]) * f);
+                let shadow = shaded([0, 1, 2].map(|i| SHADOW_REST[i] + (SHADOW_GRID[i] - SHADOW_REST[i]) * f), d.look.grid_shadow);
                 let margin = shadow[0] + shadow[1] + 4.0;
                 Self::tile_uniforms(d, &self.live[at].tile, icon, (x, y, w, h), TILE_RADIUS * scale, shadow, f);
                 d.p.tile.set1(c"u_turn", 0.0);

@@ -76,7 +76,6 @@ pub struct Plate {
     pub rim: f32,
     pub shadow: [f32; 3],
     pub ring: f32,
-    pub sheen: f32,
 }
 
 pub struct Decoded {
@@ -220,7 +219,7 @@ impl Draw {
 
     pub fn plate(&mut self, p: &Plate, x: f32, y: f32, w: f32, h: f32, alpha: f32) {
         let margin = (p.shadow[0].abs() + p.shadow[1]).ceil();
-        let key = format!("plate:{}:{}:{:?}:{}:{:?}:{}:{}", p.h, p.radius, p.fill, p.rim, p.shadow, p.ring, p.sheen);
+        let key = format!("plate:{}:{}:{:?}:{}:{:?}:{}", p.h, p.radius, p.fill, p.rim, p.shadow, p.ring);
         let picture = match self.pictures.find(&key) {
             Some(picture) => picture,
             None => {
@@ -393,15 +392,6 @@ impl Draw {
     }
 }
 
-const SHEEN_LOWER_RIM: f32 = 0.18;
-const SHEEN_TOP: f32 = 0.07;
-const SHEEN_BOTTOM: f32 = 0.02;
-
-fn sheen_at(down: f32) -> f32 {
-    let down = down.clamp(0.0, 1.0);
-    if down < 0.55 { SHEEN_TOP * (1.0 - down / 0.55).powi(2) } else { SHEEN_BOTTOM * ((down - 0.55) / 0.45) }
-}
-
 fn plate_picture(p: &Plate, margin: f32) -> Decoded {
     let (w, h) = ((2.0 * (p.radius + margin) + 2.0) as usize, (p.h + 2.0 * margin) as usize);
     let half = [(w as f32 - 2.0 * margin) / 2.0, p.h / 2.0];
@@ -422,10 +412,9 @@ fn plate_picture(p: &Plate, margin: f32) -> Decoded {
             let blur = p.shadow[1].max(1.0);
             let shadow = p.shadow[2] * (1.0 - ((sd + 0.6 * blur) / (1.6 * blur)).clamp(0.0, 1.0)).powi(2);
             let edge = 1.0 - ((-d - 0.5) / 1.5).clamp(0.0, 1.0);
-            let rim = p.rim * edge * (0.45 * (-n[1]).max(0.0) + 0.2 * (-n[0]).max(0.0) + SHEEN_LOWER_RIM * p.sheen * n[1].max(0.0));
-            let light = (rim + p.sheen * sheen_at((cy + half[1]) / p.h)).min(1.0);
-            let fill_a = p.fill[3] + (1.0 - p.fill[3]) * light;
-            let fill_rgb: Vec<f32> = (0..3).map(|c| (p.fill[c] * p.fill[3] * (1.0 - light) + light) / fill_a.max(0.0001)).collect();
+            let rim = p.rim * edge * (0.45 * (-n[1]).max(0.0) + 0.2 * (-n[0]).max(0.0));
+            let fill_a = p.fill[3] + (1.0 - p.fill[3]) * rim;
+            let fill_rgb: Vec<f32> = (0..3).map(|c| (p.fill[c] * p.fill[3] * (1.0 - rim) + rim) / fill_a.max(0.0001)).collect();
             let a_shape = fill_a * cover;
             let out_a = a_shape + (1.0 - a_shape) * shadow;
             let at = (py * w + px) * 4;

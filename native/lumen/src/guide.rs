@@ -52,28 +52,23 @@ const STARTED_EARLIER: &str = "M15 5.5 8.5 12l6.5 6.5";
 const STARTED_EARLIER_W: f32 = 20.0;
 const GRID: &str = "M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z";
 
-fn glassy(d: &Draw, plate: &Plate) -> Plate {
-    Plate { sheen: d.look.guide_glass, rim: plate.rim * (1.0 + GLASS_RIM_GAIN * d.look.guide_glass), ..*plate }
-}
-
-const GLASS_RIM_GAIN: f32 = 0.3;
-const ROW: Plate = Plate { h: ROW_H, radius: 30.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const ROW: Plate = Plate { h: ROW_H, radius: 30.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0 };
 const ROW_ON: Plate = Plate { fill: [1.0, 1.0, 1.0, 0.2], ..ROW };
 const ROW_FOCUS: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], rim: 0.0, shadow: [18.0, 36.0, 0.32], ..ROW };
-const CELL: Plate = Plate { h: FG_ROW_H, radius: 18.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const CELL: Plate = Plate { h: FG_ROW_H, radius: 18.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0 };
 const CELL_ON: Plate = Plate { fill: [1.0, 1.0, 1.0, 0.2], ..CELL };
 const CELL_FOCUS: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], rim: 0.0, shadow: [14.0, 30.0, 0.32], ..CELL };
-const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const METER: Plate = Plate { h: 5.0, radius: 2.5, fill: [1.0, 1.0, 1.0, 0.3], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
 const METER_FILL: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], ..METER };
 const METER_FOCUS: Plate = Plate { fill: [0.0, 0.0, 0.0, 0.14], ..METER };
 const METER_FOCUS_FILL: Plate = Plate { fill: [FOCUS_INK[0], FOCUS_INK[1], FOCUS_INK[2], 1.0], ..METER };
-const PH: Plate = Plate { h: 28.0, radius: 8.0, fill: [1.0, 1.0, 1.0, 0.07], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const PH: Plate = Plate { h: 28.0, radius: 8.0, fill: [1.0, 1.0, 1.0, 0.07], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
 const PH_FOCUS: Plate = Plate { fill: [0.0, 0.0, 0.0, 0.12], ..PH };
-const RAIL_ON: Plate = Plate { h: RAIL_ITEM, radius: 32.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const RAIL_ON: Plate = Plate { h: RAIL_ITEM, radius: 32.0, fill: [1.0, 1.0, 1.0, 0.09], rim: 1.0, shadow: [0.0; 3], ring: 0.0 };
 const RAIL_FOCUS: Plate = Plate { fill: [1.0, 1.0, 1.0, 1.0], rim: 0.0, ..RAIL_ON };
-const TYPED: Plate = Plate { h: 84.0, radius: 42.0, fill: [1.0, 1.0, 1.0, 0.16], rim: 1.3, shadow: [12.0, 28.0, 0.3], ring: 0.0, sheen: 0.0 };
-const FLAG: Plate = Plate { h: 26.0, radius: 8.0, fill: [1.0, 1.0, 1.0, 0.85], rim: 0.0, shadow: [0.0; 3], ring: 2.0, sheen: 0.0 };
-const NOW_LINE: Plate = Plate { h: 12.0, radius: 6.0, fill: [1.0, 1.0, 1.0, 1.0], rim: 0.0, shadow: [0.0; 3], ring: 0.0, sheen: 0.0 };
+const TYPED: Plate = Plate { h: 84.0, radius: 42.0, fill: [1.0, 1.0, 1.0, 0.16], rim: 1.3, shadow: [12.0, 28.0, 0.3], ring: 0.0 };
+const FLAG: Plate = Plate { h: 26.0, radius: 8.0, fill: [1.0, 1.0, 1.0, 0.85], rim: 0.0, shadow: [0.0; 3], ring: 2.0 };
+const NOW_LINE: Plate = Plate { h: 12.0, radius: 6.0, fill: [1.0, 1.0, 1.0, 1.0], rim: 0.0, shadow: [0.0; 3], ring: 0.0 };
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum View {
@@ -546,7 +541,7 @@ impl Guide {
         let at_x = |px: f32| ox + (px - ox) * s;
         let at_y = |py: f32| oy + (py - oy) * s;
         let plate = if over && i == self.at && self.on_rail { ROW_ON } else { ROW };
-        d.plate(&glassy(d, &plate), at_x(x), at_y(y), w * s, ROW_H * s, 1.0);
+        d.plate(&plate, at_x(x), at_y(y), w * s, ROW_H * s, 1.0);
         if focused {
             d.plate(&ROW_FOCUS, at_x(x), at_y(y), w * s, ROW_H * s, 1.0);
         }
@@ -719,7 +714,7 @@ impl Guide {
             let c = &live.channels[i];
             let y = FG_TOP + 10.0 + (i as f32 - top) * FG_STEP;
             let is_at = i == self.at;
-            d.plate(&glassy(d, if is_at { &CELL_ON } else { &CELL }), EDGE, y, 360.0, FG_ROW_H, 1.0);
+            d.plate(if is_at { &CELL_ON } else { &CELL }, EDGE, y, 360.0, FG_ROW_H, 1.0);
             if let Some(num) = d.text(&c.number, &white(26, "600")) {
                 num.draw(d, EDGE + 38.0 - num.advance / 2.0, y + 44.0, 1.0);
             }
@@ -737,7 +732,7 @@ impl Guide {
                     let left = FG_LINE + (a * GRID_W).round();
                     let width = ((b - a) * GRID_W).round() - 8.0;
                     let lit = row_focus && k == 0;
-                    d.plate(&if lit { CELL_FOCUS } else { glassy(d, &CELL) }, left, y, width, FG_ROW_H, if loading || lit { 1.0 } else { 0.6 });
+                    d.plate(if lit { &CELL_FOCUS } else { &CELL }, left, y, width, FG_ROW_H, if loading || lit { 1.0 } else { 0.6 });
                     if loading {
                         let ph = if lit { PH_FOCUS } else { PH };
                         d.plate(&ph, left + 18.0, y + 15.0, (width - 36.0) * 0.7, 22.0, 1.0);
@@ -756,7 +751,7 @@ impl Guide {
                 }
                 let lit = row_focus && focused.is_some_and(|f| std::ptr::eq(f, p));
                 let alpha = if lit { 1.0 } else if p.end <= t { 0.55 } else { 1.0 };
-                d.plate(&if lit { CELL_FOCUS } else { glassy(d, &CELL) }, FG_LINE + left, y, width, FG_ROW_H, alpha);
+                d.plate(if lit { &CELL_FOCUS } else { &CELL }, FG_LINE + left, y, width, FG_ROW_H, alpha);
                 if width > 60.0 {
                     let ink = if lit { FOCUS_INK } else { WHITE };
                     let began_earlier = p.start < win;
@@ -825,7 +820,7 @@ impl Guide {
             let w = if self.on_rail { open_w } else { RAIL_ITEM };
             let alpha = if focused || (on && !self.on_rail) { 1.0 } else if self.on_rail { 0.85 } else { 0.6 };
             if on {
-                d.plate(&glassy(d, &RAIL_ON), 16.0, y, w, RAIL_ITEM, 1.0);
+                d.plate(&RAIL_ON, 16.0, y, w, RAIL_ITEM, 1.0);
             }
             if focused {
                 d.plate(&RAIL_FOCUS, 16.0, y, w, RAIL_ITEM, 1.0);
@@ -847,7 +842,7 @@ impl Guide {
         let Some(text) = d.text(&self.typed, &style(56, "600", 0.04, WHITE)) else { return };
         let w = (text.advance + 68.0).max(150.0);
         let (x, y) = (DESIGN_W / 2.0 - w / 2.0, 50.0);
-        d.plate(&glassy(d, &TYPED), x, y, w, 84.0, 1.0);
+        d.plate(&TYPED, x, y, w, 84.0, 1.0);
         text.draw(d, DESIGN_W / 2.0 - text.advance / 2.0, y + 42.0 + 20.0, if hit { 1.0 } else { 0.55 });
     }
 }

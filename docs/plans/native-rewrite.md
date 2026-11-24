@@ -50,10 +50,13 @@ Left out:
   bottom, blending round the corners, so a pill reads more like a drop of water than an even ring. **(verify)** their look.
   Liquid glass is on by default from 2026-11-24 (Sam).
 - **Down and Up peel the rows (2026-11-24, (verify)).** The gap under the app bar now grows and shrinks over the same time and curve
-  as the slide, not in 200 ms ahead of it. Each row below the bar also slides on its own, starting `peel_down_ms` (60) later than
+  as the slide, not in 200 ms ahead of it. Each row below the bar also slides on its own, starting `peel_down_ms` (40) later than
   the row above on Down and `peel_up_ms` (35) on Up, and catches up by `peel_catch` (0.7 of its delay), so later rows move faster.
-  On Down the rows use `peel_down_*`, a curve that overshoots a little (y2 1.12) so each row snaps up; on Up they use `peel_up_*`,
-  with no overshoot, so each row closes onto the one below. All tunable live with `nctl.mjs set`.
+  On Down the rows use `peel_down_*`, a curve that overshoots a little (y2 1.05) so each row snaps up; on Up they use `peel_up_*`,
+  with no overshoot, so each row closes onto the one below. All tunable live with `nctl.mjs set`. Sam: Up is right; Down had
+  too much bounce and too long a delay (was 60 ms and 1.12). The clock and top buttons now wait 260 ms before fading on Down.
+- **The Guide's light glass is gone (Sam, 2026-11-24):** it looked bad, so the rows are back to the plain tint and rims.
+- **Lower rows' shadows** are `grid_shadow` (0.65) of the app bar's, resting and focused, the Live TV row included.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.
