@@ -278,6 +278,7 @@ pub struct Home {
     in_live: bool,
     live_slot: usize,
     pub preview_showing: Option<String>,
+    pub preview_loading: Option<String>,
     live_offset: Anim,
 }
 
@@ -503,6 +504,7 @@ impl Home {
             in_live: false,
             live_slot: 0,
             preview_showing: None,
+            preview_loading: None,
             live_offset: Anim::still(0.0),
         }
     }
@@ -1095,6 +1097,7 @@ impl Home {
             || self.tiles.iter().any(|t| t.focus.busy(now))
             || self.live.iter().any(|l| l.tile.focus.busy(now))
             || self.live_offset.busy(now)
+            || self.preview_loading.is_some()
             || self.top_focus.iter().any(|a| a.busy(now))
             || (self.moving.is_some() && !self.reduce_motion)
             || self.toast.as_ref().is_some_and(|(_, _, until)| (until.wrapping_sub(now) as i32) > -300)
@@ -1791,6 +1794,9 @@ impl Home {
             }
             if self.preview_showing.as_deref() == Some(self.live[at].shown.id.as_str()) {
                 d.hole(x, y, w, h, TILE_RADIUS * scale);
+            }
+            if self.preview_loading.as_deref() == Some(self.live[at].shown.id.as_str()) {
+                d.spinner(x + 20.0 * scale, y + 20.0 * scale, 18.0 * scale, 2.5 * scale, now);
             }
             let shown = self.live[at].shown.clone();
             let done = shown.now.as_ref().map_or(0.0, |p| livetv::progress(p, self.unix_now));

@@ -24,6 +24,7 @@ pub struct Programs {
     pub ink: Program,
     pub dim: Program,
     pub fill: Program,
+    pub spin: Program,
 }
 
 #[derive(Clone, Copy)]
@@ -82,6 +83,8 @@ pub struct Decoded {
     pub w: i32,
     pub h: i32,
 }
+
+const SPIN_MS: u32 = 900;
 
 pub struct Draw {
     pub gfx: Gfx,
@@ -150,6 +153,7 @@ impl Draw {
                 ink: Program::new("ink", shaders::INK_FRAGMENT),
                 dim: Program::new("dim", shaders::DIM_FRAGMENT),
                 fill: Program::new("fill", shaders::FILL_FRAGMENT),
+                spin: Program::new("spin", shaders::SPIN_FRAGMENT),
             },
             pictures: Pictures::new(PICTURE_BUDGET_BYTES),
             look,
@@ -275,6 +279,15 @@ impl Draw {
         unsafe { glBlendFuncSeparate(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE_MINUS_SRC_ALPHA) }
         self.gfx.quad(p, x, y, w, h);
         unsafe { glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE) }
+    }
+
+    pub fn spinner(&self, x: f32, y: f32, size: f32, width: f32, now: u32) {
+        let p = &self.p.spin;
+        p.activate();
+        p.set4(c"u_box", x, y, size, size);
+        p.set1(c"u_width", width);
+        p.set1(c"u_turn", (now % SPIN_MS) as f32 / SPIN_MS as f32 * std::f32::consts::TAU);
+        self.gfx.quad(p, x, y, size, size);
     }
 
     pub fn bend(&self) -> f32 {

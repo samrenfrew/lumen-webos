@@ -76,6 +76,11 @@ impl Preview {
         (self.phase == Phase::Playing).then(|| self.wanted.as_ref().map(|w| w.rect)).flatten()
     }
 
+    pub fn loading(&self) -> Option<&str> {
+        let waiting = matches!(self.phase, Phase::Tuning | Phase::Muted) || (self.phase == Phase::Dwelling && self.opening);
+        self.wanted.as_ref().filter(|_| waiting).map(|w| w.channel.as_str())
+    }
+
     pub fn shows(&self, channel: &str) -> bool {
         self.phase == Phase::Playing && self.wanted.as_ref().is_some_and(|w| w.channel == channel)
     }
@@ -239,10 +244,16 @@ impl App {
             self.home.preview_showing = showing.clone();
             self.redraw = true;
         }
+        let loading = self.preview.loading().map(String::from);
+        if self.home.preview_loading != loading {
+            self.home.preview_loading = loading.clone();
+            self.redraw = true;
+        }
         let guide_preview = self.settings.guide_preview.then_some(showing.is_some());
         if let Some(guide) = self.guide.as_mut() {
-            if guide.preview != guide_preview {
+            if guide.preview != guide_preview || guide.preview_loading != loading.is_some() {
                 guide.preview = guide_preview;
+                guide.preview_loading = loading.is_some();
                 self.redraw = true;
             }
         }
@@ -335,6 +346,26 @@ mod tests {
         assert_eq!(p.step(2 * DWELL_MS + 10), Step::Nothing);
         p.opened(Some("b1".into()));
         assert_eq!(p.step(2 * DWELL_MS + 20), Step::Tune("1_41_102".into()));
+    }
+
+    #[test]
+    fn the_spinner_shows_from_the_end_of_the_dwell_until_the_picture_shows_and_not_while_flicking_past() {
+        let mut p = Preview::new();
+        p.want(bbc([0.0; 4]), 0);
+        assert_eq!(p.loading(), None);
+        p.step(DWELL_MS);
+        assert!(p.loading().is_some());
+        p.opened(Some("b1".into()));
+        p.step(DWELL_MS);
+        p.tuned(p.generation(), true, 1000);
+        assert!(p.loading().is_some());
+        p.mutes_read(p.generation(), true);
+        assert_eq!(p.loading(), None);
+        let mut lost = Preview::new();
+        lost.want(bbc([0.0; 4]), 0);
+        lost.step(DWELL_MS);
+        lost.opened(None);
+        assert_eq!(lost.loading(), None);
     }
 
     #[test]

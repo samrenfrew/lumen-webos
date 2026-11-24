@@ -256,3 +256,17 @@ void main() {
   gl_FragColor = vec4(u_ink.rgb, 1.0) * u_ink.a * a;
 }
 "#;
+
+pub const SPIN_FRAGMENT: &str = r#"uniform vec4 u_box;
+uniform float u_width;
+uniform float u_turn;
+void main() {
+  vec2 p = v_px - (u_box.xy + u_box.zw * 0.5);
+  float mid = u_box.z * 0.5 - u_width * 0.5;
+  float a = clamp(u_width * 0.5 + 0.5 - abs(length(p) - mid), 0.0, 1.0);
+  float angle = atan(p.y, p.x) + 1.5708 - u_turn;
+  angle = mod(angle + 3.14159, 6.28318) - 3.14159;
+  float lit = mix(0.25, 1.0, clamp((0.7854 - abs(angle)) * mid + 0.5, 0.0, 1.0));
+  gl_FragColor = vec4(a * lit);
+}
+"#;

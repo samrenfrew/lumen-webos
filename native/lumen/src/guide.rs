@@ -107,6 +107,7 @@ pub struct Guide {
     anchor: u64,
     wrapped: HashMap<String, (String, String)>,
     pub preview: Option<bool>,
+    pub preview_loading: bool,
 }
 
 fn style(px: i32, weight: &'static str, spacing_em: f32, ink: [f32; 3]) -> Style {
@@ -175,6 +176,7 @@ impl Guide {
             anchor: t,
             wrapped: HashMap::new(),
             preview: None,
+            preview_loading: false,
         }
     }
 
@@ -190,7 +192,7 @@ impl Guide {
         Some((channel.id.clone(), if self.view == View::Full { FULL_PREVIEW } else { ROWS_PREVIEW }))
     }
 
-    fn draw_preview(&self, d: &mut Draw, live: &Live) {
+    fn draw_preview(&self, d: &mut Draw, live: &Live, now: u32) {
         let (Some(showing), Some((_, [x, y, w, h]))) = (self.preview, self.preview_box(live)) else { return };
         let Some(c) = live.channels.get(self.at) else { return };
         let card = if self.view == View::Full { &FULL_PREVIEW_CARD } else { &ROWS_PREVIEW_CARD };
@@ -198,6 +200,8 @@ impl Guide {
         d.picture(picture, x, y, w, h, 1.0);
         if showing {
             d.hole(x, y, w, h, card.radius);
+        } else if self.preview_loading {
+            d.spinner(x + 18.0, y + 18.0, 22.0, 3.0, now);
         }
     }
 
@@ -387,7 +391,7 @@ impl Guide {
     }
 
     pub fn moving(&self, now: u32) -> bool {
-        self.scroll.busy(now) || self.lift.busy(now) || self.dropping.busy(now) || self.rail.busy(now)
+        self.scroll.busy(now) || self.lift.busy(now) || self.dropping.busy(now) || self.rail.busy(now) || self.preview_loading
     }
 
     #[cfg(feature = "dev")]
@@ -480,7 +484,7 @@ impl Guide {
                 self.draw_rows(d, now, live, t, &clock);
             }
         }
-        self.draw_preview(d, live);
+        self.draw_preview(d, live, now);
         if !(self.over_live_tv && self.view == View::Full) {
             self.draw_rail(d, now);
         }
