@@ -249,7 +249,7 @@ pub struct Home {
     pub night: bool,
     glass: Tex,
     veil: Tex,
-    blurs_made_with: [i32; 4],
+    blurs_made_with: [i32; 5],
     bar_made_with: f32,
     shift: Anim,
     veil_fade: Anim,
@@ -474,7 +474,7 @@ impl Home {
             night: false,
             glass: Tex::default(),
             veil: Tex::default(),
-            blurs_made_with: [0; 4],
+            blurs_made_with: [0; 5],
             bar_made_with: 0.0,
             shift: Anim::still(0.0),
             veil_fade: Anim::still(0.0),
@@ -527,8 +527,9 @@ impl Home {
         }
     }
 
-    fn blur_strengths(d: &Draw) -> [i32; 4] {
-        [d.look.glass_halvings as i32, d.look.glass_passes as i32, d.look.veil_halvings as i32, d.look.veil_passes as i32]
+    fn blur_strengths(d: &Draw) -> [i32; 5] {
+        let glass_reach = if d.liquid { d.look.liquid_blur } else { 1.0 };
+        [d.look.glass_halvings as i32, d.look.glass_passes as i32, d.look.veil_halvings as i32, d.look.veil_passes as i32, (glass_reach * 1000.0) as i32]
     }
 
     pub fn set_wallpaper(&mut self, d: &mut Draw, wallpaper: &Decoded, fade: bool, now: u32) {
@@ -567,8 +568,8 @@ impl Home {
         let strengths = Self::blur_strengths(d);
         d.gfx.free(&mut self.glass);
         d.gfx.free(&mut self.veil);
-        self.glass = d.blurred(half, strengths[0], strengths[1], 1.0);
-        self.veil = d.blurred(half, strengths[2], strengths[3], 1.0 - VEIL_TINT);
+        self.glass = d.blurred(half, strengths[0], strengths[1], strengths[4] as f32 / 1000.0, 1.0);
+        self.veil = d.blurred(half, strengths[2], strengths[3], 1.0, 1.0 - VEIL_TINT);
         d.gfx.free(&mut half);
         d.gfx.into_screen();
         d.glass_backdrop = self.glass;

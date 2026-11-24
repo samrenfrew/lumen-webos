@@ -50,6 +50,7 @@ look! {
     show_top_wait_ms = 200.0, 0.0, 2000.0;
     glass_halvings = 0.0, 0.0, 4.0;
     glass_passes = 1.0, 1.0, 8.0;
+    liquid_blur = 0.35, 0.0, 4.0;
     veil_halvings = 2.0, 0.0, 4.0;
     veil_passes = 3.0, 1.0, 8.0;
     bezel = 28.0, 1.0, 110.0;

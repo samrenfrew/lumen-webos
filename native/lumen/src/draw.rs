@@ -328,7 +328,7 @@ impl Draw {
         self.gfx.quad(&self.p.picture, x, y, w, h);
     }
 
-    pub fn blurred(&self, from: Tex, halvings: i32, passes: i32, mul: f32) -> Tex {
+    pub fn blurred(&self, from: Tex, halvings: i32, passes: i32, reach: f32, mul: f32) -> Tex {
         let mut current = Tex::default();
         let mut source = from;
         let mut made = 0;
@@ -344,7 +344,7 @@ impl Draw {
         }
         let mut other = self.gfx.blank(current.w, current.h);
         for pass in 0..passes {
-            for (into, from, step, mul) in [(&other, &current, (1.0 / current.w as f32, 0.0), 1.0), (&current, &other, (0.0, 1.0 / current.h as f32), if pass == passes - 1 { mul } else { 1.0 })] {
+            for (into, from, step, mul) in [(&other, &current, (reach / current.w as f32, 0.0), 1.0), (&current, &other, (0.0, reach / current.h as f32), if pass == passes - 1 { mul } else { 1.0 })] {
                 self.gfx.stretched_over(into);
                 self.p.blur.bind(0, c"u_tex", from.tex);
                 self.p.blur.set2(c"u_step", step.0, step.1);

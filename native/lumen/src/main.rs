@@ -308,7 +308,10 @@ impl App {
             }
         }
         self.home.reduce_motion = self.settings.reduce_motion;
-        self.draw.liquid = self.settings.liquid_glass;
+        if self.draw.liquid != self.settings.liquid_glass {
+            self.draw.liquid = self.settings.liquid_glass;
+            self.home.look_changed(&mut self.draw);
+        }
         self.home.hide_names = self.settings.hide_names;
         self.home.weather_line = self.settings.show_weather;
         self.home.forecast = self.settings.home_forecast;
