@@ -6,6 +6,7 @@
 #include <wayland-client-core.h>
 #include <wayland-client-protocol.h>
 #include <wayland-webos-shell-client-protocol.h>
+#include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,8 +103,20 @@ static void tell_watcher_showing(int showing) {
     write_file(path, pid, (size_t)n);
 }
 
-static void wait_while_lumen_own_saver_may_be_up(void) {
-    for (int i = 0; i < OWN_SAVER_WAIT_MS / 100 && access("/tmp/lumen-ambient-on", F_OK) == 0; i++) SDL_Delay(100);
+static int another_screensaver_shows(void) {
+    if (access("/tmp/lumen-ambient-on", F_OK) == 0) return 1;
+    char own[96];
+    showing_path(own, sizeof own);
+    glob_t found;
+    int shows = 0;
+    if (glob("/tmp/lumen-saver-*/showing", 0, NULL, &found) == 0)
+        for (size_t i = 0; i < found.gl_pathc; i++) if (strcmp(found.gl_pathv[i], own)) shows = 1;
+    globfree(&found);
+    return shows;
+}
+
+static void wait_while_another_screensaver_shows(void) {
+    for (int i = 0; i < OWN_SAVER_WAIT_MS / 100 && another_screensaver_shows(); i++) SDL_Delay(100);
 }
 
 static int fetcher(void *unused) {
@@ -217,7 +230,7 @@ int main(int argc, char **argv) {
     const char *window_type = in_lg_place ? "_WEBOS_WINDOW_TYPE_SCREENSAVER" : "_WEBOS_WINDOW_TYPE_OVERLAY";
     note("open: %s", in_lg_place ? "in LG's screensaver's place" : "as an overlay");
     tell_watcher_showing(0);
-    if (in_lg_place) wait_while_lumen_own_saver_may_be_up();
+    if (in_lg_place) wait_while_another_screensaver_shows();
 
     SDL_SetHint("SDL_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
     SDL_SetHint("SDL_WEBOS_ACCESS_POLICY_KEYS_EXIT", "true");

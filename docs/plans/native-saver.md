@@ -174,6 +174,11 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
 
 ### Open checks
 
+- **(verify)** Built 2026-11-24, not installed: with the side app installed, Lumen's idle timer and Control Center's Art mode
+  open it (`showScreensaver` in `app.tsx`), and Lumen's own built-in screensaver is only the fallback. When the TV's timer then
+  starts the copy in LG's place over it, that copy waits (it sees the other one's `showing` file) and watch.sh ends it (`nsover`).
+  To see: Art mode opens the native one, the idle timer does, a key goes back to the home screen, and the TV's timer three
+  minutes later does not put a second one on top.
 - **(verify)** Graphics memory while up, against the 30 MB of spike A and the 180 MB of the web one (plan part E).
 - **(verify)** The look against Lumen's own screensaver side by side: clock, date, weather line, both forecast sizes, Print look.
 - **(verify)** Backlight dims and comes back, over Live TV (input `dtv`) and over an app (input `default`).

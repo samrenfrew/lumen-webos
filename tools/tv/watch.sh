@@ -107,6 +107,7 @@ blsoon=0                   # when to check the schedule again after a switch of 
 QUICK_WAKE_SECS=8
 quickat=0                  # when to start Quick Settings hidden after a wake (standby closes it); 0 when done
 nshow=""                   # 1 while Lumen Screensaver's showing flag is up, 0 when not, empty before the first look
+nsover=0                   # 1 when the side app was already up as the TV started its screensaver
 nsgone=0                   # when its flag went, while the TV may still be in its screensaver state; 0 when not waiting
 tvdue=1                    # tv.json still to be written into Lumen Screensaver's folders
 # prints the Lumen build in front, if any
@@ -492,12 +493,14 @@ while true; do
       *'"Screen Saver"'*) luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1; echo "$(date +%T) ended screensaver (video wallpaper)" >> /tmp/homehook.log ;;
     esac
   elif [ -f "$AMBIENT_FLAG" ] && saver_mounted; then
-    # Lumen Screensaver is LG's screensaver: the TV opens it on its own timer (docs/plans/side-apps.md section 4). Over Lumen's own it
-    # waits without drawing, and this ends it. A guard too: if the app it came up over leaves the front while it is up (the 2026-11-13
+    # Lumen Screensaver is LG's screensaver: the TV opens it on its own timer (docs/plans/side-apps.md section 4). Over Lumen's own, or
+    # over the side app that Lumen or Quick Settings opened, it waits without drawing, and this ends it. A guard too: if the app it came up over leaves the front while it is up (the 2026-11-13
     # hang), it is ended.
     case "$pw" in
       *'"Screen Saver"'*)
-        if [ -f "$AMBIENT_ON" ] && [ -n "$front" ]; then
+        if [ "$pwprev" != "saver" ]; then nsover=0; saver_running && nsover=1; fi
+        if [ "$nsover" = 1 ] || { [ -f "$AMBIENT_ON" ] && [ -n "$front" ]; }; then
+          pwprev="saver"
           if [ $((now - saverlast)) -ge 3 ]; then
             saverlast=$now
             luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
@@ -506,7 +509,7 @@ while true; do
             case "$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)" in
               *'"id":"'$LGSAVER'"'*) how="closed: $(luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$LGSAVER\"}" </dev/null 2>&1)" ;;
             esac
-            echo "$(date +%T) screensaver: Lumen Screensaver (in LG's place) ended over Lumen's own, $how" >> /tmp/homehook.log
+            echo "$(date +%T) screensaver: Lumen Screensaver (in LG's place) ended over the one already up, $how" >> /tmp/homehook.log
           fi
         elif [ "$pwprev" != "saver" ]; then
           saverapp=$app

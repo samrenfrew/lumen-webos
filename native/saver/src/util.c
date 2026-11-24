@@ -14,7 +14,8 @@ static SDL_mutex *log_lock;
 
 void util_init(void) {
     snprintf(dir, sizeof dir, "/tmp/lumen-saver-%u", (unsigned)getuid());
-    mkdir(dir, 0700);
+    mkdir(dir, 0755);
+    chmod(dir, 0755);
     snprintf(log_path, sizeof log_path, "%s/log", dir);
     log_lock = SDL_CreateMutex();
 }

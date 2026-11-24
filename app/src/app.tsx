@@ -10,7 +10,7 @@ import {BUILTIN, BUILTIN_APPS, withBuiltins} from './config/builtinApps';
 import {cachedApps, listApps, sameApps, saveAppsCache, seedAppIds, type AppEntry} from './lib/apps';
 import {afterFirstFrame, readCache, writeCache} from './lib/boot';
 import {listInputs, MOCK_INPUTS, type InputSource} from './lib/inputs';
-import {launchApp, launchLgHome} from './lib/launch';
+import {appExists, launchApp, launchLgHome} from './lib/launch';
 import {isWebOS} from './lib/luna';
 import {hidePointerOnForeground} from './lib/pointer';
 import {DEFAULT_CONFIG, IDLE_SECONDS, hasSavedConfig, loadConfig, saveConfig, toggleId, withWallpaper, type UserConfig} from './lib/storage';
@@ -56,6 +56,8 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
+/** Lumen Screensaver, the native side app: when it is installed it shows in place of the screensaver built into this page */
+const SIDE_SAVER = 'com.samrenfrew.lumen.saver';
 const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye', sideGuide: 'side-guide', sideQuick: 'side-quick', sideSaver: 'side-saver', sideUpdate: 'side-update'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
@@ -452,9 +454,13 @@ export function App () {
 	}, [apps, restoring]);
 	const allApps = useMemo(() => withBuiltins(apps), [apps]);
 
-	/** Lumen's screensaver straight away, without LG's showing first; LG's own when Lumen's is not chosen (unless forced, from Control Center). */
+	/** Lumen's screensaver straight away, without LG's showing first (the side app when it is installed, else the one built in); LG's own when Lumen's is not chosen (unless forced, from Control Center). */
 	const showScreensaver = (lumen = configRef.current.ambientOn) => {
-		if (lumen) { ambientOpening.current = videoOnRef.current ? null : shownWallpaper(); saverFrom.current = ''; setScreen('ambient'); return; }
+		if (lumen) {
+			const own = () => { ambientOpening.current = videoOnRef.current ? null : shownWallpaper(); saverFrom.current = ''; setScreen('ambient'); };
+			appExists(SIDE_SAVER).then((side) => (side ? launchApp(SIDE_SAVER).catch(own) : own()));
+			return;
+		}
 		startScreensaver().catch(() => showToast("Couldn't start the screensaver (it needs the Homebrew Channel)", 'error'));
 	};
 	/** A key ended the screensaver: back to the app it came up over, else the home screen. The Home button is a plain relaunch and always goes home. */
@@ -481,7 +487,7 @@ export function App () {
 	// the screensaver's first photo is loaded while the home screen is up, so the idle timer and Control Center's Art mode both open on it at once
 	useEffect(() => {
 		if (screen !== 'home') return;
-		const timer = window.setTimeout(() => { if (!document.hidden) prepareAmbient(config.saverShow, config.ambient, config.wallpaperPicks); }, PREPARE_SAVER_MS);
+		const timer = window.setTimeout(() => { if (!document.hidden) appExists(SIDE_SAVER).then((side) => { if (!side) prepareAmbient(config.saverShow, config.ambient, config.wallpaperPicks); }); }, PREPARE_SAVER_MS);
 		return () => window.clearTimeout(timer);
 	}, [screen, config.saverShow, config.ambient, config.wallpaperPicks]);
 	useEffect(() => { setVideoFlag(videoOn); }, [videoOn]);
