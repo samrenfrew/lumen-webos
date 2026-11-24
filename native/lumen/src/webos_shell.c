@@ -18,7 +18,7 @@ static void shell_global(void *data, struct wl_registry *reg, uint32_t name, con
 }
 static void shell_removed(void *data, struct wl_registry *reg, uint32_t name) { (void)data; (void)reg; (void)name; }
 
-int lumen_claim_window(SDL_Window *window) {
+int lumen_claim_window(SDL_Window *window, int overlay) {
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version);
     if (!SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_WAYLAND) return NO_WAYLAND_INFO;
@@ -30,6 +30,11 @@ int lumen_claim_window(SDL_Window *window) {
     if (!webos_shell) return NO_WEBOS_SHELL;
     struct wl_webos_shell_surface *shell_surface = wl_webos_shell_get_shell_surface(webos_shell, info.info.wl.surface);
     wl_webos_shell_surface_set_property(shell_surface, "_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
+    if (overlay) {
+        wl_webos_shell_surface_set_property(shell_surface, "_WEBOS_WINDOW_TYPE", "_WEBOS_WINDOW_TYPE_OVERLAY");
+        wl_webos_shell_surface_set_property(shell_surface, "_WEBOS_ACCESS_POLICY_KEYS_EXIT", "true");
+        wl_proxy_marshal((struct wl_proxy *)info.info.wl.surface, WL_SURFACE_SET_OPAQUE_REGION, NULL);
+    }
     claimed_surface = shell_surface;
     claimed_display = info.info.wl.display;
     wl_display_flush(info.info.wl.display);

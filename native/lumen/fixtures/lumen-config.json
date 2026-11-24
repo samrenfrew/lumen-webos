@@ -25,6 +25,8 @@
   "weatherCity": "Leeds",
   "showWeather": true,
   "homeForecast": true,
-  "homeForecastSize": "small"
+  "homeForecastSize": "small",
+  "saverForecast": true,
+  "saverForecastSize": "small"
  }
 }

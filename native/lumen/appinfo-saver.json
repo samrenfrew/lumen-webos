@@ -1,0 +1,18 @@
+{
+  "id": "com.samrenfrew.lumen.native.saver",
+  "version": "0.1.0",
+  "vendor": "samrenfrew",
+  "type": "native",
+  "main": "lumen-saver",
+  "title": "Lumen Screensaver",
+  "appDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
+  "visible": false,
+  "transparent": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 60
+}

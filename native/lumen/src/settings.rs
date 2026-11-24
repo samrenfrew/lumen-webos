@@ -28,6 +28,12 @@ pub struct Settings {
     pub wallpaper_dim: String,
     pub live_tv_row: bool,
     pub live_channels: Option<Vec<String>>,
+    pub saver_immich: bool,
+    pub saver_sources: String,
+    pub saver_seconds: u32,
+    pub saver_forecast: Forecast,
+    pub immich_recent_days: u32,
+    pub immich_picks: Vec<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -69,6 +75,12 @@ impl Settings {
             wallpaper_dim: "off".into(),
             live_tv_row: true,
             live_channels: None,
+            saver_immich: false,
+            saver_sources: "immich:recent".into(),
+            saver_seconds: 30,
+            saver_forecast: Forecast::Off,
+            immich_recent_days: 180,
+            immich_picks: vec!["immich:recent".into()],
         }
     }
 
@@ -119,6 +131,20 @@ impl Settings {
             },
             live_tv_row: saved["liveTvRow"].as_bool() != Some(false),
             live_channels: strings(&saved["liveChannels"]),
+            saver_immich: match saved["saverShow"].as_str() {
+                Some("immich") => true,
+                Some("wallpaper") => false,
+                _ => saved["ambientOn"].as_bool() == Some(true),
+            },
+            saver_sources: saved["ambient"].as_str().filter(|s| s.starts_with("immich:")).map_or(defaults.saver_sources, String::from),
+            saver_seconds: saved["ambientSeconds"].as_u64().filter(|s| [10, 20, 30, 60, 120, 300].contains(s)).map_or(defaults.saver_seconds, |s| s as u32),
+            saver_forecast: match (saved["saverForecast"].as_bool(), saved["saverForecastSize"].as_str()) {
+                (Some(true), Some("large")) => Forecast::Large,
+                (Some(true), _) => Forecast::Small,
+                _ => Forecast::Off,
+            },
+            immich_recent_days: saved["immichRecentDays"].as_u64().filter(|d| [30, 90, 180, 365].contains(d)).map_or(defaults.immich_recent_days, |d| d as u32),
+            immich_picks: strings(&saved["immichPicks"]).filter(|p| !p.is_empty()).unwrap_or(defaults.immich_picks),
         })
     }
 }
@@ -157,6 +183,14 @@ mod tests {
         assert_eq!((unpicked.live_tv_row, unpicked.live_channels), (true, None));
         let picked = Settings::parse(r#"{"liveTvRow":false,"liveChannels":["1_41_2_102_16522_17472_9018",3]}"#).unwrap();
         assert_eq!((picked.live_tv_row, picked.live_channels), (false, Some(vec!["1_41_2_102_16522_17472_9018".to_string()])));
+    }
+
+    #[test]
+    fn the_screensaver_shows_immich_only_when_asked_and_keeps_to_the_web_apps_choices() {
+        let saved = Settings::parse(r#"{"saverShow":"immich","ambient":"immich:recent|immich:favorites","ambientSeconds":60,"immichRecentDays":90,"saverForecast":true,"saverForecastSize":"large"}"#).unwrap();
+        assert_eq!((saved.saver_immich, saved.saver_sources.as_str(), saved.saver_seconds, saved.immich_recent_days, saved.saver_forecast), (true, "immich:recent|immich:favorites", 60, 90, Forecast::Large));
+        let odd = Settings::parse(r#"{"ambient":"/etc/passwd","ambientSeconds":7,"immichRecentDays":1000,"ambientOn":true}"#).unwrap();
+        assert_eq!((odd.saver_immich, odd.saver_sources.as_str(), odd.saver_seconds, odd.immich_recent_days), (true, "immich:recent", 30, 180));
     }
 
     #[test]

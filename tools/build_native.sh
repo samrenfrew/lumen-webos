@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md), and packages it: prints the .ipk's path.
+# Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md), and packages it twice: the home screen, then the same program as
+# Lumen Screensaver (com.samrenfrew.lumen.native.saver). Prints the two .ipk paths, home first.
 # With cargo on the PATH and glibc 2.36 or newer (the SDK's host tools need it), build.sh runs here. Otherwise it runs in the
 # lumen-native image (native/lumen/Dockerfile), which has the Rust in native/lumen/rust-toolchain.toml.
 # Env: WEBOS_SDK (the SDK folder), LUMEN_PRIVATE=0 (no private font), LUMEN_BUILD_DIR (where the .ipk goes), LUMEN_DEV=0 (no control channel).
@@ -20,6 +21,7 @@ fi
 cd "$ROOT/app"
 [ -d node_modules ] || npm ci --no-audit --no-fund >&2
 mkdir -p "$OUT"
-rm -f "$OUT/com.samrenfrew.lumen.native_"*.ipk
+rm -f "$OUT/com.samrenfrew.lumen.native_"*.ipk "$OUT/com.samrenfrew.lumen.native.saver_"*.ipk
 npx ares-package "$ROOT/native/lumen/build/pkg" --no-minify -o "$OUT" >&2
-ls "$OUT/com.samrenfrew.lumen.native_"*.ipk
+npx ares-package "$ROOT/native/lumen/build/pkg-saver" --no-minify -o "$OUT" >&2
+ls "$OUT/com.samrenfrew.lumen.native_"*.ipk "$OUT/com.samrenfrew.lumen.native.saver_"*.ipk
