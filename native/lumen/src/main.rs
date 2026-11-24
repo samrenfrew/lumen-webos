@@ -584,9 +584,9 @@ impl App {
         self.redraw = true;
         match panel.key(&self.draw, key, ticks()) {
             control_center::Outcome::Stay => {}
-            control_center::Outcome::Close => self.panel = None,
+            control_center::Outcome::Close => panel.close(ticks(), &self.draw.look),
             control_center::Outcome::CloseDown => {
-                self.panel = None;
+                panel.close(ticks(), &self.draw.look);
                 self.home.go_to_bar(&self.draw, ticks());
             }
             control_center::Outcome::Open(id) => {
@@ -614,7 +614,7 @@ impl App {
             }
             control_center::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
         }
-        if self.side.is_some() && self.panel.is_none() {
+        if self.side.is_some() && self.panel.as_ref().is_none_or(control_center::ControlCenter::closing) {
             self.close_side();
         }
     }
@@ -721,6 +721,12 @@ impl App {
         }
         if self.screen.is_some() {
             return self.screen_key(key);
+        }
+        if self.panel.as_ref().is_some_and(control_center::ControlCenter::closing) {
+            if self.side.is_some() {
+                return;
+            }
+            self.panel = None;
         }
         if self.panel.is_some() {
             return self.panel_key(key);
@@ -839,9 +845,11 @@ impl App {
             }
             Some("controls") => {
                 self.screen = None;
-                if self.panel.take().is_none() {
-                    self.open_panel(control_center::Kind::Controls);
+                match self.panel.as_mut() {
+                    Some(panel) if !panel.closing() => panel.close(ticks(), &self.draw.look),
+                    _ => self.open_panel(control_center::Kind::Controls),
                 }
+                self.redraw = true;
             }
             Some("ambient") => self.open_saver(),
             Some("guide") if self.settings.live_tv_row && !self.over_live_tv => {
@@ -917,10 +925,13 @@ impl App {
             self.draw.pictures.next_frame();
             return self.home.toast_over(&mut self.draw, now);
         }
-        self.home.panel_open = self.panel.is_some();
+        self.home.panel_open = self.panel.as_ref().is_some_and(|p| !p.closing());
         self.home.draw(&mut self.draw, now);
         if let Some(panel) = self.panel.as_mut() {
             panel.draw(&mut self.draw, now);
+        }
+        if self.panel.as_ref().is_some_and(|p| p.closed(now)) {
+            self.panel = None;
         }
     }
 

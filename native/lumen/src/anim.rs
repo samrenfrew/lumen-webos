@@ -5,6 +5,7 @@ pub static EASE_VEIL: Curve = [0.45, 0.0, 0.55, 1.0];
 pub static EASE_OUT: Curve = [0.0, 0.0, 0.58, 1.0];
 pub static EASE_SCROLL: Curve = [0.2, 0.7, 0.2, 1.0];
 pub static EASE_GROW: Curve = [0.2, 0.8, 0.2, 1.0];
+pub static EASE_IN: Curve = [0.42, 0.0, 1.0, 1.0];
 
 #[derive(Clone, Copy)]
 pub struct Anim {

@@ -1,4 +1,5 @@
-use crate::anim::{Anim, EASE_GROW, EASE_OUT};
+use crate::anim::{Anim, EASE_GROW, EASE_IN, EASE_OUT};
+use crate::look::Look;
 use crate::draw::{decoded, Draw, Glass, Style};
 use crate::gfx::{Tex, DESIGN_W};
 use crate::home::{pill_left, Key};
@@ -87,9 +88,12 @@ const LONG_STRETCH: f32 = 0.85;
 const GRID_SHRINK: f32 = 0.15;
 const SHAPE_BY: f32 = 0.35;
 const GROW: [f32; 11] = [0.0, 0.12, 0.35, 0.6, 0.8, 0.9, 0.94, 0.97, 0.985, 0.995, 1.0];
-// ponytail: the backlight fill is one flat frost, without the web gradient and inner rim
-const FILL_TINT: f32 = 0.14;
-const FILL_TINT_FOCUSED: f32 = 0.24;
+const FILL_STOPS: [(f32, f32); 3] = [(0.0, 0.36), (0.45, 0.16), (1.0, 0.26)];
+const FILL_UNFOCUSED: f32 = 0.6;
+const FILL_RIM_LIGHT: f32 = 0.6;
+const FILL_RIM_DARK_SIDE: f32 = 0.3;
+const FILL_GLOW: (f32, f32) = (16.0, 0.1);
+const FILL_SHADOW: (f32, f32, f32) = (4.0, 14.0, 0.18);
 
 const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const GLYPH_INK: [f32; 3] = [1.0, 1.0, 1.0];
@@ -367,6 +371,7 @@ pub struct ControlCenter {
     input_index: usize,
     input_lifts: Vec<Anim>,
     drawn_at_rest: bool,
+    closing: bool,
 }
 
 impl Drop for ControlCenter {
@@ -423,6 +428,7 @@ impl ControlCenter {
             input_index: 0,
             input_lifts: Vec::new(),
             drawn_at_rest: false,
+            closing: false,
         }
     }
 
@@ -692,9 +698,33 @@ impl ControlCenter {
         }
     }
 
-    fn grown(&self, button: usize, now: u32) -> (Scale, f32) {
+    fn grown(&self, button: usize, now: u32, look: &Look) -> (Scale, f32) {
         let g = self.grow.at(now);
-        (Scale { ox: pill_left(button) + BUTTON / 2.0, oy: BUTTON_TOP + BUTTON / 2.0, s: GROW_FROM + (1.0 - GROW_FROM) * g }, g)
+        let (s, alpha) = if self.closing {
+            let t = 1.0 - g;
+            (1.0 - (1.0 - look.cc_close_to) * t, 1.0 - ramp(t, look.cc_close_fade, 1.0))
+        } else {
+            (GROW_FROM + (1.0 - GROW_FROM) * g, g)
+        };
+        (Scale { ox: pill_left(button) + BUTTON / 2.0, oy: BUTTON_TOP + BUTTON / 2.0, s }, alpha)
+    }
+
+    pub fn close(&mut self, now: u32, look: &Look) {
+        if self.closing {
+            return;
+        }
+        self.closing = true;
+        let from = self.grow.at(now);
+        self.grow = Anim::still(from);
+        self.grow.go(0.0, look.cc_close_ms * from, &EASE_IN, now);
+    }
+
+    pub fn closing(&self) -> bool {
+        self.closing
+    }
+
+    pub fn closed(&self, now: u32) -> bool {
+        self.closing && !self.grow.busy(now)
     }
 
     fn glass(d: &Draw, cx: f32, cy: f32, w: f32, h: f32, f: f32, alpha: f32) {
@@ -751,13 +781,8 @@ impl ControlCenter {
         match cell {
             Cell::Sound | Cell::Picture | Cell::Clock | Cell::Sleep => Self::row_inside(d, &self.tile_row(cell, values), cx, cy, k, alpha),
             Cell::Backlight => {
-                let filled = w * values.backlight as f32 / 100.0;
-                let (x, y) = (cx - w * k / 2.0, cy - h * k / 2.0);
-                d.p.fill.activate();
-                d.p.fill.set4(c"u_box", x, y, w * k, h * k);
-                d.p.fill.set1(c"u_radius", h * k / 2.0);
-                d.p.fill.set4(c"u_ink", 1.0, 1.0, 1.0, (FILL_TINT + (FILL_TINT_FOCUSED - FILL_TINT) * f) * alpha);
-                d.gfx.quad(&d.p.fill, x, y, filled * k, h * k);
+                let fill = backlight_fill(d, w, h, values.backlight);
+                d.picture(fill, cx - w * k / 2.0, cy - h * k / 2.0, w * k, h * k, (FILL_UNFOCUSED + (1.0 - FILL_UNFOCUSED) * f) * alpha);
                 let left = -w / 2.0 + 22.0;
                 Self::mark(d, SUN, 34, cx + (left + 17.0) * k, cy, k, GLYPH_INK, GLYPH_ALPHA * alpha);
                 if let Some(text) = d.text(cell_label(cell), &NAME) {
@@ -788,7 +813,7 @@ impl ControlCenter {
 
     fn draw_controls(&mut self, d: &mut Draw, now: u32) {
         let values = tvcontrols::values();
-        let (grown, grow_alpha) = self.grown(CONTROLS_BUTTON, now);
+        let (grown, grow_alpha) = self.grown(CONTROLS_BUTTON, now, &d.look);
         let (left, top) = (DESIGN_W - RIGHT_EDGE - CONTROLS_W, PANEL_TOP);
         let menu = self.menu.as_ref().map(|m| (m.cell, m.index, m.lifts.iter().map(|l| l.at(now)).collect::<Vec<f32>>()));
         let morph = self.morph_t(now);
@@ -877,7 +902,7 @@ impl ControlCenter {
 
     fn draw_inputs(&mut self, d: &mut Draw, now: u32) {
         let Some(shown) = self.inputs.lock().ok().and_then(|l| l.clone()) else { return };
-        let (grown, grow_alpha) = self.grown(INPUTS_BUTTON, now);
+        let (grown, grow_alpha) = self.grown(INPUTS_BUTTON, now, &d.look);
         let (left, top) = (DESIGN_W - RIGHT_EDGE - INPUTS_W, PANEL_TOP);
         if shown.is_empty() {
             if let Some(text) = d.text("No inputs selected: add some in Settings > Sources", &CAPTION) {
@@ -944,9 +969,87 @@ impl ControlCenter {
     }
 }
 
+fn backlight_fill(d: &mut Draw, w: f32, h: f32, percent: i32) -> Tex {
+    let key = format!("shape:backlight:{percent}");
+    if let Some(picture) = d.pictures.find(&key) {
+        return picture;
+    }
+    let (pw, ph) = ((w * FOCUS_LIFT).round() as usize, (h * FOCUS_LIFT).round() as usize);
+    let rgba = backlight_fill_pixels(pw, ph, percent.clamp(0, 100) as f32 / 100.0, FOCUS_LIFT);
+    let picture = d.gfx.upload_rgba(&rgba, pw as i32, ph as i32);
+    d.keep(&key, picture);
+    picture
+}
+
+fn backlight_fill_pixels(pw: usize, ph: usize, part: f32, px: f32) -> Vec<u8> {
+    let (w, h) = (pw as f32, ph as f32);
+    let r = h / 2.0;
+    let filled = (w * part).round();
+    let stop = |t: f32| {
+        let i = FILL_STOPS.windows(2).position(|s| t <= s[1].0).unwrap_or(FILL_STOPS.len() - 2);
+        let (a, b) = (FILL_STOPS[i], FILL_STOPS[i + 1]);
+        a.1 + (b.1 - a.1) * ((t - a.0) / (b.0 - a.0)).clamp(0.0, 1.0)
+    };
+    let mut rgba = vec![0u8; pw * ph * 4];
+    for y in 0..ph {
+        for x in 0..pw {
+            let (fx, fy) = (x as f32 + 0.5, y as f32 + 0.5);
+            let dx = (fx - w / 2.0).abs() - (w / 2.0 - r);
+            let dist = (dx.max(0.0).powi(2) + (fy - h / 2.0).powi(2)).sqrt() - r;
+            let inside = (0.5 - dist).clamp(0.0, 1.0);
+            if inside <= 0.0 {
+                continue;
+            }
+            let (white, black) = if fx < filled {
+                let t = ((fx / filled.max(1.0)) + fy / h) / 2.0;
+                let edge = |d: f32| (1.0 - d / (1.5 * px)).clamp(0.0, 1.0);
+                let light = FILL_RIM_LIGHT * edge(fy).max(edge(fx)) + FILL_RIM_DARK_SIDE * edge(h - fy).max(edge(filled - fx));
+                let near = fx.min(fy).min(h - fy).min(filled - fx);
+                let glow = FILL_GLOW.1 * (1.0 - near / (FILL_GLOW.0 * px)).clamp(0.0, 1.0);
+                ((stop(t) + light + glow).min(1.0), 0.0)
+            } else {
+                let past = fx - filled - FILL_SHADOW.0 * px;
+                let spread = FILL_SHADOW.1 * px;
+                let shadow = if filled <= 0.0 { 0.0 } else { FILL_SHADOW.2 * (1.0 - ((past + spread / 2.0) / spread).clamp(0.0, 1.0)) };
+                (0.0, shadow)
+            };
+            let a = (white + black * (1.0 - white)) * inside;
+            let v = (white * inside * 255.0).round() as u8;
+            rgba[(y * pw + x) * 4..][..4].copy_from_slice(&[v, v, v, (a * 255.0).round() as u8]);
+        }
+    }
+    rgba
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn closing_shrinks_toward_its_button_and_fades_before_it_goes() {
+        let look = Look::defaults();
+        let mut panel = ControlCenter::fresh(Kind::Controls, "auto", 0);
+        panel.close(1000, &look);
+        let half = 1000 + look.cc_close_ms as u32 / 2;
+        assert_eq!(panel.grown(CONTROLS_BUTTON, 1000, &look).1, 1.0);
+        let (mid, _) = panel.grown(CONTROLS_BUTTON, half, &look);
+        assert!(mid.s < 1.0 && mid.s > look.cc_close_to);
+        assert!(!panel.closed(half));
+        assert!(panel.closed(1000 + look.cc_close_ms as u32));
+    }
+
+    #[test]
+    fn the_backlight_fill_ends_at_its_value_and_stays_inside_the_bar() {
+        let (w, h) = (300, 90);
+        let pixels = backlight_fill_pixels(w, h, 0.5, 1.0);
+        let white = |x: usize, y: usize| pixels[(y * w + x) * 4];
+        let cover = |x: usize, y: usize| pixels[(y * w + x) * 4 + 3];
+        assert!(white(140, 45) > 0);
+        assert_eq!(white(160, 45), 0);
+        assert!(cover(155, 45) > 0, "the fill throws a shadow past its end");
+        assert_eq!(cover(250, 45), 0);
+        assert_eq!(cover(0, 0), 0, "the bar's round end is left clear");
+    }
 
     fn panel() -> ControlCenter {
         ControlCenter::fresh(Kind::Controls, "auto", 0)

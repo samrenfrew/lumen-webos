@@ -108,7 +108,9 @@ impl App {
         }
         note!("{}: closing", self.side.map_or("", Side::app_id));
         self.guide = None;
-        self.panel = None;
+        if let Some(panel) = self.panel.as_mut() {
+            panel.close(ticks(), &self.draw.look);
+        }
         self.quit_at = Some(ticks().wrapping_add(CLOSE_AFTER_MS));
         self.redraw = true;
     }
