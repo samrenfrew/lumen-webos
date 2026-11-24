@@ -188,7 +188,9 @@ longer put in LG's screensaver's place:
 
 - **(verify)** With the mount off: the TV's timer over an app and over Lumen opens the overlay, a key goes back, and Hyperion
   does not restart (no rainbow) from the second or so the TV spends in its screensaver state.
-- **(verify)** WLED's fallback when Hyperion stops: Sam wants the lights off, not WLED's preset.
+- **(verify)** WLED (192.168.0.23, 0.15.4) now falls back to black when Hyperion stops: its own colour is black, saved as preset 1
+  "Black", which is also its start-up preset (set 2026-11-24 over its JSON API). It was solid warm white, switched on by
+  Hyperion at each start. Still to see: the lights go dark, not white, the next time Hyperion stops.
 - **(verify)** Built 2026-11-24, not installed: with the side app installed, Lumen's idle timer and Control Center's Art mode
   open it (`showScreensaver` in `app.tsx`), and Lumen's own built-in screensaver is only the fallback. When the TV's timer then
   starts the copy in LG's place over it, that copy waits (it sees the other one's `showing` file) and watch.sh ends it (`nsover`).
