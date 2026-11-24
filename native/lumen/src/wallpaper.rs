@@ -94,24 +94,26 @@ pub const SETTLE_ON_HOME_MS: u64 = 10_000;
 pub struct HomeClock {
     last_tick: Option<u32>,
     was_on_home: bool,
+    was_in_lumen: bool,
     on_home_ms: u64,
     settled_ms: u64,
 }
 
 impl HomeClock {
-    pub fn due(&mut self, on_home: bool, now: u32, minutes: f64) -> bool {
+    pub fn due(&mut self, on_home: bool, in_lumen: bool, now: u32, minutes: f64) -> bool {
         let step = self.last_tick.map_or(0, |last| now.wrapping_sub(last) as u64);
         self.last_tick = Some(now);
+        if self.was_in_lumen {
+            self.on_home_ms += step;
+        }
         if self.was_on_home && on_home {
-            self.on_home_ms += step;
             self.settled_ms += step;
-        } else if self.was_on_home {
-            self.on_home_ms += step;
         }
         if !on_home {
             self.settled_ms = 0;
         }
         self.was_on_home = on_home;
+        self.was_in_lumen = in_lumen;
         minutes > 0.0 && on_home && self.settled_ms >= SETTLE_ON_HOME_MS && self.on_home_ms as f64 >= minutes * 60_000.0
     }
 
@@ -142,17 +144,22 @@ mod tests {
     }
 
     #[test]
-    fn the_wallpaper_timer_counts_only_home_time_and_waits_ten_seconds_after_coming_back() {
+    fn the_wallpaper_timer_counts_home_and_screensaver_time_not_other_apps_and_waits_ten_seconds_back_on_home() {
         let mut clock = HomeClock::default();
-        assert!(!clock.due(true, 0, 1.0));
-        assert!(!clock.due(false, 50_000, 1.0));
-        assert!(!clock.due(false, 400_000, 1.0));
-        assert!(!clock.due(true, 410_000, 1.0));
-        assert!(!clock.due(true, 419_000, 1.0));
-        assert!(clock.due(true, 421_000, 1.0));
-        clock.changed();
-        assert!(!clock.due(true, 442_000, 1.0));
-        assert!(!clock.due(true, 600_000, 0.0));
+        assert!(!clock.due(true, true, 0, 1.0));
+        assert!(!clock.due(false, false, 5_000, 1.0));
+        assert!(!clock.due(false, false, 400_000, 1.0));
+        assert!(!clock.due(true, true, 410_000, 1.0));
+        assert!(!clock.due(true, true, 421_000, 1.0));
+        let mut saver = HomeClock::default();
+        assert!(!saver.due(true, true, 0, 1.0));
+        assert!(!saver.due(false, true, 30_000, 1.0));
+        assert!(!saver.due(true, true, 90_000, 1.0));
+        assert!(!saver.due(true, true, 99_000, 1.0));
+        assert!(saver.due(true, true, 101_000, 1.0));
+        saver.changed();
+        assert!(!saver.due(true, true, 102_000, 1.0));
+        assert!(!saver.due(true, true, 600_000, 0.0));
     }
 
     fn picks(keys: &[&str]) -> Vec<String> {

@@ -638,8 +638,9 @@ impl App {
 
     fn change_wallpaper_if_due(&mut self) {
         let minutes = self.settings.wp_auto_minutes;
-        let on_home = !self.hidden && self.saver.is_none() && self.guide.is_none() && self.screen.is_none();
-        if !self.wallpaper_clock.due(on_home, ticks(), minutes) {
+        let in_lumen = !self.hidden && self.guide.is_none() && self.screen.is_none();
+        let on_home = in_lumen && self.saver.is_none();
+        if !self.wallpaper_clock.due(on_home, in_lumen, ticks(), minutes) {
             return;
         }
         if self.on_its_own() || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
@@ -662,6 +663,12 @@ impl App {
     fn fetch_a_wallpaper_if_wanted(&mut self) {
         if !self.fetch_wallpapers || self.on_its_own() || self.fetching_wallpaper || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
+        }
+        let shown = store::read(wallpaper::SHOWN_PICK).map(|p| p.trim().to_string());
+        let picked = &self.settings.wallpaper_picks;
+        if self.settings.wallpaper_type == "pictures" && !picked.is_empty() && shown.is_some_and(|p| !picked.contains(&p)) {
+            self.wallpaper_clock.changed();
+            return self.fetch_wallpaper(false);
         }
         let as_next = store::has(wallpaper::SHOWN);
         if as_next && (!self.settings.new_wallpaper_on_launch || store::has(wallpaper::NEXT)) {
@@ -1339,7 +1346,7 @@ fn run() -> i32 {
                 wait_ms = wait_ms.min(saver.max(1));
             }
             if app.settings.wp_auto_minutes > 0.0 {
-                wait_ms = wait_ms.min(30_000);
+                wait_ms = wait_ms.min(2_000);
             }
             if app.settings.live_tv_row {
                 wait_ms = wait_ms.min(livetv::TICK_MS as u32);
