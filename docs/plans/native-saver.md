@@ -34,7 +34,8 @@ build the screensaver natively first and measure it before deciding on the launc
    or a paused app. **(verify)** It draws as a transparent overlay, keys reach it, and the app under it is left as it was.
 2. **Spike B, in LG's screensaver's place.** The same mount as `side-apps.md` section 4, with a native `appinfo.json` and window type
    `_WEBOS_WINDOW_TYPE_SCREENSAVER`. **(verify)** The TV launches it on its timer, and a key goes back to the app.
-3. **The real one.** In the parts below, each checked by Sam on the TV before the next. Done so far: part A.
+3. **The real one.** In the parts below. Part A was seen by Sam. Parts B to G were built on 2026-11-24 in one run and checked
+   headless on the TV (see "Built, not yet seen"); none of them has been on the screen yet.
 
 ## The rest of the plan
 
@@ -110,12 +111,56 @@ does (`lib/wallpaper.ts`). Today it shows Lumen's five default pictures.
   (cache it) and run `build.sh` in `debian:bookworm-slim`.
 - Then delete the web screensaver page (`app/saver.html`, `app/src/saver/`).
 
+### Built, not yet seen (2026-11-24)
+
+How it is put together now:
+
+- **One finished frame per picture.** `src/compose.c` builds each picture at screen size on the background thread: placed as the
+  CSS places it (cover, or a pair on black), scaled with area averaging, the bottom blur, the Print look and night dimming all in
+  the pixels. The main loop only crossfades two opaque 1920x1080 textures, so a pair costs the same as a single photo. 200-290 ms
+  a picture on the TV; white with the Print look matches the CSS to one level.
+- **One status band.** `src/status.c` draws the shade, clock, date, weather line and forecast widget into one 1920x520 texture,
+  once a minute (40-120 ms). Positions are worked out from the CSS; SF comes from `fonts/sf-<weight>.ttf` (made by
+  `tools/make_sf_ttf.py`, private), else LG Smart UI. Icons and the strings for each language are made by
+  `tools/gen_saver_look.mjs` and committed in `native/saver/assets/`.
+- **Weather.** `src/weather.c` ports `lib/weather.ts`; cities from `assets/cities.tsv` (`tools/gen_saver_cities.mjs`).
+- **Wallpaper pictures.** `local:<n>` is `photos/default-<n>.jpg` in the app's folder; `cloud:<id>` is downloaded once a boot from
+  the URL in `assets/wallpapers.tsv` (`tools/gen_saver_wallpapers.mjs`).
+- **No luna calls from the app.** `/usr/bin/luna-send` is root only, so the jail cannot run it (the `turnOnScreen` call in the
+  spikes failed with 126 and a key still went back to the app). `watch.sh` does all of it. The app keeps
+  `/tmp/lumen-saver-<uid>/showing` (its pid) from its first frame until a key; watch.sh dims the backlight when a live one
+  appears and puts it back when it goes, so the backlight comes back up to a second after the key, not at once as on the web one.
+- **Lumen's own screensaver.** In LG's place, when `/tmp/lumen-ambient-on` exists the app waits up to 3 s before it makes a
+  window, and watch.sh ends it (`turnOnScreen`, then `closeByAppId`) when Lumen is in front. After 3 s it shows anyway.
+- **Settings.** watch.sh copies `lumen-config.json` and `immich.json` into `config/` of the staged copy and of the installed side
+  app when they change, and writes `config/tv.json` (the TV's language and clock format, for the `auto` settings).
+- **Shipping.** `native/saver/appinfo.json` is `com.samrenfrew.lumen.saver` 1.1.0. `tools/build_native_saver.sh` builds (in Docker
+  when the host's glibc is under 2.36) and packages; `deploy_saver.sh`, `build_release.py` and the release workflow use it. The
+  workflow downloads the SDK (`openlgtv/buildroot-nc4` release `2026.08-webos`, checked by SHA-256) and caches it. The web page is
+  removed in a commit of its own, so it can be reverted alone.
+
+Not ported: letter-spacing and kerning (SDL_ttf 2.0.14 has neither for SF), and Hindi is unshaped. The fallback font is LG Smart
+UI, where the web one fell back to Geist.
+
+Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications/com.webos.app.screensaver` (the trial's mount of
+`saver-app.native`, which the scripts do not know) and `rm -rf /var/lib/homehook/saver-app.native`.
+
 ### Open checks
 
+- **(verify)** The whole thing on screen: fade in, crossfade frame rate with composed frames, the band over real photos, a key.
+- **(verify)** Graphics memory while up, against the 30 MB of spike A and the 180 MB of the web one (plan part E).
+- **(verify)** The look against Lumen's own screensaver side by side: clock, date, weather line, both forecast sizes, Print look.
+- **(verify)** Backlight dims and comes back, over Live TV (input `dtv`) and over an app (input `default`).
+- **(verify)** `running` lists `com.webos.app.screensaver` while it is up in LG's place and `closeByAppId` closes it; the
+  `turnOnScreen`, 1 s, close sequence lands inside the app's 3 s wait over Lumen's own screensaver.
+- **(verify)** The TV leaves "Screen Saver" by itself within 2 s of a key (else watch.sh calls `turnOnScreen`).
+- **(verify)** After a restage the jail sees the new folder, and the overlay's jail can read the root-owned files in `config/`.
+- **(verify)** The overlay (Quick Settings' button): it has no `photos/`, so wallpaper picks fall back to Lumen's folder.
+- **(verify)** The release workflow: the SDK download and cache, `relocate-sdk.sh` on the runner, and that the Homebrew Channel
+  takes a `native` manifest. It runs only on a push to `main`.
+- **(verify)** `noSplashOnLaunch` and `spinnerOnLaunch` are honoured for a native app.
 - **(verify)** Hyperion (below).
-- **(verify)** It ends itself over Lumen's own screensaver, as the web one does (`/tmp/lumen-ambient-on`).
-- **(verify)** After a reboot, with G done, it is still the TV's screensaver.
-- **(verify)** Frame rate of a pair crossfade (two textures each side) against a single photo.
+- **(verify)** After a reboot it is still the TV's screensaver.
 
 ## Results
 
