@@ -433,6 +433,7 @@ impl App {
             }
         });
         self.show_apps();
+        self.show_live();
     }
 
     fn act(&mut self, action: Action) {
@@ -520,6 +521,7 @@ impl App {
         let listed = apps::listed(&self.launch_points, &self.known);
         let mut screen = settings_screen::SettingsScreen::new(config, listed, ticks());
         screen.online = self.fetch_wallpapers;
+        screen.channels = self.live.channels.iter().map(|c| settings_screen::ChannelTile { id: c.id.clone(), number: c.number.clone(), name: c.name.clone(), logo: c.logo_path.as_ref().and_then(|p| self.live.logos.get(p)).cloned() }).collect();
         self.screen = Some(screen);
         self.redraw = true;
     }

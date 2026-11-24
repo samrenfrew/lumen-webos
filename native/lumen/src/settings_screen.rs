@@ -4,6 +4,7 @@ use crate::draw::{decoded, Decoded, Draw, Style};
 use crate::ffi::*;
 use crate::gfx::{Tex, DESIGN_H, DESIGN_W};
 use crate::home::Key;
+use crate::livetv::DEFAULT_ROW_CHANNELS;
 use crate::settings_options::{self as opts, cities_in, group_named, City, Facts, Group, Kind, Opt, GROUPS};
 use crate::settings_tv::{self as tv, Shared};
 use crate::text::Shadow;
@@ -121,6 +122,14 @@ pub enum Outcome {
 enum Tab {
     Apps,
     Sources,
+    Channels,
+}
+
+pub struct ChannelTile {
+    pub id: String,
+    pub number: String,
+    pub name: String,
+    pub logo: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -154,6 +163,7 @@ struct Held {
 enum Look {
     App(Icon, Option<[f32; 3]>, String),
     Input(String),
+    Channel(String, Option<String>),
 }
 
 #[derive(Clone)]
@@ -208,6 +218,7 @@ struct Picture {
 pub struct SettingsScreen {
     config: Value,
     apps: Vec<App>,
+    pub channels: Vec<ChannelTile>,
     stack: Vec<Entry>,
     zone: Zone,
     grid_index: usize,
@@ -405,6 +416,7 @@ impl SettingsScreen {
         SettingsScreen {
             config: if config.is_object() { config } else { json!({}) },
             apps,
+            channels: Vec::new(),
             stack: vec![Entry { page: Page::Root, focus: 0 }],
             zone: Zone::Content,
             grid_index: 0,
@@ -558,10 +570,12 @@ impl SettingsScreen {
         let items: Vec<Item> = match tab {
             Tab::Apps => self.apps.iter().map(|a| Item { key: a.id.clone(), label: a.title.clone(), look: Look::App(a.icon.clone(), a.color, a.title.clone()) }).collect(),
             Tab::Sources => self.inputs().into_iter().map(|i| Item { key: i.app_id, label: i.label, look: Look::Input(i.icon) }).collect(),
+            Tab::Channels => self.channels.iter().map(|c| Item { key: c.id.clone(), label: format!("{} · {}", c.number, c.name), look: Look::Channel(c.name.clone(), c.logo.clone()) }).collect(),
         };
         let ids = match tab {
             Tab::Apps => self.strings("appIds").unwrap_or_default(),
             Tab::Sources => self.strings("sourceIds").unwrap_or_else(|| items.iter().map(|i| i.key.clone()).collect()),
+            Tab::Channels => self.strings("liveChannels").unwrap_or_else(|| items.iter().take(DEFAULT_ROW_CHANNELS).map(|i| i.key.clone()).collect()),
         };
         let shown = ids.iter().filter_map(|id| items.iter().find(|i| &i.key == id).cloned()).collect();
         (items, shown)
@@ -643,7 +657,10 @@ impl SettingsScreen {
         let all = self.options();
         match self.page() {
             Page::Root => {
-                let tabs = [(Tab::Apps, "Apps", opts::GRID), (Tab::Sources, "Sources", opts::INPUTS)];
+                let mut tabs = vec![(Tab::Apps, "Apps", opts::GRID), (Tab::Sources, "Sources", opts::INPUTS)];
+                if self.config["liveTvRow"].as_bool() != Some(false) && !self.channels.is_empty() {
+                    tabs.push((Tab::Channels, "Channels", opts::GUIDE));
+                }
                 let groups: Vec<_> = GROUPS.iter().filter(|g| g.0 == Group::Wallpaper || all.iter().any(|o| o.group == g.0)).collect();
                 let focus = self.focus();
                 let glyph = if focus < tabs.len() { tabs[focus].2 } else { groups.get(focus - tabs.len()).map_or(opts::GEAR, |g| g.2) };
@@ -653,7 +670,6 @@ impl SettingsScreen {
                     rows.push(Row { label: label.into(), value: None, chevron: true, ticked: None });
                     acts.push(Activate::Push(Page::Grid(tab), 0));
                 }
-                // ponytail: Settings > Channels comes with the Live TV channel list
                 for g in groups {
                     rows.push(Row { label: g.1.into(), value: None, chevron: true, ticked: None });
                     acts.push(Activate::Push(Page::Group(g.0), 0));
@@ -926,6 +942,7 @@ impl SettingsScreen {
         match tab {
             Tab::Apps => "appIds",
             Tab::Sources => "sourceIds",
+            Tab::Channels => "liveChannels",
         }
     }
 
@@ -955,6 +972,7 @@ impl SettingsScreen {
             let ids: Vec<String> = match tab {
                 Tab::Apps => self.strings("appIds").unwrap_or_default(),
                 Tab::Sources => self.strings("sourceIds").unwrap_or_else(|| self.inputs().into_iter().map(|i| i.app_id).collect()),
+                Tab::Channels => shown.iter().map(|i| i.key.clone()).collect(),
             };
             return self.changed(vec![(Self::order_key(tab).into(), json!(opts::toggled(&ids, &item.key)))]);
         }
@@ -1204,6 +1222,7 @@ impl SettingsScreen {
             Page::Group(g) => group_named(g).0.to_string(),
             Page::Grid(Tab::Apps) => "apps".into(),
             Page::Grid(Tab::Sources) => "sources".into(),
+            Page::Grid(Tab::Channels) => "channels".into(),
             Page::Wallpaper => "choose wallpaper".into(),
             Page::Choice(id) | Page::Text(id) => id.to_string(),
         };
@@ -1528,6 +1547,7 @@ impl SettingsScreen {
                 let icon = decoded(&path).or_else(|| decoded(&format!("{}/icons/inputs/hdmigeneric.png", d.app_dir)));
                 (icon.map(|i| padded_glyph(&i, TILE_H as usize, 0.64, 2.4)), INPUT_TILE)
             }
+            Look::Channel(name, logo) => (Some(crate::card::channel_card(&d.fonts, name, logo.as_deref(), &crate::card::TILE_CARD)), crate::card::colour_of(name)),
             Look::App(icon, colour, title) => {
                 let file = match icon {
                     Icon::Bundled(file) => Some(format!("{}/icons/apps/{}", d.app_dir, file)),
@@ -1569,7 +1589,7 @@ impl SettingsScreen {
         Decoded { rgba, w: size as i32, h: size as i32 }
     }
 
-    fn tile_uniforms(d: &Draw, icon: Tex, bg: [f32; 3], (x, y, w, h): (f32, f32, f32, f32), shadow: [f32; 3], focus: f32) {
+    fn tile_uniforms(d: &Draw, icon: Tex, bg: [f32; 3], (x, y, w, h): (f32, f32, f32, f32), shadow: [f32; 3], focus: f32, wide: bool) {
         let p = &d.p.tile;
         p.bind(0, c"u_icon", icon.tex);
         p.set4(c"u_box", x, y, w, h);
@@ -1577,7 +1597,7 @@ impl SettingsScreen {
         p.set3(c"u_bg", bg);
         p.set3(c"u_shadow", shadow);
         p.set1(c"u_focus", focus);
-        p.set1(c"u_wide", 0.0);
+        p.set1(c"u_wide", if wide { 1.0 } else { 0.0 });
         p.set1(c"u_turn", 0.0);
     }
 
@@ -1602,7 +1622,7 @@ impl SettingsScreen {
                     let resting = d.gfx.blank(w as i32, h as i32);
                     unsafe { glDisable(GL_BLEND) }
                     d.gfx.at_design_scale_into(&resting);
-                    Self::tile_uniforms(d, icon, bg, (TILE_MARGIN, TILE_MARGIN, TILE_W, TILE_H), SHADOW_REST, 0.0);
+                    Self::tile_uniforms(d, icon, bg, (TILE_MARGIN, TILE_MARGIN, TILE_W, TILE_H), SHADOW_REST, 0.0, matches!(item.look, Look::Channel(..)));
                     d.gfx.quad(&d.p.tile, 0.0, 0.0, w, h);
                     d.keep(&key, resting);
                     resting
@@ -1618,6 +1638,7 @@ impl SettingsScreen {
         let (title, noun) = match tab {
             Tab::Apps => ("Apps", "apps"),
             Tab::Sources => ("Sources", "sources"),
+            Tab::Channels => ("Channels", "channels"),
         };
         let hint = if self.held.is_some() {
             HINT_HOLDING
@@ -1662,7 +1683,7 @@ impl SettingsScreen {
                 let lift = if is_lifted { 1.0 } else { f };
                 let shadow = [0, 1, 2].map(|k| SHADOW_REST[k] + (SHADOW_LIFT[k] - SHADOW_REST[k]) * lift);
                 let margin = shadow[0] + shadow[1] + 4.0;
-                Self::tile_uniforms(d, icon, bg, (bx, by, w, h), shadow, lift);
+                Self::tile_uniforms(d, icon, bg, (bx, by, w, h), shadow, lift, matches!(item.look, Look::Channel(..)));
                 d.gfx.quad(&d.p.tile, bx - margin, by - margin, w + 2.0 * margin, h + 2.0 * margin);
             }
             if checked {
