@@ -140,6 +140,13 @@ fn key_named(name: &str) -> Option<Key> {
     })
 }
 
+fn glyph_of(icon: &apps::Icon) -> Option<&'static str> {
+    match icon {
+        apps::Icon::Glyph(path) => Some(path),
+        _ => None,
+    }
+}
+
 fn strip_from_folders(config: &mut serde_json::Map<String, Value>, id: &str) {
     let Some(folders) = config.get_mut("folders").and_then(Value::as_array_mut) else { return };
     for folder in folders.iter_mut() {
@@ -206,7 +213,7 @@ impl App {
     fn icon_file(&mut self, icon: &apps::Icon, to_copy: &mut Vec<(String, String)>) -> Option<String> {
         match icon {
             apps::Icon::Bundled(file) => Some(format!("{}/icons/apps/{}", self.draw.app_dir, file)),
-            apps::Icon::Missing => None,
+            apps::Icon::Glyph(_) | apps::Icon::Missing => None,
             apps::Icon::OnTv(path) => {
                 let name = apps::kept_icon_name(path);
                 let kept = store::path(&format!("icons/{name}"));
@@ -231,15 +238,15 @@ impl App {
         let in_folder: Vec<String> = self.settings.folders.iter().flat_map(|f| f.app_ids.iter().cloned()).collect();
         let mut shown: Vec<Shown> = Vec::new();
         for app in chosen.into_iter().filter(|app| !in_folder.contains(&app.id)) {
-            shown.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), id: app.id, title: app.title, color: app.color, inside: None });
+            shown.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), glyph: glyph_of(&app.icon), id: app.id, title: app.title, color: app.color, inside: None });
         }
         for folder in self.settings.folders.clone() {
             let mut inside = Vec::new();
             for app in apps::in_order(&listed, &folder.app_ids) {
-                inside.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), id: app.id, title: app.title, color: app.color, inside: None });
+                inside.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), glyph: glyph_of(&app.icon), id: app.id, title: app.title, color: app.color, inside: None });
             }
             if !inside.is_empty() {
-                shown.push(Shown { id: format!("folder:{}", folder.name), title: folder.name, icon_file: None, color: None, inside: Some(inside) });
+                shown.push(Shown { id: format!("folder:{}", folder.name), title: folder.name, icon_file: None, glyph: None, color: None, inside: Some(inside) });
             }
         }
         self.home.reduce_motion = self.settings.reduce_motion;
@@ -375,6 +382,8 @@ impl App {
 
     fn act(&mut self, action: Action) {
         match action {
+            Action::Open(id) if id == apps::SETTINGS_TILE => self.open_settings(),
+            Action::Open(id) if id == apps::INPUTS_TILE => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),
             Action::Open(id) => self.open(id),
             Action::Top("controls") => self.open_panel(control_center::Kind::Controls),
             Action::Top("inputs") => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),

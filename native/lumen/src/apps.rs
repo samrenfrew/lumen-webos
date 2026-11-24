@@ -6,7 +6,28 @@ pub const HIDDEN_IDS: [&str; 2] = ["com.samrenfrew.lumen.native", "google.assist
 pub enum Icon {
     Bundled(String),
     OnTv(String),
+    Glyph(&'static str),
     Missing,
+}
+
+pub const SETTINGS_TILE: &str = "lumen:settings";
+pub const INPUTS_TILE: &str = "lumen:inputs";
+const GEAR: &str = "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
+const PICTURE: &str = "M3.5 5.5h17v11h-17zM8 20h8M12 16.5V20";
+const INPUTS: &str = "M3.5 7.5h17v7.2a2 2 0 0 1-2 2h-3.2l-1 2.3H9.7l-1-2.3H5.5a2 2 0 0 1-2-2zM8 10.5v2.4M12 10.5v2.4M16 10.5v2.4";
+const BUILTINS: [(&str, &str, [f32; 3], &str); 3] = [
+    (SETTINGS_TILE, "Settings", [0.541, 0.553, 0.6], GEAR),
+    ("com.palm.app.settings", "TV Settings", [0.302, 0.306, 0.424], PICTURE),
+    (INPUTS_TILE, "Inputs", [0.227, 0.392, 0.784], INPUTS),
+];
+
+pub fn with_builtins(mut apps: Vec<App>) -> Vec<App> {
+    for (id, title, color, glyph) in BUILTINS {
+        if !apps.iter().any(|a| a.id == id) {
+            apps.push(App { id: id.into(), title: title.into(), icon: Icon::Glyph(glyph), color: Some(color) });
+        }
+    }
+    apps
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -55,7 +76,7 @@ fn without_tagline(title: &str) -> &str {
 
 pub fn listed(launch_points: &Value, known: &[Known]) -> Vec<App> {
     let Some(points) = launch_points["launchPoints"].as_array() else { return Vec::new() };
-    points
+    let installed = points
         .iter()
         .filter_map(|point| {
             let (id, title) = (point["id"].as_str()?, point["title"].as_str()?);
@@ -71,7 +92,8 @@ pub fn listed(launch_points: &Value, known: &[Known]) -> Vec<App> {
             };
             Some(App { id: id.into(), title: known.map_or_else(|| without_tagline(title).to_string(), |k| k.title.clone()), icon, color: known.and_then(|k| k.color) })
         })
-        .collect()
+        .collect();
+    with_builtins(installed)
 }
 
 pub fn in_order(apps: &[App], ids: &[String]) -> Vec<App> {
@@ -150,7 +172,15 @@ mod tests {
             {"id": "untitled"},
             {"id": "kept", "title": "Kept"}
         ]}), &known());
-        assert_eq!(apps.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["kept"]);
+        assert_eq!(apps.iter().map(|a| a.id.as_str()).filter(|id| !matches!(*id, SETTINGS_TILE | INPUTS_TILE | "com.palm.app.settings")).collect::<Vec<_>>(), ["kept"]);
+    }
+
+    #[test]
+    fn lumens_own_tiles_follow_the_apps_and_an_installed_tv_settings_keeps_its_icon() {
+        let apps = listed(&json!({"launchPoints": [{"id": "com.palm.app.settings", "title": "Settings", "icon": "/usr/palm/s.png"}, {"id": "a", "title": "A"}]}), &known());
+        assert_eq!(apps.iter().map(|a| a.id.as_str()).collect::<Vec<_>>(), ["com.palm.app.settings", "a", SETTINGS_TILE, INPUTS_TILE]);
+        assert_eq!(apps[0].icon, Icon::OnTv("/usr/palm/s.png".into()));
+        assert!(matches!(apps[2].icon, Icon::Glyph(_)));
     }
 
     #[test]

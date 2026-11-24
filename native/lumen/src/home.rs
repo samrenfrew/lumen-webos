@@ -123,6 +123,7 @@ pub struct Shown {
     pub id: String,
     pub title: String,
     pub icon_file: Option<String>,
+    pub glyph: Option<&'static str>,
     pub color: Option<[f32; 3]>,
     pub inside: Option<Vec<Shown>>,
 }
@@ -365,6 +366,21 @@ fn scaled_into(dst: &mut [u8], dst_w: usize, (x0, y0, w, h): (usize, usize, usiz
             }
         }
     }
+}
+
+fn glyph_picture(path: &str) -> Decoded {
+    let size = TILE_H as usize;
+    let drawn = (TILE_H * 0.58) as usize;
+    let coverage = crate::vector::stroke(path, 24.0, drawn as u32, 1.6);
+    let mut rgba = vec![0u8; size * size * 4];
+    let at = (size - drawn) / 2;
+    for y in 0..drawn {
+        for x in 0..drawn {
+            let a = coverage[y * drawn + x];
+            rgba[((y + at) * size + x + at) * 4..][..4].copy_from_slice(&[238, 238, 238, a]);
+        }
+    }
+    Decoded { rgba, w: size as i32, h: size as i32 }
 }
 
 fn folder_picture(inside: &[Shown]) -> Decoded {
@@ -1016,6 +1032,8 @@ impl Home {
         }
         let icon = if let Some(inside) = &tile.app.inside {
             folder_picture(inside)
+        } else if let Some(glyph) = tile.app.glyph {
+            glyph_picture(glyph)
         } else {
             let from_file = tile.app.icon_file.as_deref().and_then(decoded);
             if let Some(icon) = &from_file {
@@ -1598,7 +1616,7 @@ mod tests {
     use super::*;
 
     fn app(id: &str) -> Shown {
-        Shown { id: id.into(), title: id.into(), icon_file: None, color: None, inside: None }
+        Shown { id: id.into(), title: id.into(), icon_file: None, glyph: None, color: None, inside: None }
     }
 
     #[test]
