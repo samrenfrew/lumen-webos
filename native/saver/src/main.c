@@ -23,7 +23,7 @@
 
 enum {
     FADE_IN_MS = 600, FADE_OUT_MS = 500, SHOW_ANYWAY_MS = 8000, SLOW_FRAME_MS = 20, IDLE_WAIT_MS = 250,
-    OWN_SAVER_WAIT_MS = 3000, WEATHER_CHECK_MS = 300000
+    OWN_SAVER_WAIT_MS = 3000, FETCH_LEAD_MS = 10000, WEATHER_CHECK_MS = 300000
 };
 
 static Uint32 crossfade_ms = 2400;
@@ -31,6 +31,7 @@ static Uint32 photo_ms;
 static Uint32 started_at;
 static struct wl_webos_shell *webos_shell;
 static volatile int quitting;
+static volatile Uint32 fetch_next_after;
 
 static Settings settings;
 static int frame_w = 1920, frame_h = 1080;
@@ -113,6 +114,7 @@ static int fetcher(void *unused) {
         SDL_LockMutex(slot.lock);
         while (slot.frame && !quitting) SDL_CondWait(slot.emptied, slot.lock);
         SDL_UnlockMutex(slot.lock);
+        while (!quitting && (Sint32)(fetch_next_after - SDL_GetTicks()) > 0) SDL_Delay(100);
         if (quitting) break;
         Picture pic;
         SDL_Surface *frame = NULL;
@@ -155,12 +157,13 @@ static int forecaster(void *unused) {
     return 0;
 }
 
-static SDL_Texture *take_from_slot(SDL_Renderer *r) {
+static SDL_Texture *take_from_slot(SDL_Renderer *r, Uint32 next_is_due) {
     if (SDL_TryLockMutex(slot.lock) != 0) return NULL;
     SDL_Surface *frame = slot.frame;
     if (!frame) { SDL_UnlockMutex(slot.lock); return NULL; }
     picker_shown(&slot.picked);
     slot.frame = NULL;
+    fetch_next_after = next_is_due - (photo_ms < FETCH_LEAD_MS ? photo_ms : FETCH_LEAD_MS);
     SDL_CondSignal(slot.emptied);
     SDL_UnlockMutex(slot.lock);
 
@@ -303,7 +306,7 @@ int main(int argc, char **argv) {
         Uint32 now = SDL_GetTicks();
 
         if (!shown_at) {
-            shown = take_from_slot(r);
+            shown = take_from_slot(r, now + photo_ms);
             if (shown || now - started_at >= SHOW_ANYWAY_MS) {
                 shown_at = SDL_GetTicks();
                 swap_at = shown_at + photo_ms;
@@ -317,7 +320,7 @@ int main(int argc, char **argv) {
         }
 
         int fading_in = now - shown_at < fade_in_ms;
-        if (!incoming && !leaving_at && !fading_in && (incoming = take_from_slot(r))) {
+        if (!incoming && !leaving_at && !fading_in && (incoming = take_from_slot(r, (now > swap_at ? now : swap_at) + crossfade_ms + photo_ms))) {
             if (!settings.reduce_motion) read_tuning();
             now = SDL_GetTicks();
             if (!shown || now > swap_at) swap_at = now;
