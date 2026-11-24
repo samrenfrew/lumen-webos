@@ -12,9 +12,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #define LOG_PATH "/tmp/nsaver.log"
-#define PHOTO_DIR "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/wallpapers"
+#define LUMEN_PHOTO_DIR "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/wallpapers"
 #define CLOCK_FONT "/usr/share/fonts/LG_Smart_UI-Light.ttf"
 #define MAX_PHOTOS 64
 
@@ -31,6 +32,7 @@ static struct wl_webos_shell *webos_shell;
 static void note(const char *fmt, ...) {
     FILE *f = fopen(LOG_PATH, "a");
     if (!f) return;
+    fchmod(fileno(f), 0666);
     char stamp[32];
     time_t now = time(NULL);
     strftime(stamp, sizeof stamp, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now));
@@ -92,14 +94,14 @@ static int is_photo(const char *name) {
     return n > 4 && !strcmp(name + n - 4, ".jpg") && !strstr(name, "-bg.");
 }
 
-static int list_photos(char paths[][256]) {
-    DIR *d = opendir(PHOTO_DIR);
+static int list_photos(const char *dir, char paths[][256]) {
+    DIR *d = opendir(dir);
     if (!d) return 0;
     int count = 0;
     struct dirent *e;
     while ((e = readdir(d)) && count < MAX_PHOTOS)
         if (is_photo(e->d_name))
-            snprintf(paths[count++], 256, "%s/%s", PHOTO_DIR, e->d_name);
+            snprintf(paths[count++], 256, "%s/%s", dir, e->d_name);
     closedir(d);
     return count;
 }
@@ -141,6 +143,24 @@ static void read_tuning(void) {
     fclose(f);
 }
 
+static int lumen_own_saver_up(void) {
+    FILE *flag = fopen("/tmp/lumen-ambient-on", "r");
+    if (!flag) return 0;
+    fclose(flag);
+    FILE *p = popen("luna-send -n 1 -w 3000 luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null", "r");
+    if (!p) return 0;
+    char out[512] = {0};
+    size_t n = fread(out, 1, sizeof out - 1, p);
+    out[n] = 0;
+    pclose(p);
+    return strstr(out, "\"com.samrenfrew.lumen\"") || strstr(out, "\"com.samrenfrew.lumen.dev\"");
+}
+
+static void end_tv_screensaver(void) {
+    int rc = system("luna-send -n 1 -w 4000 luna://com.webos.service.tvpower/power/turnOnScreen '{}' >/dev/null 2>&1");
+    note("turnOnScreen: %d", rc);
+}
+
 static float ease(float x) { return x < 0 ? 0 : x > 1 ? 1 : x * x * (3 - 2 * x); }
 
 static void draw_cover(SDL_Renderer *r, SDL_Texture *t, int sw, int sh, float alpha, SDL_BlendMode mode) {
@@ -158,8 +178,14 @@ int main(int argc, char **argv) {
     started_at = SDL_GetTicks();
     setenv("EGL_PLATFORM", "wayland", 0);
     setenv("XDG_RUNTIME_DIR", "/tmp/xdg", 0);
-    const char *window_type = argc > 1 && strstr(argv[1], "screensaver") ? "_WEBOS_WINDOW_TYPE_SCREENSAVER" : "_WEBOS_WINDOW_TYPE_OVERLAY";
+    int in_lg_place = argc > 1 && strstr(argv[1], "com.webos.app.screensaver") != NULL;
+    const char *window_type = in_lg_place ? "_WEBOS_WINDOW_TYPE_SCREENSAVER" : "_WEBOS_WINDOW_TYPE_OVERLAY";
     note("open: args %s", argc > 1 ? argv[1] : "(none)");
+    if (in_lg_place && lumen_own_saver_up()) {
+        note("open: Lumen's own screensaver is up, ending");
+        end_tv_screensaver();
+        return 0;
+    }
 
     SDL_SetHint("SDL_WEBOS_ACCESS_POLICY_KEYS_BACK", "true");
     SDL_SetHint("SDL_WEBOS_ACCESS_POLICY_KEYS_EXIT", "true");
@@ -194,8 +220,13 @@ int main(int argc, char **argv) {
     SDL_RenderPresent(r);
 
     static char photos[MAX_PHOTOS][256];
-    int count = list_photos(photos);
-    note("photos: %d in %s", count, PHOTO_DIR);
+    char own_dir[200] = "";
+    char *base = SDL_GetBasePath();
+    if (base) { snprintf(own_dir, sizeof own_dir, "%sphotos", base); SDL_free(base); }
+    const char *photo_dir = own_dir;
+    int count = list_photos(photo_dir, photos);
+    if (!count) { photo_dir = LUMEN_PHOTO_DIR; count = list_photos(photo_dir, photos); }
+    note("photos: %d in %s", count, photo_dir);
     int next = 0;
     SDL_Texture *shown = count ? load_photo(r, photos[next++ % count]) : NULL;
     SDL_Texture *incoming = NULL;
@@ -269,9 +300,9 @@ int main(int argc, char **argv) {
         }
         redraw = 0;
 
+        SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(scene * 255));
+        SDL_RenderClear(r);
         if (scene < 1) {
-            SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(scene * 255));
-            SDL_RenderClear(r);
             draw_cover(r, shown, sw, sh, scene, SDL_BLENDMODE_BLEND);
             if (crossfading) draw_cover(r, incoming, sw, sh, scene * cross, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawBlendMode(r, window_alpha_only);
@@ -301,6 +332,7 @@ int main(int argc, char **argv) {
     }
 
 done:
+    if (in_lg_place) end_tv_screensaver();
     note("RSS %ld kB, peak %ld kB", status_kb("VmRSS"), status_kb("VmHWM"));
     if (shown) SDL_DestroyTexture(shown);
     if (incoming) SDL_DestroyTexture(incoming);

@@ -55,4 +55,15 @@ Spike A, 2026-11-24, over Live TV, five of Lumen's wallpaper pictures (1920x1080
 - A JPEG takes 80-190 ms to decode and 35-125 ms to upload. It loads 2 s before the crossfade, while nothing moves.
 - Native apps run in a jail as their own user. They can read Lumen's folder and `/usr/share/fonts`, and write `/tmp` (the real
   one), but not `/var/lib/homehook`. The log is `/tmp/nsaver.log`.
+- Spike B, 2026-11-24, by hand over SSH: a copy with LG's id and `"type": "native"` in `/var/lib/homehook/saver-app` (the web copy
+  moved to `saver-app.web`), bind-mounted over `com.webos.app.screensaver`, then `blockSystemApp` and `releaseBlockSystemApp`. The
+  app manager reported it as native. Seen by Sam over paused Plex, twice: the TV launched it on its own timer, the photos and
+  clock came up, a key went back to Plex where it was paused. watch.sh saw the mount and only logged it.
+- Under LG's id the app runs in LG's screensaver's jail, which has no `/media/developer`, so it cannot read Lumen's folder. It
+  looks for photos in its own folder (`photos/`) first. The real one downloads from Immich, so this only matters for the
+  wallpaper pictures choice.
+- With no photo, the clock drew over the last frame (two times on top of each other). The frame is now cleared every time.
+- `fs.protected_regular` stops one jail user appending to a `/tmp` file another created, so the log only works for the first
+  user that writes it. Give each its own file in the real build.
+- The mount does not survive a reboot (no `saver-mount` flag, no guard), and `saver-app.web` is still there to go back to.
 - `/tmp/nsaver-tune` (`crossfade=<ms>`, `photo=<ms>`) is read before each photo, so timings can be tried live without a build.
