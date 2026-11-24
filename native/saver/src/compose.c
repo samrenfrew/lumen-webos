@@ -177,16 +177,16 @@ static double blur_mask(double t) {
     return 1;
 }
 
-static int blur_bottom(SDL_Surface *frame) {
+static int blur_bottom(SDL_Surface *frame, int x0, int w) {
     static const int radius = 3;
-    int w = frame->w, band = BLUR_BAND_AT_1080 * frame->h / 1080, y0 = frame->h - band;
+    int band = BLUR_BAND_AT_1080 * frame->h / 1080, y0 = frame->h - band;
     size_t bytes = (size_t)w * band * sizeof(uint32_t);
     uint32_t *a = calloc(1, bytes), *b = malloc(bytes), *sums = malloc((size_t)w * 2 * sizeof(uint32_t));
     int ok = a && b && sums;
     if (ok) {
         for (int y = 0; y < band; y++) {
             uint32_t *row = a + (size_t)y * w, *spare = b + (size_t)y * w;
-            memcpy(row, (uint8_t *)frame->pixels + (size_t)(y0 + y) * frame->pitch, (size_t)w * 4);
+            memcpy(row, (uint32_t *)((uint8_t *)frame->pixels + (size_t)(y0 + y) * frame->pitch) + x0, (size_t)w * 4);
             box_blur_row(row, spare, w, radius);
             box_blur_row(spare, row, w, radius);
         }
@@ -194,7 +194,7 @@ static int blur_bottom(SDL_Surface *frame) {
         box_blur_columns(b, a, w, band, radius, sums);
         for (int y = 0; y < band; y++) {
             int m = (int)(blur_mask((y + 0.5) / band) * 256 + 0.5);
-            uint32_t *sharp = (uint32_t *)((uint8_t *)frame->pixels + (size_t)(y0 + y) * frame->pitch);
+            uint32_t *sharp = (uint32_t *)((uint8_t *)frame->pixels + (size_t)(y0 + y) * frame->pitch) + x0;
             const uint32_t *soft = a + (size_t)y * w;
             for (int x = 0; x < w; x++) {
                 int sr = sharp[x] >> 16 & 255, sg = sharp[x] >> 8 & 255, sb = sharp[x] & 255;
@@ -233,14 +233,17 @@ SDL_Surface *compose_frame(const Picture *pic, int sw, int sh, int night) {
     SDL_Surface *frame = SDL_CreateRGBSurfaceWithFormat(0, sw, sh, 32, SDL_PIXELFORMAT_ARGB8888);
     if (!frame) return NULL;
     SDL_FillRect(frame, NULL, 0xFF000000u);
+    int blurred;
     if (pic->count == 1) {
         place_one(frame, pic->img[0], (SDL_Rect){0, 0, sw, sh}, 0, pic->x[0], pic->y[0]);
+        blurred = blur_bottom(frame, 0, sw);
     } else {
         int w = PAIR_WIDTH * sw / 1920;
         place_one(frame, pic->img[0], (SDL_Rect){0, 0, w, sh}, 1, 0, pic->y[0]);
         place_one(frame, pic->img[1], (SDL_Rect){sw - w, 0, w, sh}, 1, 0, pic->y[1]);
+        blurred = blur_bottom(frame, 0, w) && blur_bottom(frame, sw - w, w);
     }
-    if (!blur_bottom(frame)) {
+    if (!blurred) {
         SDL_FreeSurface(frame);
         return NULL;
     }
