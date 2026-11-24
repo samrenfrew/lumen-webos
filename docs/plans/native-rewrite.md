@@ -104,6 +104,8 @@ What exists (phase 1), all in `native/lumen/` unless said:
   installs it (`LUMEN_LAUNCH=1` also opens it).
 - `host-shot.sh <out.png> [--at <ms>] [--against <kept.png>] [keys...]` draws a screen with software graphics on the NUC.
   `shots.sh` compares every screen in `shots/list` with its kept picture in `shots/`; `shots.sh --keep` takes them again.
+  `LUMEN_PRIVATE=1` draws with the SF font from `app/private/fonts`, as the TV build does; the kept pictures are without it.
+  `--as lumen-guide` or `--as lumen-quick` draws a side app.
 - `tools/tv/nctl.mjs` talks to the control channel on `127.0.0.1:9997` over an SSH tunnel to port 19997: `where`, `stats`, `get`,
   `set <name> <value>`, `reset`, `key <left|right|up|down|ok|back>...`, `shot <out.png>`, `call <uri> <json>`, `quit`.
 - The app's log is `/tmp/lumen-native-<uid>/log` on the TV; the boot line also goes to `lumen.log`.
