@@ -81,6 +81,7 @@ pub struct Draw {
     pub fonts: Fonts,
     pub app_dir: String,
     pub glass_backdrop: Tex,
+    pub veil_backdrop: Tex,
     measures: HashMap<String, (f32, f32, f32)>,
 }
 
@@ -131,6 +132,7 @@ impl Draw {
             fonts: Fonts::new(app_dir),
             app_dir: app_dir.to_string(),
             glass_backdrop: Tex::default(),
+            veil_backdrop: Tex::default(),
             measures: HashMap::new(),
         }
     }

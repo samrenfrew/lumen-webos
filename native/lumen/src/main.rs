@@ -13,6 +13,7 @@ mod look;
 mod pictures;
 mod root;
 mod settings;
+mod settings_screen;
 mod shaders;
 mod store;
 mod text;
@@ -72,6 +73,7 @@ pub struct App {
     draw: Draw,
     home: Home,
     panel: Option<control_center::ControlCenter>,
+    screen: Option<settings_screen::SettingsScreen>,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -376,6 +378,7 @@ impl App {
             Action::Open(id) => self.open(id),
             Action::Top("controls") => self.open_panel(control_center::Kind::Controls),
             Action::Top("inputs") => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),
+            Action::Top("settings") => self.open_settings(),
             Action::Top(which) => {
                 note!("top: {}", which);
                 self.home.toast(&format!("{} is not built yet", home::TOP_ITEMS.iter().find(|t| t.0 == which).map_or(which, |t| t.1)), false, ticks());
@@ -444,6 +447,31 @@ impl App {
         };
         self.panel = Some(control_center::ControlCenter::new(kind, clock, ticks()));
         self.redraw = true;
+    }
+
+    fn open_settings(&mut self) {
+        let config = if self.saved.get("config").is_some_and(Value::is_object) { self.saved["config"].clone() } else { self.saved.clone() };
+        let listed = apps::listed(&self.launch_points, &self.known);
+        self.screen = Some(settings_screen::SettingsScreen::new(config, listed, ticks()));
+        self.redraw = true;
+    }
+
+    fn screen_key(&mut self, key: Key) {
+        let Some(screen) = self.screen.as_mut() else { return };
+        self.redraw = true;
+        match screen.key(&self.draw, key, ticks()) {
+            settings_screen::Outcome::Stay => {}
+            settings_screen::Outcome::Close => self.screen = None,
+            settings_screen::Outcome::Setting(name, value) => {
+                self.edit_settings(|c| {
+                    c.insert(name, value);
+                });
+                self.tick_clock();
+                self.show_wallpaper();
+                self.ask_for_weather();
+            }
+            settings_screen::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
+        }
     }
 
     fn panel_key(&mut self, key: Key) {
@@ -548,6 +576,9 @@ impl App {
     }
 
     fn key(&mut self, key: Key) {
+        if self.screen.is_some() {
+            return self.screen_key(key);
+        }
         if self.panel.is_some() {
             return self.panel_key(key);
         }
@@ -558,7 +589,7 @@ impl App {
     }
 
     fn pointer_moved(&mut self, x: i32, y: i32) {
-        if self.panel.is_some() || self.hidden {
+        if self.screen.is_some() || self.panel.is_some() || self.hidden {
             return;
         }
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
@@ -576,7 +607,7 @@ impl App {
         if self.held_since.is_some() {
             return;
         }
-        if self.panel.is_some() || !self.home.can_hold() {
+        if self.screen.is_some() || self.panel.is_some() || !self.home.can_hold() {
             return self.key(Key::Ok);
         }
         self.held_since = Some(ticks());
@@ -648,6 +679,18 @@ impl App {
     }
 
     fn draw_frame(&mut self, now: u32) {
+        if let Some(screen) = self.screen.as_mut() {
+            self.draw.pictures.next_frame();
+            self.draw.gfx.into_screen();
+            unsafe {
+                glClearColor(0.0, 0.0, 0.0, 1.0);
+                glClear(GL_COLOR_BUFFER_BIT);
+                glDisable(GL_BLEND);
+            }
+            screen.draw(&mut self.draw, now);
+            self.draw.pictures.next_frame();
+            return self.home.toast_over(&mut self.draw, now);
+        }
         self.home.draw(&mut self.draw, now);
         if let Some(panel) = self.panel.as_mut() {
             panel.draw(&mut self.draw, now);
@@ -655,6 +698,9 @@ impl App {
     }
 
     fn moving(&self, now: u32) -> bool {
+        if let Some(screen) = &self.screen {
+            return screen.moving(now) || self.home.toast_showing(now);
+        }
         self.home.moving(now) || self.panel.as_ref().is_some_and(|p| p.moving(now))
     }
 
@@ -670,9 +716,10 @@ impl App {
         let mut words = line.splitn(3, ' ');
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
-            "where" => said(&answer, match &self.panel {
-                Some(panel) => panel.where_now(),
-                None => self.home.where_now(),
+            "where" => said(&answer, match (&self.screen, &self.panel) {
+                (Some(screen), _) => screen.where_now(),
+                (None, Some(panel)) => panel.where_now(),
+                (None, None) => self.home.where_now(),
             }),
             "stats" => said(&answer, self.stats()),
             "get" => said(&answer, Look::names().iter().map(|name| (name.to_string(), json!(self.draw.look.get(name)))).collect::<serde_json::Map<_, _>>().into()),
@@ -900,6 +947,7 @@ fn run() -> i32 {
         draw: Draw::new(screen_w, screen_h, &app_dir, look),
         home: Home::new(),
         panel: None,
+        screen: None,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),

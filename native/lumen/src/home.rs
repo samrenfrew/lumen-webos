@@ -497,6 +497,7 @@ impl Home {
         d.gfx.free(&mut half);
         d.gfx.into_screen();
         d.glass_backdrop = self.glass;
+        d.veil_backdrop = self.veil;
         self.blurs_made_with = strengths;
     }
 
@@ -1397,6 +1398,18 @@ impl Home {
         d.p.dim.activate();
         d.p.dim.set1(c"u_alpha", alpha);
         d.gfx.quad(&d.p.dim, 0.0, 0.0, DESIGN_W, DESIGN_H);
+    }
+
+    pub fn toast_showing(&self, now: u32) -> bool {
+        self.toast.as_ref().is_some_and(|(_, _, until)| (until.wrapping_sub(now) as i32) > -300)
+    }
+
+    pub fn toast_over(&mut self, d: &mut Draw, now: u32) {
+        unsafe {
+            glEnable(GL_BLEND);
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+        }
+        self.draw_toast(d, now);
     }
 
     fn draw_toast(&mut self, d: &mut Draw, now: u32) {
