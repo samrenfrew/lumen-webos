@@ -9,12 +9,13 @@ pub struct Controls {
     pub sound: String,
     pub backlight: i32,
     pub eye_comfort: bool,
+    pub sleep: String,
 }
 
 static LAST: Mutex<Option<Controls>> = Mutex::new(None);
 
 fn before_any_read() -> Controls {
-    Controls { picture: "normal".into(), sound: "standard".into(), backlight: 100, eye_comfort: false }
+    Controls { picture: "normal".into(), sound: "standard".into(), backlight: 100, eye_comfort: false, sleep: "off".into() }
 }
 
 pub fn picture_label(mode: &str) -> &str {
@@ -82,6 +83,11 @@ pub fn read_all() {
             patch(|c| c.sound = mode);
         }
     });
+    root::get_setting("sleepTimer", |v| {
+        if let Some(minutes) = v.ok().filter(|m| !m.is_empty()) {
+            patch(|c| c.sleep = minutes);
+        }
+    });
     root::get_setting("eyeComfortMode", |v| {
         if let Ok(mode) = v {
             patch(|c| c.eye_comfort = mode == "on");
@@ -117,6 +123,19 @@ pub fn set_sound_mode(mode: &str, then: impl FnOnce(Result<(), String>) + Send +
     set("soundMode", mode, then);
 }
 
+pub fn set_sleep_timer(minutes: &str, then: impl FnOnce(Result<(), String>) + Send + 'static) {
+    set("sleepTimer", minutes, then);
+}
+
+pub fn sleep_label(minutes: &str) -> String {
+    match minutes.parse::<u32>() {
+        Ok(m) if m >= 60 && m % 60 == 0 => format!("{} hr", m / 60),
+        Ok(m) if m >= 60 => format!("{} hr {} min", m / 60, m % 60),
+        Ok(m) => format!("{m} min"),
+        Err(_) => "Off".to_string(),
+    }
+}
+
 pub fn set_backlight(level: i32, then: impl FnOnce(Result<(), String>) + Send + 'static) {
     set("backlight", &level.to_string(), then);
 }
@@ -127,4 +146,15 @@ pub fn set_eye_comfort(on: bool, then: impl FnOnce(Result<(), String>) + Send + 
 
 pub fn screen_off(then: impl FnOnce(Result<(), String>) + Send + 'static) {
     root::screen_off(then);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sleep_timer_reads_in_minutes_then_hours_and_off_when_unset() {
+        let shown: Vec<String> = crate::root::SLEEP_MINUTES.iter().map(|m| sleep_label(m)).collect();
+        assert_eq!(shown, ["Off", "10 min", "20 min", "30 min", "1 hr", "1 hr 30 min", "2 hr", "3 hr", "4 hr"]);
+    }
 }

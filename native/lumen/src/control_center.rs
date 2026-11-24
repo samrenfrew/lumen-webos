@@ -32,6 +32,7 @@ enum Cell {
     Sound,
     Picture,
     Clock,
+    Sleep,
     Art,
     Home,
     ScreenOff,
@@ -40,14 +41,15 @@ enum Cell {
     Eye,
 }
 
-// ponytail: the Theme tile (dark only) and Restart, which only Quick Settings' layout shows
+// ponytail: Restart, which only Quick Settings' layout shows
 const GRID: [&[(Cell, usize)]; 4] = [
     &[(Cell::Sound, 2), (Cell::Picture, 2)],
-    &[(Cell::Clock, 2)],
+    &[(Cell::Clock, 2), (Cell::Sleep, 2)],
     &[(Cell::Art, 1), (Cell::Home, 1), (Cell::ScreenOff, 1), (Cell::Settings, 1)],
     &[(Cell::Backlight, 3), (Cell::Eye, 1)],
 ];
 const COLUMNS: usize = 4;
+const SLEEP_CHOICES: [&str; 7] = ["off", "10", "30", "60", "90", "120", "180"];
 
 const UNIT: f32 = 90.0;
 const GAP: f32 = 18.0;
@@ -95,6 +97,7 @@ const CAPTION: Style = Style { shadows: &CAPTION_SHADOW, ..NAME };
 
 const SPEAKER: &str = "M4 9.5h3.5L12 6v12l-4.5-3.5H4zM15.5 9a4 4 0 0 1 0 6M18 6.5a8 8 0 0 1 0 11";
 const PICTURE: &str = "M3.5 5.5h17v11h-17zM8 20h8M12 16.5V20";
+const MOON: &str = "M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z";
 const TIMER: &str = "M12 8v4.5l3 1.8M12 4.5a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM9.5 2.5h5";
 const HOUSE: &str = "M3 11.5 12 4l9 7.5M5.5 9.8V20h13V9.8M10 20v-6h4v6";
 const GEAR: &str = "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
@@ -180,6 +183,7 @@ fn cell_label(cell: Cell) -> &'static str {
         Cell::Sound => "Sound",
         Cell::Picture => "Picture",
         Cell::Clock => "Clock",
+        Cell::Sleep => "Sleep",
         Cell::Art => "Screensaver",
         Cell::Home => "LG Home",
         Cell::ScreenOff => "Screen off",
@@ -203,6 +207,7 @@ fn list_glyph(cell: Cell) -> &'static str {
     match cell {
         Cell::Sound => SPEAKER,
         Cell::Picture => PICTURE,
+        Cell::Sleep => MOON,
         _ => TIMER,
     }
 }
@@ -219,6 +224,7 @@ fn options(cell: Cell) -> Vec<(String, String)> {
     match cell {
         Cell::Sound => SOUND_MODES.iter().map(|m| (m.to_string(), tvcontrols::sound_label(m).to_string())).collect(),
         Cell::Picture => PICTURE_MODES.iter().map(|m| (m.to_string(), tvcontrols::picture_label(m).to_string())).collect(),
+        Cell::Sleep => SLEEP_CHOICES.iter().map(|m| (m.to_string(), tvcontrols::sleep_label(m))).collect(),
         _ => ["auto", "12h", "24h"].iter().map(|f| (f.to_string(), clock_label(f).to_string())).collect(),
     }
 }
@@ -318,7 +324,7 @@ struct Row<'a> {
     mark: Mark,
     mark_box: f32,
     name: &'a str,
-    sub: Option<&'a str>,
+    sub: Option<String>,
     ink: [f32; 3],
 }
 
@@ -535,7 +541,7 @@ impl ControlCenter {
                 });
                 Outcome::Stay
             }
-            Cell::Sound | Cell::Picture | Cell::Clock => {
+            Cell::Sound | Cell::Picture | Cell::Clock | Cell::Sleep => {
                 self.open_menu(cell, now);
                 Outcome::Stay
             }
@@ -558,6 +564,7 @@ impl ControlCenter {
         match cell {
             Cell::Sound => values.sound.clone(),
             Cell::Picture => values.picture.clone(),
+            Cell::Sleep => values.sleep.clone(),
             _ => self.clock_format.clone(),
         }
     }
@@ -609,6 +616,17 @@ impl ControlCenter {
                 tvcontrols::set_picture_mode(&value, |done| match done {
                     Ok(()) => tvcontrols::read_backlight(),
                     Err(_) => toast_later("Couldn't change the picture mode"),
+                });
+                Outcome::Stay
+            }
+            Cell::Sleep => {
+                let before = values.sleep;
+                tvcontrols::patch(|c| c.sleep = value.clone());
+                tvcontrols::set_sleep_timer(&value, move |done| {
+                    if done.is_err() {
+                        tvcontrols::patch(|c| c.sleep = before);
+                        toast_later("Couldn't set the sleep timer");
+                    }
                 });
                 Outcome::Stay
             }
@@ -670,16 +688,17 @@ impl ControlCenter {
         if let Some(text) = d.text(row.name, &NAME) {
             text.draw_scaled(d, tx, cy + name_baseline * k, k, alpha);
         }
-        if let Some(text) = row.sub.and_then(|sub| d.text(sub, &SUB)) {
+        if let Some(text) = row.sub.as_deref().and_then(|sub| d.text(sub, &SUB)) {
             text.draw_scaled(d, tx, cy + 21.2 * k, k, 0.7 * alpha);
         }
     }
 
     fn tile_row<'a>(&'a self, cell: Cell, values: &'a Controls) -> Row<'a> {
         let (sub, on) = match cell {
-            Cell::Sound => (tvcontrols::sound_label(&values.sound), false),
-            Cell::Picture => (tvcontrols::picture_label(&values.picture), false),
-            _ => (clock_label(&self.clock_format), self.clock_format != "auto"),
+            Cell::Sound => (tvcontrols::sound_label(&values.sound).to_string(), false),
+            Cell::Picture => (tvcontrols::picture_label(&values.picture).to_string(), false),
+            Cell::Sleep => (tvcontrols::sleep_label(&values.sleep), values.sleep != "off"),
+            _ => (clock_label(&self.clock_format).to_string(), self.clock_format != "auto"),
         };
         Row {
             width: 2.0 * UNIT + GAP,
@@ -696,7 +715,7 @@ impl ControlCenter {
         let k = scale * (1.0 + (FOCUS_LIFT - 1.0) * f);
         Self::glass(d, cx, cy, w * k, h * k, f, alpha);
         match cell {
-            Cell::Sound | Cell::Picture | Cell::Clock => Self::row_inside(d, &self.tile_row(cell, values), cx, cy, k, alpha),
+            Cell::Sound | Cell::Picture | Cell::Clock | Cell::Sleep => Self::row_inside(d, &self.tile_row(cell, values), cx, cy, k, alpha),
             Cell::Backlight => {
                 let filled = w * values.backlight as f32 / 100.0;
                 let (x, y) = (cx - w * k / 2.0, cy - h * k / 2.0);
@@ -896,6 +915,12 @@ mod tests {
 
     fn press(panel: &mut ControlCenter, keys: &[Key], now: u32) -> Outcome {
         keys.iter().fold(Outcome::Stay, |_, key| panel.react(*key, now, 160.0))
+    }
+
+    #[test]
+    fn every_sleep_time_offered_is_one_the_tv_takes_and_the_list_is_no_longer_than_picture_modes() {
+        assert!(SLEEP_CHOICES.iter().all(|m| crate::root::SLEEP_MINUTES.contains(m)));
+        assert!(options(Cell::Sleep).len() <= options(Cell::Picture).len());
     }
 
     #[test]

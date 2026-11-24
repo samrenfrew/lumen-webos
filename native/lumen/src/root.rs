@@ -17,6 +17,7 @@ const GET_SETTINGS: &str = "luna://com.webos.settingsservice/getSystemSettings";
 const SET_SETTINGS: &str = "luna://com.webos.settingsservice/setSystemSettings";
 const SCREEN_OFF: &str = "luna://com.webos.service.tvpower/power/turnOffScreen";
 pub const PICTURE_MODES: [&str; 7] = ["vivid", "normal", "eco", "cinema", "sports", "game", "filmMaker"];
+pub const SLEEP_MINUTES: [&str; 9] = ["off", "10", "20", "30", "60", "90", "120", "180", "240"];
 pub const SOUND_MODES: [&str; 7] = ["standard", "news", "movie", "music", "sports", "game", "aiSound"];
 const NATIVE_DIR: &str = "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native";
 const TV_SCRIPTS: [&str; 6] = ["watch.sh", "stadia.sh", "resume.sh", "home-setup.sh", "privacy.sh", "gear.sh"];
@@ -143,6 +144,7 @@ fn setting_category(key: &str) -> Option<&'static str> {
     match key {
         "pictureMode" | "backlight" | "eyeComfortMode" => Some("picture"),
         "soundMode" => Some("sound"),
+        "sleepTimer" => Some("time"),
         _ => None,
     }
 }
@@ -151,6 +153,7 @@ fn setting_value_allowed(key: &str, value: &str) -> bool {
     match key {
         "pictureMode" => PICTURE_MODES.contains(&value),
         "soundMode" => SOUND_MODES.contains(&value),
+        "sleepTimer" => SLEEP_MINUTES.contains(&value),
         "backlight" => value.parse::<u8>().is_ok_and(|level| level <= 100 && level.to_string() == value),
         "eyeComfortMode" => value == "on" || value == "off",
         _ => false,
@@ -575,7 +578,11 @@ mod tests {
         );
         assert!(set_setting_command("soundMode", "aiSound").is_some());
         assert!(set_setting_command("backlight", "0").is_some() && set_setting_command("backlight", "100").is_some());
-        for (key, value) in [("pictureMode", "expert1"), ("backlight", "101"), ("backlight", "07"), ("backlight", "-1"), ("eyeComfortMode", "on'; reboot"), ("energySaving", "off")] {
+        assert_eq!(
+            set_setting_command("sleepTimer", "30").as_deref(),
+            Some(r#"luna-send -n 1 'luna://com.webos.settingsservice/setSystemSettings' '{"category":"time","settings":{"sleepTimer":"30"}}'"#)
+        );
+        for (key, value) in [("sleepTimer", "45"), ("pictureMode", "expert1"), ("backlight", "101"), ("backlight", "07"), ("backlight", "-1"), ("eyeComfortMode", "on'; reboot"), ("energySaving", "off")] {
             assert_eq!(set_setting_command(key, value), None, "{key}={value}");
         }
     }

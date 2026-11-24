@@ -166,6 +166,7 @@ reach the native one, so Settings can be ported late.
    re-order and the hold-OK menu, captions, toasts, the pointer, in English. Then the Home
    button points at it and Sam uses it daily.
 3. **Control Center and Inputs**, in Lumen and as Quick Settings over any app. The brightness schedule.
+   **Sleep timer (Sam, 2026-11-24)** takes the light/dark tile's place: it sets the TV's own `sleepTimer` (category `time`), which the TV takes and reads back. (verify) that the TV switches off when it runs out.
 4. **Live TV.** The row, Now and Next, the Full guide, typed channel numbers, and the Guide over Live TV.
    **Data ported 2026-11-24, not yet drawn:** `native/lumen/src/livetv.rs` reads the channels, Now and Next, the guide
    service and the schedule through root (the app's bus role is public only, so it cannot call `iepg` or `epgdb` itself),
