@@ -34,6 +34,7 @@ pub struct Settings {
     pub saver_forecast: Forecast,
     pub immich_recent_days: u32,
     pub immich_picks: Vec<String>,
+    pub guide_full: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -81,6 +82,7 @@ impl Settings {
             saver_forecast: Forecast::Off,
             immich_recent_days: 180,
             immich_picks: vec!["immich:recent".into()],
+            guide_full: false,
         }
     }
 
@@ -145,6 +147,7 @@ impl Settings {
             },
             immich_recent_days: saved["immichRecentDays"].as_u64().filter(|d| [30, 90, 180, 365].contains(d)).map_or(defaults.immich_recent_days, |d| d as u32),
             immich_picks: strings(&saved["immichPicks"]).filter(|p| !p.is_empty()).unwrap_or(defaults.immich_picks),
+            guide_full: saved["guideFull"].as_bool() == Some(true),
         })
     }
 }

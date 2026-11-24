@@ -53,6 +53,7 @@ extern "C" {
     pub fn glBufferData(target: GLenum, size: isize, data: *const c_void, usage: GLenum);
     pub fn glCheckFramebufferStatus(target: GLenum) -> GLenum;
     pub fn glClear(mask: u32);
+    pub fn glScissor(x: GLint, y: GLint, w: GLsizei, h: GLsizei);
     pub fn glClearColor(r: GLfloat, g: GLfloat, b: GLfloat, a: GLfloat);
     pub fn glCompileShader(shader: GLuint);
     pub fn glCreateProgram() -> GLuint;
@@ -76,7 +77,6 @@ extern "C" {
     pub fn glGetUniformLocation(program: GLuint, name: *const c_char) -> GLint;
     pub fn glLinkProgram(program: GLuint);
     pub fn glPixelStorei(name: GLenum, param: GLint);
-    pub fn glScissor(x: GLint, y: GLint, w: GLsizei, h: GLsizei);
     pub fn glReadPixels(x: GLint, y: GLint, w: GLsizei, h: GLsizei, format: GLenum, kind: GLenum, pixels: *mut c_void);
     pub fn glShaderSource(shader: GLuint, count: GLsizei, strings: *const *const c_char, lengths: *const GLint);
     pub fn glTexImage2D(target: GLenum, level: GLint, internal: GLint, w: GLsizei, h: GLsizei, border: GLint, format: GLenum, kind: GLenum, pixels: *const c_void);
@@ -115,7 +115,10 @@ pub const SDL_MOUSEMOTION: u32 = 0x400;
 pub const SDL_MOUSEBUTTONDOWN: u32 = 0x401;
 pub const SDL_MOUSEBUTTONUP: u32 = 0x402;
 pub const SDL_MOUSEWHEEL: u32 = 0x403;
+pub const SDLK_0: i32 = 48;
 pub const SDLK_1: i32 = 49;
+pub const SDLK_9: i32 = 57;
+pub const SDLK_KP_0: i32 = 0x4000_0062;
 pub const SDLK_KP_1: i32 = 0x4000_0059;
 pub const SDL_USEREVENT: u32 = 0x8000;
 pub const SDL_WINDOWEVENT_FOCUS_GAINED: u8 = 12;

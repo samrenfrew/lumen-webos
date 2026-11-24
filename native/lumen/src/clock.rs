@@ -31,6 +31,13 @@ pub fn time_text(at: &Local, twenty_four_hour: bool) -> (String, &'static str) {
     (format!("{}:{:02}", hour, at.minute), if at.hour < 12 { "AM" } else { "PM" })
 }
 
+pub fn clock_text(unix_seconds: u64, twenty_four_hour: bool) -> String {
+    match time_text(&local(unix_seconds), twenty_four_hour) {
+        (time, "") => time,
+        (time, period) => format!("{time} {period}"),
+    }
+}
+
 pub fn date_text(at: &Local) -> String {
     format!("{} {} {}", DAYS[at.weekday], MONTHS[at.month], at.day)
 }

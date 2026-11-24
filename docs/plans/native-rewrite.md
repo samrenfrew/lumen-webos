@@ -171,6 +171,12 @@ reach the native one, so Settings can be ported late.
    service and the schedule through root (the app's bus role is public only, so it cannot call `iepg` or `epgdb` itself),
    keeps the last answer in the store's `livetv.json`, and copies the logos the web Lumen keeps in
    `/var/lib/homehook/logos` into the store's `logos/`. A logo new to both apps is copied unsharpened.
+   **Screens built 2026-11-24, not yet on the TV:** the Live TV row under the grid (`home.rs`: Guide tile, channel tiles with
+   logo or name card and progress, Now and Next under the focused one), the Guide and the Full guide (`guide.rs`, drawing only
+   the rows in view and the programmes in its two hours), typed channel numbers, and `{"view":"guide"}`. Kept pictures:
+   `home-live`, `guide`, `guide-typed`, `guide-full`, `guide-full-later`, from `fixtures/livetv.json`. Not built: the Guide over
+   Live TV as its own app (the code runs when launched as `com.samrenfrew.lumen.native.guide`, but nothing packages it), and
+   the live preview beside the Guide.
 5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
    **Built 2026-11-24, not yet on the TV.** `settings_screen.rs` (pages and drawing), `settings_options.rs` (rows and what
