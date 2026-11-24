@@ -22,6 +22,9 @@ working on the TV. This is the spec for rewriting Lumen and its side apps as nat
   this was written) and gets no fixes. The README says which is which.
 - **One TV.** The native build targets the LG 43UT91006LA on webOS 25 only: its PowerVR chip, its SDL 2.0.14 and its glibc 2.35.
 
+- **The web Lumen is off the TV (Sam, 2026-11-24).** Home, Back and power-on point at Lumen Native (`home-setup.sh`), and
+  `com.samrenfrew.lumen` was uninstalled so it cannot come back to the front. It stays in the repo and the Channel.
+
 ## What does not come over (Sam, 2026-11-24)
 
 The port starts as today's Lumen, one to one, less what Sam does not use. Anything left out can be added later if missed.
