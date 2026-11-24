@@ -19,6 +19,18 @@ pub fn init() {
     let _ = LOG_PATH.set(path);
 }
 
+pub fn http_get(url: &str) -> Result<Vec<u8>, String> {
+    let c_url = std::ffi::CString::new(url).map_err(|_| "bad url".to_string())?;
+    let (mut data, mut len) = (std::ptr::null_mut(), 0usize);
+    let status = unsafe { crate::ffi::lumen_http_get(c_url.as_ptr(), &mut data, &mut len) };
+    if status != 200 || data.is_null() {
+        return Err(format!("status {status}"));
+    }
+    let bytes = unsafe { std::slice::from_raw_parts(data, len) }.to_vec();
+    unsafe { crate::ffi::lumen_http_free(data) }
+    Ok(bytes)
+}
+
 pub fn utc_stamp(seconds: u64) -> String {
     let days = (seconds / 86400) as i64;
     let in_day = seconds % 86400;

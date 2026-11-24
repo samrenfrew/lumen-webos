@@ -17,6 +17,27 @@ pub struct Settings {
     pub wallpaper_picks: Vec<String>,
     pub new_wallpaper_on_launch: bool,
     pub reduce_motion: bool,
+    pub show_weather: bool,
+    pub home_forecast: Forecast,
+    pub weather_city: String,
+    pub captions: bool,
+    pub hide_names: bool,
+    pub folders: Vec<Folder>,
+    pub wp_auto_minutes: f64,
+    pub wallpaper_dim: String,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Forecast {
+    Off,
+    Small,
+    Large,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Folder {
+    pub name: String,
+    pub app_ids: Vec<String>,
 }
 
 fn strings(value: &Value) -> Option<Vec<String>> {
@@ -34,6 +55,14 @@ impl Settings {
             wallpaper_picks: Vec::new(),
             new_wallpaper_on_launch: true,
             reduce_motion: false,
+            show_weather: true,
+            home_forecast: Forecast::Off,
+            weather_city: String::new(),
+            captions: true,
+            hide_names: false,
+            folders: Vec::new(),
+            wp_auto_minutes: 0.0,
+            wallpaper_dim: "off".into(),
         }
     }
 
@@ -64,6 +93,23 @@ impl Settings {
             wallpaper_picks: strings(&saved["wallpaperPicks"]).unwrap_or(defaults.wallpaper_picks),
             new_wallpaper_on_launch: saved["wpNewOnLaunch"].as_bool() != Some(false),
             reduce_motion: saved["reduceMotion"].as_bool() == Some(true),
+            show_weather: saved["showWeather"].as_bool() != Some(false),
+            home_forecast: match (saved["homeForecast"].as_bool(), saved["homeForecastSize"].as_str()) {
+                (Some(true), Some("large")) => Forecast::Large,
+                (Some(true), _) => Forecast::Small,
+                _ => Forecast::Off,
+            },
+            weather_city: saved["weatherCity"].as_str().unwrap_or("").to_string(),
+            captions: saved["wallpaperCaptions"].as_bool() != Some(false),
+            hide_names: saved["hideNames"].as_bool() == Some(true),
+            folders: saved["folders"].as_array().map_or_else(Vec::new, |all| {
+                all.iter().filter_map(|f| Some(Folder { name: f["name"].as_str()?.to_string(), app_ids: strings(&f["appIds"])? })).filter(|f| !f.name.is_empty()).collect()
+            }),
+            wp_auto_minutes: saved["wpAutoMinutes"].as_f64().filter(|m| *m >= 0.0).unwrap_or(0.0),
+            wallpaper_dim: match saved["wallpaperDim"].as_str() {
+                Some(dim @ ("night" | "always")) => dim.to_string(),
+                _ => "off".to_string(),
+            },
         })
     }
 }
@@ -80,6 +126,14 @@ mod tests {
         assert_eq!(saved.clock_format, ClockFormat::TwentyFour);
         assert!(!saved.new_wallpaper_on_launch);
         assert_eq!(saved.wallpaper_picks, ["cloud:x"]);
+    }
+
+    #[test]
+    fn folders_keep_their_names_and_apps_and_a_nameless_one_is_dropped() {
+        let saved = Settings::parse(r#"{"folders":[{"name":"Games","appIds":["a","b"]},{"name":"","appIds":["c"]},{"appIds":["d"]}],"homeForecast":true,"homeForecastSize":"small","weatherCity":"Leeds"}"#).unwrap();
+        assert_eq!(saved.folders, [Folder { name: "Games".into(), app_ids: vec!["a".into(), "b".into()] }]);
+        assert_eq!(saved.home_forecast, Forecast::Small);
+        assert_eq!(saved.weather_city, "Leeds");
     }
 
     #[test]

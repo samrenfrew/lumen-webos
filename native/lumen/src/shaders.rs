@@ -154,15 +154,22 @@ uniform float u_radius;
 uniform vec3 u_bg;
 uniform vec3 u_shadow;
 uniform float u_focus;
+uniform float u_wide;
+uniform float u_turn;
 void main() {
   vec2 hs = u_box.zw * 0.5;
   vec2 p = v_px - (u_box.xy + hs);
+  float cs = cos(u_turn), sn = sin(u_turn);
+  p = vec2(cs * p.x + sn * p.y, -sn * p.x + cs * p.y);
   float d = rr(p, hs, u_radius);
   float a = clamp(0.5 - d, 0.0, 1.0);
   float shadow = u_shadow.z * (1.0 - smoothstep(-0.6 * u_shadow.y, u_shadow.y, rr(p - vec2(0.0, u_shadow.x), hs, u_radius)));
   if (a <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow); return; }
   vec3 col = u_bg;
-  if (abs(p.x) < hs.y) {
+  if (u_wide > 0.5) {
+    vec4 icon = texture2D(u_icon, p / u_box.zw + 0.5);
+    col = icon.rgb;
+  } else if (abs(p.x) < hs.y) {
     vec4 icon = texture2D(u_icon, p / u_box.w + 0.5);
     col = mix(col, icon.rgb, icon.a);
   }
@@ -185,4 +192,57 @@ pub const PICTURE_FRAGMENT: &str = r#"uniform sampler2D u_tex;
 uniform vec4 u_box;
 uniform float u_alpha;
 void main() { gl_FragColor = texture2D(u_tex, (v_px - u_box.xy) / u_box.zw) * u_alpha; }
+"#;
+
+pub const INK_FRAGMENT: &str = r#"uniform sampler2D u_tex;
+uniform vec4 u_box;
+uniform vec4 u_ink;
+void main() { gl_FragColor = vec4(u_ink.rgb, 1.0) * texture2D(u_tex, (v_px - u_box.xy) / u_box.zw).a * u_ink.a; }
+"#;
+
+pub const GLASS_FRAGMENT: &str = r#"uniform sampler2D u_glass;
+uniform vec4 u_box;
+uniform vec4 u_look;
+uniform vec3 u_tone;
+uniform float u_alpha;
+void main() {
+  vec2 hs = u_box.zw * 0.5;
+  vec2 p = v_px - (u_box.xy + hs);
+  float r = min(u_look.x, min(hs.x, hs.y));
+  float d = rr(p, hs, r);
+  float a = clamp(0.5 - d, 0.0, 1.0);
+  float shadow = 0.25 * (1.0 - smoothstep(-10.0, 18.0, rr(p - vec2(0.0, 8.0), hs, r)));
+  if (a <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_alpha); return; }
+  vec3 seen = texture2D(u_glass, v_uv).rgb;
+  float grey = dot(seen, vec3(0.299, 0.587, 0.114));
+  seen = clamp(mix(vec3(grey), seen, u_tone.x) * u_tone.y, 0.0, 1.0);
+  float blur = u_look.y;
+  vec3 col = seen * (1.0 - u_tone.z) * blur;
+  float alpha = mix(u_tone.z, 1.0, blur);
+  float g = dot(p / max(hs, vec2(1.0)), vec2(0.574, 0.819)) * 0.5 + 0.5;
+  float sheen = u_look.z * (g < 0.42 ? mix(0.13, 0.03, g / 0.42) : mix(0.03, 0.08, (g - 0.42) / 0.58));
+  col = col * (1.0 - sheen) + sheen;
+  alpha = alpha + (1.0 - alpha) * sheen;
+  vec2 n = rr_normal(p, hs, r);
+  float edge = 1.0 - smoothstep(0.0, 2.0, -d);
+  float glow = 1.0 - smoothstep(0.0, 14.0, -d);
+  float rim = u_look.w * (edge * (0.55 * max(-(n.x + n.y) * 0.7071, 0.0) + 0.25 * max((n.x + n.y) * 0.7071, 0.0)) + 0.05 * glow);
+  col = col * (1.0 - rim) + rim;
+  alpha = alpha + (1.0 - alpha) * rim;
+  gl_FragColor = vec4(col * a, alpha * a + (1.0 - alpha * a) * shadow) * u_alpha;
+}
+"#;
+
+pub const DIM_FRAGMENT: &str = r#"uniform float u_alpha;
+void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, u_alpha); }
+"#;
+
+pub const FILL_FRAGMENT: &str = r#"uniform vec4 u_box;
+uniform float u_radius;
+uniform vec4 u_ink;
+void main() {
+  vec2 hs = u_box.zw * 0.5;
+  float a = clamp(0.5 - rr(v_px - (u_box.xy + hs), hs, min(u_radius, min(hs.x, hs.y))), 0.0, 1.0);
+  gl_FragColor = vec4(u_ink.rgb, 1.0) * u_ink.a * a;
+}
 "#;

@@ -1,7 +1,5 @@
-use crate::ffi::{lumen_http_free, lumen_http_get};
 use crate::store;
-use std::ffi::CString;
-use std::ptr;
+use crate::util::http_get;
 
 const RESIZER: &str = "https://images.weserv.nl/";
 pub const SHOWN: &str = "wallpaper.jpg";
@@ -12,7 +10,17 @@ pub const NEXT_PICK: &str = "wallpaper-next.pick";
 pub fn url_of(pictures_tsv: &str, pick: &str) -> Option<String> {
     // ponytail: local:N picks (the five bundled pictures) are skipped; bundle them when someone picks one
     let id = pick.strip_prefix("cloud:")?;
-    pictures_tsv.lines().find_map(|line| line.split_once('\t').filter(|(listed, _)| *listed == id).map(|(_, url)| url.to_string()))
+    listed(pictures_tsv, id).map(|fields| fields[1].to_string())
+}
+
+fn listed<'a>(pictures_tsv: &'a str, id: &str) -> Option<Vec<&'a str>> {
+    pictures_tsv.lines().map(|line| line.split('\t').collect::<Vec<_>>()).find(|fields| fields.len() >= 2 && fields[0] == id)
+}
+
+pub fn caption_of(pictures_tsv: &str, pick: &str) -> Option<(String, String)> {
+    let fields = listed(pictures_tsv, pick.strip_prefix("cloud:")?)?;
+    let title = fields.get(2).copied().unwrap_or("");
+    (!title.is_empty()).then(|| (title.to_string(), fields.get(3).copied().unwrap_or("").to_string()))
 }
 
 fn url_part(text: &str) -> String {
@@ -42,15 +50,12 @@ pub fn promote_next() -> bool {
 
 pub fn fetch(pick: String, url: String, as_next: bool, then: impl FnOnce(Result<(), String>) + Send + 'static) {
     std::thread::spawn(move || {
-        let Ok(c_url) = CString::new(resized(&url, 1920)) else { return then(Err("bad url".into())) };
-        let (mut data, mut len) = (ptr::null_mut(), 0usize);
-        let status = unsafe { lumen_http_get(c_url.as_ptr(), &mut data, &mut len) };
-        if status != 200 || data.is_null() {
-            return then(Err(format!("{pick}: status {status}")));
-        }
+        let bytes = match http_get(&resized(&url, 1920)) {
+            Ok(bytes) => bytes,
+            Err(why) => return then(Err(format!("{pick}: {why}"))),
+        };
         let (picture, key) = if as_next { (NEXT, NEXT_PICK) } else { (SHOWN, SHOWN_PICK) };
-        let kept = store::write(picture, unsafe { std::slice::from_raw_parts(data, len) }) && store::write(key, pick.as_bytes());
-        unsafe { lumen_http_free(data) }
+        let kept = store::write(picture, &bytes) && store::write(key, pick.as_bytes());
         then(if kept { Ok(()) } else { Err(format!("{pick}: not kept")) });
     });
 }
@@ -65,10 +70,18 @@ mod tests {
 
     #[test]
     fn a_pick_finds_its_address_in_the_list_and_an_unknown_or_bundled_one_does_not() {
-        let tsv = "abc\thttps://i.redd.it/abc.jpeg\nabcd\thttps://example.org/d.jpg\n";
+        let tsv = "abc\thttps://i.redd.it/abc.jpeg\tA lake\t\nabcd\thttps://example.org/d.jpg\tA dell\tGainsborough\n";
         assert_eq!(url_of(tsv, "cloud:abcd").as_deref(), Some("https://example.org/d.jpg"));
         assert_eq!(url_of(tsv, "cloud:ab"), None);
         assert_eq!(url_of(tsv, "local:0"), None);
+    }
+
+    #[test]
+    fn a_picture_is_captioned_with_its_title_and_any_credit() {
+        let tsv = "abc\thttps://i.redd.it/abc.jpeg\tA lake\t\nabcd\thttps://example.org/d.jpg\tA dell\tGainsborough\nxyz\thttps://x.org/x.jpg\n";
+        assert_eq!(caption_of(tsv, "cloud:abcd"), Some(("A dell".to_string(), "Gainsborough".to_string())));
+        assert_eq!(caption_of(tsv, "cloud:abc"), Some(("A lake".to_string(), String::new())));
+        assert_eq!(caption_of(tsv, "cloud:xyz"), None);
     }
 
     #[test]

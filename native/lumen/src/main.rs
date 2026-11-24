@@ -16,12 +16,14 @@ mod shaders;
 mod store;
 mod text;
 mod util;
+mod vector;
 mod wallpaper;
+mod weather;
 
 use draw::{decoded, Draw};
 use ffi::*;
 use gfx::{DESIGN_H, DESIGN_W};
-use home::{Home, Key, Shown};
+use home::{Action, Home, Key, Shown};
 use look::Look;
 use serde_json::{json, Value};
 use settings::{ClockFormat, Settings};
@@ -44,6 +46,7 @@ const LOOK_FILE: &str = "look";
 const APPS_WITHOUT_SETTINGS: usize = 24;
 const BOOT_WINDOW_MS: u128 = 5000;
 const SHOT_SETTLED_MS: u32 = 100_000;
+const FIXED_UNIX_NOW: u64 = 1_795_555_020;
 const SHOT_MAY_DIFFER_BY: i32 = 8;
 const SHOT_PIXELS_THAT_MAY_DIFFER: usize = 200;
 
@@ -64,6 +67,7 @@ pub struct App {
     draw: Draw,
     home: Home,
     settings: Settings,
+    saved: Value,
     known: Vec<apps::Known>,
     launch_points: Value,
     icons_asked_for: HashSet<String>,
@@ -71,6 +75,10 @@ pub struct App {
     fixed_clock: Option<(String, String)>,
     fetching_wallpaper: bool,
     fetch_wallpapers: bool,
+    weather_asked_at: Option<Instant>,
+    wallpaper_changed_at: Instant,
+    held_since: Option<u32>,
+    hold_fired: bool,
     hidden: bool,
     redraw: bool,
     running: bool,
@@ -97,6 +105,8 @@ fn gl_string(name: GLenum) -> String {
 
 fn key_of(sym: i32, scancode: c_int) -> Option<Key> {
     Some(match sym {
+        SDLK_1..=54 => Key::Digit((sym - SDLK_1 + 1) as usize),
+        _ if (SDLK_KP_1..SDLK_KP_1 + 6).contains(&sym) => Key::Digit((sym - SDLK_KP_1 + 1) as usize),
         SDLK_LEFT => Key::Left,
         SDLK_RIGHT => Key::Right,
         SDLK_UP => Key::Up,
@@ -116,8 +126,19 @@ fn key_named(name: &str) -> Option<Key> {
         "down" => Key::Down,
         "ok" | "enter" => Key::Ok,
         "back" => Key::Back,
+        digit if digit.len() == 1 && ("1"..="6").contains(&digit) => Key::Digit(digit.parse().unwrap_or(1)),
         _ => return None,
     })
+}
+
+fn strip_from_folders(config: &mut serde_json::Map<String, Value>, id: &str) {
+    let Some(folders) = config.get_mut("folders").and_then(Value::as_array_mut) else { return };
+    for folder in folders.iter_mut() {
+        if let Some(ids) = folder["appIds"].as_array_mut() {
+            ids.retain(|x| x.as_str() != Some(id));
+        }
+    }
+    folders.retain(|f| f["appIds"].as_array().is_some_and(|ids| !ids.is_empty()));
 }
 
 pub fn launch_view(launch_argument: &str) -> Option<String> {
@@ -142,9 +163,13 @@ impl App {
 
     fn load_kept(&mut self) {
         self.known = apps::catalogue(&std::fs::read_to_string(format!("{}/assets/catalog.tsv", self.draw.app_dir)).unwrap_or_default());
-        if let Some(kept) = store::read(SETTINGS_FILE).and_then(|text| Settings::parse(&text)) {
-            self.settings = kept;
+        if let Some(text) = store::read(SETTINGS_FILE) {
+            if let Some(kept) = Settings::parse(&text) {
+                self.settings = kept;
+                self.saved = serde_json::from_str(&text).unwrap_or(Value::Null);
+            }
         }
+        self.home.weather = weather::kept(&self.settings.weather_city);
         self.launch_points = store::read(LAUNCH_POINTS_FILE).and_then(|text| serde_json::from_str(&text).ok()).unwrap_or(Value::Null);
         if self.settings.new_wallpaper_on_launch {
             wallpaper::promote_next();
@@ -157,8 +182,13 @@ impl App {
 
     fn show_wallpaper(&mut self) {
         let bundled = format!("{}/wallpaper.jpg", self.draw.app_dir);
-        let Some(picture) = decoded(&store::path(wallpaper::SHOWN)).or_else(|| decoded(&bundled)) else { return note!("wallpaper: none could be read") };
+        let kept = decoded(&store::path(wallpaper::SHOWN));
+        let from_store = kept.is_some();
+        let Some(picture) = kept.or_else(|| decoded(&bundled)) else { return note!("wallpaper: none could be read") };
         self.home.set_wallpaper(&mut self.draw, &picture);
+        let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
+        let pick = if from_store { store::read(wallpaper::SHOWN_PICK) } else { None };
+        self.home.caption = pick.and_then(|pick| wallpaper::caption_of(&listed, pick.trim())).filter(|_| self.settings.captions);
         self.redraw = true;
     }
 
@@ -185,10 +215,26 @@ impl App {
 
     fn show_apps(&mut self) {
         let listed = apps::listed(&self.launch_points, &self.known);
-        let chosen = if self.settings.app_ids.is_empty() { listed.into_iter().take(APPS_WITHOUT_SETTINGS).collect() } else { apps::in_order(&listed, &self.settings.app_ids) };
+        let chosen = if self.settings.app_ids.is_empty() { listed.iter().take(APPS_WITHOUT_SETTINGS).cloned().collect() } else { apps::in_order(&listed, &self.settings.app_ids) };
         let mut to_copy = Vec::new();
-        let shown: Vec<Shown> = chosen.into_iter().map(|app| Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), id: app.id, title: app.title, color: app.color }).collect();
+        let in_folder: Vec<String> = self.settings.folders.iter().flat_map(|f| f.app_ids.iter().cloned()).collect();
+        let mut shown: Vec<Shown> = Vec::new();
+        for app in chosen.into_iter().filter(|app| !in_folder.contains(&app.id)) {
+            shown.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), id: app.id, title: app.title, color: app.color, inside: None });
+        }
+        for folder in self.settings.folders.clone() {
+            let mut inside = Vec::new();
+            for app in apps::in_order(&listed, &folder.app_ids) {
+                inside.push(Shown { icon_file: self.icon_file(&app.icon, &mut to_copy), id: app.id, title: app.title, color: app.color, inside: None });
+            }
+            if !inside.is_empty() {
+                shown.push(Shown { id: format!("folder:{}", folder.name), title: folder.name, icon_file: None, color: None, inside: Some(inside) });
+            }
+        }
         self.home.reduce_motion = self.settings.reduce_motion;
+        self.home.hide_names = self.settings.hide_names;
+        self.home.weather_line = self.settings.show_weather;
+        self.home.forecast = self.settings.home_forecast;
         self.home.set_apps(&mut self.draw, shown, self.settings.first_row, ticks());
         self.redraw = true;
         if !to_copy.is_empty() {
@@ -210,7 +256,9 @@ impl App {
         let (time, period) = clock::time_text(&now, twenty_four_hour);
         let (time, date) = self.fixed_clock.clone().unwrap_or((time, clock::date_text(&now)));
         let period = if self.settings.show_am_pm && self.fixed_clock.is_none() { period } else { "" };
-        if self.home.set_clock(&mut self.draw, time, period.to_string(), date) {
+        self.home.twenty_four_hour = twenty_four_hour;
+        self.home.unix_now = if self.fixed_clock.is_some() { FIXED_UNIX_NOW } else { clock::unix_now() };
+        if self.home.set_clock(time, period.to_string(), date) {
             self.redraw = true;
         }
         (60 - now.second.min(59)) * 1000 + 50
@@ -235,18 +283,162 @@ impl App {
             }
         });
         self.fetch_a_wallpaper_if_wanted();
+        self.ask_for_weather();
+    }
+
+    fn ask_for_weather(&mut self) {
+        let city = self.settings.weather_city.clone();
+        let wanted = self.settings.show_weather || self.settings.home_forecast != settings::Forecast::Off;
+        if city.is_empty() || !wanted || !self.fetch_wallpapers {
+            return;
+        }
+        if self.weather_asked_at.is_some_and(|at| at.elapsed().as_secs() < 60) {
+            return;
+        }
+        let fresh = self.home.weather.as_ref().is_some_and(|w| clock::unix_now().saturating_sub(w.taken) < weather::MAX_AGE_S);
+        if fresh {
+            return;
+        }
+        self.weather_asked_at = Some(Instant::now());
+        let cities = std::fs::read_to_string(format!("{}/assets/cities.tsv", self.draw.app_dir)).unwrap_or_default();
+        weather::fetch(city, &cities, clock::unix_now(), |read| match read {
+            Ok(w) => post(move |app| {
+                note!("weather: {}°, {} hours", w.temp, w.hours.len());
+                app.home.weather = Some(w);
+                app.redraw = true;
+            }),
+            Err(why) => note!("weather: {}", why),
+        });
     }
 
     fn settings_copied(&mut self) {
         self.mark("settings");
-        let Some(copied) = store::read(SETTINGS_FILE).and_then(|text| Settings::parse(&text)) else { return note!("settings: the copy could not be read") };
+        let Some(text) = store::read(SETTINGS_FILE) else { return note!("settings: the copy could not be read") };
+        let Some(copied) = Settings::parse(&text) else { return note!("settings: the copy could not be read") };
+        self.saved = serde_json::from_str(&text).unwrap_or(Value::Null);
         if copied == self.settings {
             return;
         }
+        let city_changed = copied.weather_city != self.settings.weather_city;
         self.settings = copied;
+        if city_changed {
+            self.home.weather = weather::kept(&self.settings.weather_city);
+        }
         self.show_apps();
         self.tick_clock();
         self.fetch_a_wallpaper_if_wanted();
+        self.ask_for_weather();
+    }
+
+    fn edit_settings(&mut self, change: impl FnOnce(&mut serde_json::Map<String, Value>)) {
+        let mut whole = if self.saved.is_object() { self.saved.clone() } else { json!({"version": 1, "config": {}}) };
+        let wrapped = whole.get("config").is_some_and(Value::is_object);
+        let config = if wrapped { &mut whole["config"] } else { &mut whole };
+        let Some(map) = config.as_object_mut() else { return };
+        change(map);
+        let text = serde_json::to_string_pretty(&whole).unwrap_or_default();
+        let Some(parsed) = Settings::parse(&text) else { return };
+        self.saved = whole;
+        self.settings = parsed;
+        store::write(SETTINGS_FILE, text.as_bytes());
+        root::write_shared_file(SETTINGS_FILE, &text, |written| {
+            if let Err(why) = written {
+                note!("settings: not saved: {}", why);
+            }
+        });
+        self.show_apps();
+    }
+
+    fn act(&mut self, action: Action) {
+        match action {
+            Action::Open(id) => self.open(id),
+            Action::Top(which) => {
+                note!("top: {}", which);
+                self.home.toast(&format!("{} is not built yet", home::TOP_ITEMS.iter().find(|t| t.0 == which).map_or(which, |t| t.1)), false, ticks());
+            }
+            Action::Move(id, by) => {
+                let in_folder: Vec<String> = self.settings.folders.iter().flat_map(|f| f.app_ids.clone()).collect();
+                let listed = apps::listed(&self.launch_points, &self.known);
+                let order: Vec<String> = self.settings.app_ids.iter().filter(|x| listed.iter().any(|a| &a.id == *x) && !in_folder.contains(x)).cloned().collect();
+                let Some(moved) = home::moved_in_order(&order, &id, by) else { return };
+                let rest: Vec<String> = self.settings.app_ids.iter().filter(|x| !order.contains(x)).cloned().collect();
+                let all: Vec<String> = moved.into_iter().chain(rest).collect();
+                self.edit_settings(|c| {
+                    c.insert("appIds".into(), json!(all));
+                });
+            }
+            Action::Remove(id) => self.edit_settings(|c| {
+                let ids: Vec<Value> = c.get("appIds").and_then(Value::as_array).cloned().unwrap_or_default().into_iter().filter(|x| x.as_str() != Some(&id)).collect();
+                c.insert("appIds".into(), Value::Array(ids));
+                strip_from_folders(c, &id);
+            }),
+            Action::FolderAdd(id, name) => self.edit_settings(|c| {
+                strip_from_folders(c, &id);
+                let folders = c.entry("folders").or_insert_with(|| json!([]));
+                if !folders.is_array() {
+                    *folders = json!([]);
+                }
+                let list = folders.as_array_mut().expect("an array");
+                match list.iter_mut().find(|f| f["name"].as_str() == Some(&name)) {
+                    Some(folder) => {
+                        if let Some(ids) = folder["appIds"].as_array_mut() {
+                            ids.push(json!(id));
+                        }
+                    }
+                    None => list.push(json!({"name": name, "appIds": [id]})),
+                }
+            }),
+            Action::FolderOut(id) => self.edit_settings(|c| strip_from_folders(c, &id)),
+            Action::Uninstall(id) => {
+                note!("uninstall {}", id);
+                root::uninstall(&id.clone(), move |gone| {
+                    post(move |app| {
+                        match gone {
+                            Ok(true) => {
+                                app.home.toast("Uninstalled", false, ticks());
+                                app.edit_settings(|c| {
+                                    let ids: Vec<Value> = c.get("appIds").and_then(Value::as_array).cloned().unwrap_or_default().into_iter().filter(|x| x.as_str() != Some(&id)).collect();
+                                    c.insert("appIds".into(), Value::Array(ids));
+                                    strip_from_folders(c, &id);
+                                });
+                                app.refresh_launch_points();
+                            }
+                            _ => app.home.toast("The TV kept the app", true, ticks()),
+                        }
+                        app.redraw = true;
+                    })
+                });
+            }
+        }
+    }
+
+    fn open(&mut self, id: String) {
+        note!("open {}", id);
+        bus::call(LAUNCH, json!({"id": id}), 6000, move |reply| {
+            if let Err(why) = reply {
+                note!("open {}: {}", id, why);
+                post(|app| app.home.toast("The app did not open", true, ticks()));
+            }
+        });
+    }
+
+    fn refresh_launch_points(&mut self) {
+        bus::call(LAUNCH_POINTS, json!({}), 8000, |reply| match reply {
+            Ok(points) => post(move |app| app.launch_points_arrived(points)),
+            Err(why) => note!("apps: {}", why),
+        });
+    }
+
+    fn change_wallpaper_if_due(&mut self) {
+        let minutes = self.settings.wp_auto_minutes;
+        if minutes <= 0.0 || self.hidden || self.fetching_wallpaper || !self.fetch_wallpapers || self.settings.wallpaper_type != "pictures" {
+            return;
+        }
+        if self.wallpaper_changed_at.elapsed().as_secs_f64() < minutes * 60.0 {
+            return;
+        }
+        self.wallpaper_changed_at = Instant::now();
+        self.fetch_wallpaper(false);
     }
 
     fn launch_points_arrived(&mut self, points: Value) {
@@ -268,6 +460,10 @@ impl App {
         if as_next && (!self.settings.new_wallpaper_on_launch || store::has(wallpaper::NEXT)) {
             return;
         }
+        self.fetch_wallpaper(as_next);
+    }
+
+    fn fetch_wallpaper(&mut self, as_next: bool) {
         let shown = store::read(wallpaper::SHOWN_PICK);
         let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
         let known_picks: Vec<String> = self.settings.wallpaper_picks.iter().filter(|pick| wallpaper::url_of(&listed, pick).is_some()).cloned().collect();
@@ -288,14 +484,41 @@ impl App {
 
     fn key(&mut self, key: Key) {
         self.redraw = true;
-        if let Some(id) = self.home.key(&self.draw, key, ticks()) {
-            note!("open {}", id);
-            bus::call(LAUNCH, json!({"id": id}), 6000, move |reply| {
-                if let Err(why) = reply {
-                    note!("open {}: {}", id, why);
-                }
-            });
+        if let Some(action) = self.home.key(&self.draw, key, ticks()) {
+            self.act(action);
         }
+    }
+
+    fn ok_down(&mut self) {
+        if self.held_since.is_some() {
+            return;
+        }
+        if !self.home.can_hold() {
+            return self.key(Key::Ok);
+        }
+        self.held_since = Some(ticks());
+        self.hold_fired = false;
+    }
+
+    fn ok_up(&mut self) {
+        if self.held_since.take().is_some() && !self.hold_fired {
+            self.key(Key::Ok);
+        }
+    }
+
+    fn hold_wait_ms(&mut self) -> Option<u32> {
+        let since = self.held_since?;
+        if self.hold_fired {
+            return None;
+        }
+        let held = ticks().wrapping_sub(since);
+        if held >= home::HOLD_MS {
+            self.hold_fired = true;
+            self.redraw = true;
+            self.home.hold(&self.draw, ticks());
+            return None;
+        }
+        Some(home::HOLD_MS - held)
     }
 
     fn relaunched(&mut self, parameters: Value) {
@@ -307,6 +530,7 @@ impl App {
         if !self.hidden {
             self.home.go_home(&self.draw, ticks());
         }
+        self.ask_for_weather();
         self.redraw = true;
     }
 
@@ -372,6 +596,10 @@ impl App {
                 for key in &keys {
                     self.key(*key);
                 }
+                if line.split(' ').any(|word| word == "hold") {
+                    self.home.hold(&self.draw, ticks());
+                    self.redraw = true;
+                }
                 said(&answer, json!({"pressed": keys.len()}));
             }
             "shot" => {
@@ -434,6 +662,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
         match arg.as_str() {
             "--at" => at_ms = rest.next().and_then(|ms| ms.parse().ok()).unwrap_or(SHOT_SETTLED_MS),
             "--against" => against = rest.next().cloned(),
+            "hold" => app.home.hold(&app.draw, 1000),
             name => match key_named(name) {
                 Some(key) => {
                     let _ = app.home.key(&app.draw, key, 1000);
@@ -444,7 +673,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
         }
     }
     let Some(out) = out else {
-        eprintln!("usage: lumen --shot <out.png> [--at <ms after the last key>] [--against <kept.png>] [left|right|up|down|back ...]");
+        eprintln!("usage: lumen --shot <out.png> [--at <ms after the last key>] [--against <kept.png>] [left|right|up|down|ok|back|hold|1-6 ...]");
         return 2;
     };
     let shot = app.frame_pixels(1000 + at_ms);
@@ -576,6 +805,7 @@ fn run() -> i32 {
         draw: Draw::new(screen_w, screen_h, &app_dir, look),
         home: Home::new(),
         settings: Settings::defaults(),
+        saved: Value::Null,
         known: Vec::new(),
         launch_points: Value::Null,
         icons_asked_for: HashSet::new(),
@@ -583,6 +813,10 @@ fn run() -> i32 {
         fixed_clock: std::env::var("LUMEN_CLOCK").ok().and_then(|clock| clock.split_once('|').map(|(time, date)| (time.to_string(), date.to_string()))),
         fetching_wallpaper: false,
         fetch_wallpapers: !taking_a_shot,
+        weather_asked_at: None,
+        wallpaper_changed_at: Instant::now(),
+        held_since: None,
+        hold_fired: false,
         hidden: false,
         redraw: true,
         running: true,
@@ -620,9 +854,16 @@ fn run() -> i32 {
                 SDL_KEYDOWN => {
                     let (sym, scancode, repeat) = unsafe { (e.key.keysym.sym, e.key.keysym.scancode, e.key.repeat != 0) };
                     match key_of(sym, scancode) {
-                        Some(Key::Ok | Key::Back) if repeat => {}
+                        Some(Key::Ok | Key::Back | Key::Digit(_)) if repeat => {}
+                        Some(Key::Ok) => app.ok_down(),
                         Some(key) => app.key(key),
                         None => note!("key {}, scancode {}", sym, scancode),
+                    }
+                }
+                SDL_KEYUP => {
+                    let (sym, scancode) = unsafe { (e.key.keysym.sym, e.key.keysym.scancode) };
+                    if key_of(sym, scancode) == Some(Key::Ok) {
+                        app.ok_up();
                     }
                 }
                 _ => {}
@@ -637,6 +878,8 @@ fn run() -> i32 {
         }
 
         let until_next_minute = app.tick_clock();
+        app.change_wallpaper_if_due();
+        let hold_wait = app.hold_wait_ms();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
             app.write_boot_line();
         }
@@ -647,6 +890,12 @@ fn run() -> i32 {
         }
         if app.hidden || (!moving && !app.redraw) {
             wait_ms = if app.boot_written { until_next_minute } else { until_next_minute.min(1000) };
+            if let Some(hold) = hold_wait {
+                wait_ms = wait_ms.min(hold.max(1));
+            }
+            if app.settings.wp_auto_minutes > 0.0 {
+                wait_ms = wait_ms.min(30_000);
+            }
             continue;
         }
         wait_ms = 0;

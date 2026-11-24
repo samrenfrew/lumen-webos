@@ -32,7 +32,7 @@ pub fn time_text(at: &Local, twenty_four_hour: bool) -> (String, &'static str) {
 }
 
 pub fn date_text(at: &Local) -> String {
-    format!("{} {} {}", DAYS[at.weekday], at.day, MONTHS[at.month])
+    format!("{} {} {}", DAYS[at.weekday], MONTHS[at.month], at.day)
 }
 
 #[cfg(test)]
@@ -57,7 +57,7 @@ mod tests {
     }
 
     #[test]
-    fn the_date_reads_weekday_day_month() {
-        assert_eq!(date_text(&at(9, 0)), "Tuesday 24 November");
+    fn the_date_reads_weekday_month_day_as_the_web_page_does() {
+        assert_eq!(date_text(&at(9, 0)), "Tuesday November 24");
     }
 }

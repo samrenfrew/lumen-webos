@@ -21,6 +21,10 @@
   "clockFormat": "24h",
   "wallpaperType": "pictures",
   "wallpaperPicks": [],
-  "wpNewOnLaunch": false
+  "wpNewOnLaunch": false,
+  "weatherCity": "Leeds",
+  "showWeather": true,
+  "homeForecast": true,
+  "homeForecastSize": "small"
  }
 }

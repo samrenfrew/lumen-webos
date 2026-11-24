@@ -61,6 +61,29 @@ fn append_log_command(text: &str) -> String {
     )
 }
 
+fn write_shared_file_command(name: &str, text: &str) -> Option<String> {
+    if !SHARED_FILES.contains(&name) {
+        return None;
+    }
+    Some(format!("mkdir -p {HOMEHOOK} && echo {} | base64 -d > {HOMEHOOK}/{name}.tmp && mv {HOMEHOOK}/{name}.tmp {HOMEHOOK}/{name}", base64(text.as_bytes())))
+}
+
+pub fn can_uninstall(id: &str) -> bool {
+    let kept = ["com.samrenfrew.lumen", "com.ammar027.lumen", "com.webos.", "com.palm.", "com.lge."];
+    let plain = !id.is_empty() && id.len() < 128 && id.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+    plain && !kept.iter().any(|k| id.starts_with(k)) && id != "org.webosbrew.hbchannel"
+}
+
+fn uninstall_command(id: &str) -> Option<String> {
+    if !can_uninstall(id) {
+        return None;
+    }
+    let luna = |uri: &str, payload: serde_json::Value| format!("luna-send -n 1 {uri} {}", shell_quote(&payload.to_string()));
+    let present = format!("{} 2>/dev/null | grep -q '\"returnValue\":true'", luna("luna://com.webos.applicationManager/getAppInfo", json!({"id": id})));
+    let remove = |service: &str| format!("if {present}; then {} >/dev/null 2>&1; sleep 2; fi", luna(&format!("luna://com.webos.appInstallService/{service}"), json!({"id": id, "subscribe": false})));
+    Some(format!("{}; {}; if {present}; then echo kept; else echo gone; fi", remove("dev/remove"), remove("remove")))
+}
+
 fn run(command: Option<String>, timeout_ms: i32, then: impl FnOnce(Result<String, String>) + Send + 'static) {
     let Some(command) = command else { return then(Err("refused".into())) };
     bus::call(EXEC, json!({ "command": command }), timeout_ms, move |reply| then(reply.map(|r| r["stdoutString"].as_str().unwrap_or("").to_string())));
@@ -72,6 +95,14 @@ pub fn copy_shared_file(name: &str, into_dir: &str, then: impl FnOnce(Result<Str
 
 pub fn copy_icons(icons: &[(String, String)], into_dir: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
     run(copy_icons_command(icons, into_dir), 15000, then);
+}
+
+pub fn write_shared_file(name: &str, text: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(write_shared_file_command(name, text), 8000, then);
+}
+
+pub fn uninstall(id: &str, then: impl FnOnce(Result<bool, String>) + Send + 'static) {
+    run(uninstall_command(id), 30000, move |out| then(out.map(|text| text.contains("gone"))));
 }
 
 pub fn append_log(text: &str) {
@@ -106,6 +137,25 @@ mod tests {
         ];
         assert_eq!(copy_icons_command(&icons, "/media/developer/lumen/icons").as_deref(), Some("cp -f '/usr/palm/applications/a/icon.png' '/media/developer/lumen/icons/00ff.png' 2>/dev/null; true"));
         assert_eq!(copy_icons_command(&icons[1..], "/media/developer/lumen/icons"), None);
+    }
+
+    #[test]
+    fn settings_are_written_as_base64_and_only_to_a_known_file() {
+        let command = write_shared_file_command("lumen-config.json", "{\"a\":\"'; reboot\"}").unwrap();
+        assert!(!command.contains("reboot"));
+        assert!(command.ends_with("mv /var/lib/homehook/lumen-config.json.tmp /var/lib/homehook/lumen-config.json"));
+        assert_eq!(write_shared_file_command("../x", "{}"), None);
+    }
+
+    #[test]
+    fn lumen_the_tvs_own_apps_and_the_homebrew_channel_are_never_uninstalled() {
+        assert!(can_uninstall("bbc.iplayer.3.0"));
+        for kept in ["com.samrenfrew.lumen.native", "com.webos.app.livetv", "com.palm.app.settings", "com.lge.app.x", "org.webosbrew.hbchannel", "a;reboot", ""] {
+            assert!(!can_uninstall(kept), "{kept}");
+            assert_eq!(uninstall_command(kept), None);
+        }
+        let command = uninstall_command("bbc.iplayer.3.0").unwrap();
+        assert!(command.contains("dev/remove") && command.contains("'{\"id\":\"bbc.iplayer.3.0\",\"subscribe\":false}'"));
     }
 
     #[test]

@@ -59,6 +59,10 @@ impl Anim {
         self.from + (self.to - self.from) * eased(self.ease, since as f32 / self.dur as f32)
     }
 
+    pub fn to_value(&self) -> f32 {
+        self.to
+    }
+
     pub fn busy(&self, now: u32) -> bool {
         self.dur != 0 && self.since(now) < self.dur as i32
     }
