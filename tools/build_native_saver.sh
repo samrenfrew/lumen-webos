@@ -17,6 +17,6 @@ fi
 cd "$ROOT/app"
 [ -d node_modules ] || npm ci --no-audit --no-fund >&2
 mkdir -p "$OUT"
-rm -f "$OUT/com.samrenfrew.lumen.saver_"*.ipk
+rm -f "$OUT/com.samrenfrew.lumen.native.saver_"*.ipk
 npx ares-package "$ROOT/native/saver/build/pkg" --no-minify -o "$OUT" >&2
-ls "$OUT/com.samrenfrew.lumen.saver_"*.ipk
+ls "$OUT/com.samrenfrew.lumen.native.saver_"*.ipk

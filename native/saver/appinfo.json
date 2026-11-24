@@ -1,6 +1,6 @@
 {
-  "id": "com.samrenfrew.lumen.saver",
-  "version": "1.1.0",
+  "id": "com.samrenfrew.lumen.native.saver",
+  "version": "1.0.0",
   "vendor": "samrenfrew",
   "type": "native",
   "main": "lumen-saver",

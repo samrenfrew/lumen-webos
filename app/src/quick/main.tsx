@@ -49,7 +49,7 @@ const LAYOUT: ControlLayout = [
 const LG_SETTINGS = 'com.palm.app.settings';
 const LUMEN = 'com.samrenfrew.lumen';
 /** Lumen Screensaver (docs/plans/side-apps.md): the photos over the app underneath, so it is left as it was */
-const SAVER = 'com.samrenfrew.lumen.saver';
+const SAVER = 'com.samrenfrew.lumen.native.saver';
 /** the screensaver over the app underneath, or Lumen's own when Lumen Screensaver is not installed */
 const openScreensaver = () => appExists(SAVER).then((yes) => (yes ? launchApp(SAVER) : launchApp(LUMEN, {view: 'ambient'})));
 

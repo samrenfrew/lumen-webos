@@ -111,6 +111,14 @@ does (`lib/wallpaper.ts`). Today it shows Lumen's five default pictures.
   (cache it) and run `build.sh` in `debian:bookworm-slim`.
 - Then delete the web screensaver page (`app/saver.html`, `app/src/saver/`).
 
+### Its own id (2026-11-24)
+
+Part G's "same id" is undone. The native screensaver is `com.samrenfrew.lumen.native.saver`, 1.0.0, and the web one's id,
+`com.samrenfrew.lumen.saver`, is retired (`native-rewrite.md`, Decided). `deploy_saver.sh` removes the old id from the TV after
+it installs the new one. **(verify)** Not on the TV yet: it still has the old id installed and the old TV scripts, which work
+together as before. After the next `deploy:home` and a TV scripts update, check Art mode, the idle timer and the TV's own timer
+still open the screensaver.
+
 ### Built, not yet seen (2026-11-24)
 
 How it is put together now:

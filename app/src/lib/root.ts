@@ -347,7 +347,7 @@ export function installTvScripts (appDir: string): Promise<boolean> {
 // ---------- Side apps (docs/plans/side-apps.md): Settings > Side apps installs, updates and removes them ----------
 
 /** The side apps, the only ids the commands below take. */
-export const SIDE_APPS = ['com.samrenfrew.lumen.guide', 'com.samrenfrew.lumen.quick', 'com.samrenfrew.lumen.saver'] as const;
+export const SIDE_APPS = ['com.samrenfrew.lumen.guide', 'com.samrenfrew.lumen.quick', 'com.samrenfrew.lumen.native.saver'] as const;
 export type SideAppId = typeof SIDE_APPS[number];
 const isSideApp = (id: string): id is SideAppId => (SIDE_APPS as readonly string[]).indexOf(id) !== -1;
 const DEV_APPS = '/media/developer/apps/usr/palm/applications';

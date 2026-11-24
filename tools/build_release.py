@@ -19,7 +19,7 @@ import glob, hashlib, json, os, shutil, subprocess
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = f'{ROOT}/release'
 APP = f'{ROOT}/app'
-SIDE_APPS = [('guide', 'com.samrenfrew.lumen.guide'), ('quick', 'com.samrenfrew.lumen.quick'), ('saver', 'com.samrenfrew.lumen.saver')]
+SIDE_APPS = [('guide', 'com.samrenfrew.lumen.guide'), ('quick', 'com.samrenfrew.lumen.quick'), ('saver', 'com.samrenfrew.lumen.native.saver')]
 SAVER_DIR = f'{ROOT}/native/saver'
 SAVER_INPUTS = ['src', 'vendor', 'assets', 'appinfo.json', 'build.sh', '../../app/public-saver/icon.png', '../../app/public-saver/largeIcon.png']
 env = dict(os.environ, LUMEN_PRIVATE='0', LUMEN_APP_ID='com.samrenfrew.lumen', LUMEN_APP_TITLE='Home', LUMEN_BUILD_DIR=OUT)

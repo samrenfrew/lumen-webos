@@ -57,7 +57,7 @@ const LIVE_INFO_W = 660;
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
 /** Lumen Screensaver, the native side app: when it is installed it shows in place of the screensaver built into this page */
-const SIDE_SAVER = 'com.samrenfrew.lumen.saver';
+const SIDE_SAVER = 'com.samrenfrew.lumen.native.saver';
 const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye', sideGuide: 'side-guide', sideQuick: 'side-quick', sideSaver: 'side-saver', sideUpdate: 'side-update'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
@@ -166,7 +166,7 @@ function tvOptions (tv: TvState | null, busy: string): OptionItem[] {
 const SIDE_ROWS: {option: string; id: SideAppId; description: string}[] = [
 	{option: OPTION.sideGuide, id: 'com.samrenfrew.lumen.guide', description: 'A channel guide over Live TV: LIST opens Now and Next, GUIDE the full guide. Off removes it from the TV.'},
 	{option: OPTION.sideQuick, id: 'com.samrenfrew.lumen.quick', description: 'Sound, picture and backlight over any app, on the gear button. In Lumen the gear opens Control Center. Off removes it, and the gear is LG\'s again.'},
-	{option: OPTION.sideSaver, id: 'com.samrenfrew.lumen.saver', description: 'Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.'}
+	{option: OPTION.sideSaver, id: 'com.samrenfrew.lumen.native.saver', description: 'Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.'}
 ];
 
 /** Settings > Side apps: a row per side app (on when installed), then Update while any is on. */
