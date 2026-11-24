@@ -201,19 +201,6 @@ export function startScreensaver (): Promise<void> {
 	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreenSaver', {})).then(() => undefined);
 }
 
-/** Ends the TV's screensaver state, as watch.sh does. With no screensaver up, tvpower answers with an error and nothing changes. */
-export function endScreensaver (): Promise<void> {
-	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreen', {}), 4000).then(() => undefined);
-}
-
-/** True while Lumen's own screensaver shows: its flag is set and a Lumen build is in front (so a flag left by a crash is not believed). */
-export function lumenOwnSaverUp (): Promise<boolean> {
-	return run(`[ -f /tmp/lumen-ambient-on ] && echo flag; ${luna('luna://com.webos.applicationManager/getForegroundAppInfo', {})}`, 4000).then((out) => {
-		const m = /"appId"\s*:\s*"([^"]+)"/.exec(out);
-		return /^flag/.test(out) && !!m && LUMEN_IDS.indexOf(m[1]) !== -1;
-	});
-}
-
 /** Tells watch.sh the video wallpaper is on, so LG's screensaver is ended while Lumen is in front. */
 export function setVideoFlag (on: boolean): Promise<void> {
 	return run(on ? `mkdir -p ${HOMEHOOK} && touch ${HOMEHOOK}/video-wallpaper` : `rm -f ${HOMEHOOK}/video-wallpaper`).then(() => undefined);
@@ -366,8 +353,8 @@ const isSideApp = (id: string): id is SideAppId => (SIDE_APPS as readonly string
 const DEV_APPS = '/media/developer/apps/usr/palm/applications';
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,7}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-/** a release download from this repo, for that one app: https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/<id>_<version>_all.ipk */
-const releaseUrl = (id: string) => new RegExp(`^https://github\\.com/samrenfrew/lumen-webos/releases/download/v\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}/${id.replace(/\./g, '\\.')}_\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}_all\\.ipk$`);
+/** a release download from this repo, for that one app: https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/<id>_<version>_all.ipk (_arm.ipk for the native screensaver) */
+const releaseUrl = (id: string) => new RegExp(`^https://github\\.com/samrenfrew/lumen-webos/releases/download/v\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}/${id.replace(/\./g, '\\.')}_\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}_(?:all|arm)\\.ipk$`);
 
 /** The version of each side app that is installed, read from its appinfo.json; a missing app is left out. */
 export function sideAppVersions (): Promise<Partial<Record<SideAppId, string>>> {

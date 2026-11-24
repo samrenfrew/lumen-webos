@@ -114,35 +114,25 @@ function classicScriptTag (): Plugin {
 	const GUIDE_ID = 'com.samrenfrew.lumen.guide';
 	/** Lumen Quick Settings (docs/plans/quick-settings.md): a second overlay app, built from quick.html into dist-quick/ with LUMEN_TARGET=quick. */
 	const QUICK_ID = 'com.samrenfrew.lumen.quick';
-	/** Lumen Screensaver (docs/plans/side-apps.md): the photos over the app in front, built from saver.html into dist-saver/ with LUMEN_TARGET=saver. */
-	const SAVER_ID = 'com.samrenfrew.lumen.saver';
-	const SIDE_IDS: Record<string, string> = {guide: GUIDE_ID, quick: QUICK_ID, saver: SAVER_ID};
-	/** A side app takes only the font from app/private/. The screensaver also takes the wallpaper pictures (bundled, or your own from
-	 *  app/private/wallpapers), since a page may load files only from its own folder. */
-	function guideFont (privateDir: string, wallpapers: boolean): Plugin {
+	const SIDE_IDS: Record<string, string> = {guide: GUIDE_ID, quick: QUICK_ID};
+	/** A side app takes only the font from app/private/. */
+	function guideFont (privateDir: string): Plugin {
 		let outDir = 'dist-guide';
-		const wpFile = wallpapers && privateDir ? join(privateDir, 'wallpapers.json') : '';
-		const ownWallpapers = wpFile && existsSync(wpFile) ? readFileSync(wpFile, 'utf8') : 'null';
 		return {
 			name: 'lumen-guide-font',
 			configResolved (config) { outDir = resolve(config.root, config.build.outDir); },
 			resolveId (id) { return id === PRIVATE_MODULE ? '\0' + PRIVATE_MODULE : undefined; },
-			load (id) { return id === '\0' + PRIVATE_MODULE ? `export const ICON_PACK = {};\nexport const PRIVATE_WALLPAPERS = ${ownWallpapers};\n` : undefined; },
+			load (id) { return id === '\0' + PRIVATE_MODULE ? `export const ICON_PACK = {};\nexport const PRIVATE_WALLPAPERS = null;\n` : undefined; },
 			writeBundle () {
 				const font = privateDir && join(privateDir, 'fonts', 'sf.woff2');
 				if (font && existsSync(font)) { mkdirSync(join(outDir, 'fonts'), {recursive: true}); cpSync(font, join(outDir, 'fonts', 'sf.woff2')); }
-				if (!wallpapers) return;
-				cpSync(join(APP_DIR, 'public', 'wallpapers'), join(outDir, 'wallpapers'), {recursive: true});
-				cpSync(join(APP_DIR, 'public', 'licenses'), join(outDir, 'licenses'), {recursive: true});
-				const own = privateDir && join(privateDir, 'wallpapers');
-				if (own && existsSync(own)) cpSync(own, join(outDir, 'wallpapers'), {recursive: true, filter: (src) => !src.endsWith('.DS_Store')});
 			}
 		};
 	}
 
 	export default defineConfig(({mode}) => {
 		const lumen = lumenSettings(mode);
-		// a side app (guide, quick or saver) or, with no target, Lumen itself
+		// a side app (guide or quick) or, with no target, Lumen itself
 		const target = SIDE_IDS[process.env.LUMEN_TARGET || ''] ? process.env.LUMEN_TARGET as string : '';
 		const guide = target !== '';
 		const appId = guide ? SIDE_IDS[target] : lumen.appId;
@@ -150,7 +140,7 @@ function classicScriptTag (): Plugin {
 		base: './',            // the app is loaded from a local file path on the TV
 		publicDir: guide ? `public-${target}` : 'public',
 		plugins: guide
-			? [preact(), classicScriptTag(), guideFont(lumen.privateDir, target === 'saver')]
+			? [preact(), classicScriptTag(), guideFont(lumen.privateDir)]
 			: [preact(), classicScriptTag(), lumenPrivate(lumen.privateDir, lumen.appId, lumen.title), tvScripts()],
 		define: {__LUMEN_APP_ID__: JSON.stringify(appId), __LUMEN_DEV__: JSON.stringify(mode === 'development' || lumen.dev)},
 		build: {
