@@ -585,6 +585,9 @@ impl SettingsScreen {
         let (items, shown) = self.tab_items(tab);
         if self.reordering {
             (shown.clone(), shown)
+        } else if tab == Tab::Channels {
+            let rest = items.into_iter().filter(|i| !shown.iter().any(|s| s.key == i.key));
+            (shown.iter().cloned().chain(rest).collect(), shown)
         } else {
             (items, shown)
         }
