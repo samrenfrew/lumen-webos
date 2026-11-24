@@ -116,6 +116,7 @@ pub enum Outcome {
     Settings(Vec<(String, Value)>),
     Toast(String, bool),
     Restore,
+    GlassLab,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -845,6 +846,7 @@ impl SettingsScreen {
                 Outcome::Stay
             }
             "restore-backup" => Outcome::Restore,
+            "glass-lab" => Outcome::GlassLab,
             "tv-scripts" => match state {
                 None => Outcome::Toast((if cfg!(feature = "webos") { "Still checking the TV" } else { "Only on the TV" }).into(), false),
                 Some(s) if s.scripts == "unshipped" => Outcome::Toast("This build has no TV scripts in it".into(), true),

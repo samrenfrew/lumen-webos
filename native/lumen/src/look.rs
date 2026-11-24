@@ -65,6 +65,16 @@ look! {
     cc_close_ms = 280.0, 1.0, 2000.0;
     cc_close_to = 0.25, 0.0, 1.0;
     cc_close_fade = 0.3, 0.0, 1.0;
+    edge_shape = 2.0, 1.0, 8.0;
+    magnify = 0.0, -0.5, 0.5;
+    specular = 0.0, 0.0, 2.0;
+    light_angle = -45.0, -180.0, 180.0;
+    rim_light = 1.0, 0.0, 3.0;
+    colour_rims = 1.0, 0.0, 3.0;
+    button_colour_rims = 0.0, 0.0, 3.0;
+    sheen = 1.0, 0.0, 3.0;
+    frost = 0.0, 0.0, 1.0;
+    glow = 1.0, 0.0, 8.0;
 }
 
 impl Look {

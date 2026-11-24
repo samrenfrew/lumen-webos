@@ -12,6 +12,7 @@ mod ffi;
 mod gfx;
 mod guide;
 mod home;
+mod lab;
 mod live;
 mod livetv;
 mod inputs;
@@ -98,6 +99,7 @@ pub struct App {
     home: Home,
     panel: Option<control_center::ControlCenter>,
     screen: Option<settings_screen::SettingsScreen>,
+    lab: Option<lab::Lab>,
     saver: Option<saver::Saver>,
     alone: bool,
     guide: Option<guide::Guide>,
@@ -564,7 +566,94 @@ impl App {
             settings_screen::Outcome::Settings(changes) => self.settings_changed(changes),
             settings_screen::Outcome::Restore => self.restore_settings(),
             settings_screen::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
+            settings_screen::Outcome::GlassLab => self.open_lab(),
         }
+    }
+
+    fn open_lab(&mut self) {
+        self.close_saver();
+        self.screen = None;
+        self.panel = None;
+        self.home.go_home(&self.draw, ticks());
+        self.home.lab = Some(false);
+        self.lab = Some(lab::Lab::new(ticks()));
+        self.redraw = true;
+    }
+
+    fn close_lab(&mut self) {
+        if self.lab.take().is_some() {
+            self.home.lab = None;
+            self.home.go_home(&self.draw, ticks());
+            self.redraw = true;
+        }
+    }
+
+    fn lab_key(&mut self, key: Key) {
+        let Some(lab) = self.lab.as_mut() else { return };
+        self.redraw = true;
+        let outcome = lab.key(key, &self.draw.look, self.draw.liquid, ticks());
+        self.home.lab = Some(lab.show_focus);
+        match outcome {
+            lab::Outcome::Stay => {}
+            lab::Outcome::Exit => self.close_lab(),
+            lab::Outcome::Wallpaper => self.lab_wallpaper(),
+            lab::Outcome::Reset => {
+                let defaults = Look::defaults();
+                for name in lab::GLASS_LOOK {
+                    self.draw.look.set(name, defaults.get(name).unwrap_or(0.0));
+                }
+                self.look_edited();
+            }
+            lab::Outcome::Set(name, value) => {
+                self.draw.look.set(name, value);
+                self.look_edited();
+            }
+            lab::Outcome::Switched(lab::Toggle::Liquid, on) => self.edit_settings(|c| {
+                c.insert("liquidGlass".into(), json!(on));
+            }),
+            lab::Outcome::Switched(_, _) => {}
+        }
+    }
+
+    fn look_edited(&mut self) {
+        store::write(LOOK_FILE, self.draw.look.changed_from_defaults().as_bytes());
+        self.home.look_changed(&mut self.draw);
+        self.redraw = true;
+    }
+
+    fn lab_tick(&mut self, now: u32) {
+        let Some(lab) = self.lab.as_mut() else { return };
+        let Some(mut right) = lab.auto_step(now) else { return };
+        let Some((focus, count)) = self.home.bar_focus() else { return };
+        if (right && focus + 1 >= count) || (!right && focus == 0) {
+            lab.turn_back();
+            right = !right;
+        }
+        self.home.key(&self.draw, if right { Key::Right } else { Key::Left }, now);
+    }
+
+    fn lab_wallpaper(&mut self) {
+        if self.fetching_wallpaper {
+            return;
+        }
+        let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
+        let picks: Vec<String> = listed.lines().filter_map(|line| line.split('\t').next()).filter(|id| !id.is_empty()).map(|id| format!("cloud:{id}")).collect();
+        let shown = store::read(wallpaper::SHOWN_PICK);
+        let chance = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos() as u64 / 1000);
+        let Some(pick) = wallpaper::another(&picks, shown.as_deref().map(str::trim), chance) else { return self.home.toast("No wallpapers listed in this build", true, ticks()) };
+        let Some(url) = wallpaper::url_of(&listed, &pick) else { return };
+        self.fetching_wallpaper = true;
+        self.home.toast("Fetching a wallpaper", false, ticks());
+        wallpaper::fetch(pick.clone(), url, false, move |fetched| {
+            note!("lab wallpaper {}: {}", pick, fetched.as_ref().map_or_else(|why| why.as_str(), |_| "fetched"));
+            post(move |app| {
+                app.fetching_wallpaper = false;
+                match fetched {
+                    Ok(_) => app.show_wallpaper(),
+                    Err(_) => app.home.toast("Could not fetch a wallpaper", true, ticks()),
+                }
+            });
+        });
     }
 
     fn settings_changed(&mut self, changes: Vec<(String, Value)>) {
@@ -722,6 +811,9 @@ impl App {
         if self.screen.is_some() {
             return self.screen_key(key);
         }
+        if self.lab.is_some() {
+            return self.lab_key(key);
+        }
         if self.panel.as_ref().is_some_and(control_center::ControlCenter::closing) {
             if self.side.is_some() {
                 return;
@@ -743,6 +835,12 @@ impl App {
             return;
         }
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
+        if let Some(lab) = self.lab.as_mut() {
+            if lab.point(dx, dy) {
+                self.redraw = true;
+            }
+            return;
+        }
         if self.home.point(&self.draw, dx, dy, ticks()) {
             self.redraw = true;
         }
@@ -759,7 +857,7 @@ impl App {
         }
         let can_hold = match &self.screen {
             Some(screen) => screen.can_hold(),
-            None => self.panel.is_none() && self.saver.is_none() && self.guide.is_none() && self.home.can_hold(),
+            None => self.lab.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none() && self.home.can_hold(),
         };
         if !can_hold {
             return self.key(Key::Ok);
@@ -776,7 +874,7 @@ impl App {
 
     fn idle_wait_ms(&mut self) -> Option<u32> {
         let idle_ms = self.settings.idle_seconds * 1000;
-        let on_home = self.screen.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none();
+        let on_home = self.screen.is_none() && self.lab.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none();
         if idle_ms == 0 || self.hidden || self.on_its_own() || !on_home {
             return None;
         }
@@ -837,7 +935,9 @@ impl App {
             None => {
                 self.screen = None;
                 self.panel = None;
+                self.close_lab();
             }
+            Some("glass-lab") => self.open_lab(),
             Some("recent") => {
                 self.screen = None;
                 self.panel = None;
@@ -925,8 +1025,13 @@ impl App {
             self.draw.pictures.next_frame();
             return self.home.toast_over(&mut self.draw, now);
         }
+        self.lab_tick(now);
         self.home.panel_open = self.panel.as_ref().is_some_and(|p| !p.closing());
         self.home.draw(&mut self.draw, now);
+        let liquid = self.draw.liquid;
+        if let Some(lab) = self.lab.as_mut() {
+            lab.draw(&mut self.draw, liquid);
+        }
         if let Some(panel) = self.panel.as_mut() {
             panel.draw(&mut self.draw, now);
         }
@@ -948,6 +1053,9 @@ impl App {
         if let Some(screen) = &self.screen {
             return screen.moving(now) || self.home.toast_showing(now);
         }
+        if let Some(lab) = &self.lab {
+            return lab.moving() || self.home.moving(now) || self.home.toast_showing(now);
+        }
         self.home.moving(now) || self.panel.as_ref().is_some_and(|p| p.moving(now))
     }
 
@@ -965,6 +1073,7 @@ impl App {
         match verb {
             "where" if self.saver.is_some() => said(&answer, self.saver.as_ref().map_or(Value::Null, |s| s.where_now(ticks()))),
             "where" if self.guide.is_some() => said(&answer, self.guide.as_ref().map(|g| g.where_now(&self.live)).unwrap_or_default()),
+            "where" if self.lab.is_some() => said(&answer, self.lab.as_ref().map_or(Value::Null, |l| l.where_now(&self.draw.look, self.draw.liquid))),
             "where" => said(&answer, match (self.screen.as_mut(), &self.panel) {
                 (Some(screen), _) => screen.where_now(),
                 (None, Some(panel)) => panel.where_now(),
@@ -1056,6 +1165,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
             "--at" => at_ms = rest.next().and_then(|ms| ms.parse().ok()).unwrap_or(SHOT_SETTLED_MS),
             "--against" => against = rest.next().cloned(),
             "saver" => app.open_saver_for_shot(),
+            "lab" => app.open_lab(),
             "hold" => match app.screen.as_mut() {
                 Some(screen) => screen.hold(ticks()),
                 None => app.home.hold(&app.draw, 1000),
@@ -1212,6 +1322,7 @@ fn run() -> i32 {
         home: Home::new(),
         panel: None,
         screen: None,
+        lab: None,
         saver: None,
         alone,
         guide: None,
@@ -1369,12 +1480,15 @@ fn run() -> i32 {
 
         let draw_from = unsafe { SDL_GetPerformanceCounter() };
         app.draw_frame(now);
-        if app.draw.look.finish != 0.0 {
+        if app.draw.look.finish != 0.0 || app.lab.is_some() {
             unsafe { glFinish() }
         }
         let draw_ms = (unsafe { SDL_GetPerformanceCounter() } - draw_from) as f64 * per_ms;
         unsafe { SDL_GL_SwapWindow(app.window) }
         app.home.frame_shown(ticks(), draw_ms);
+        if let Some(lab) = app.lab.as_mut() {
+            lab.frame_shown(ticks(), draw_ms);
+        }
         if !first_frame_shown {
             first_frame_shown = true;
             app.shown_once = true;

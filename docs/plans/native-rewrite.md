@@ -38,6 +38,13 @@ Left out:
   blur are not choices; Liquid glass may come back later.
   Back on 2026-11-24 as Settings > Appearance > Liquid glass, off by default: the app bar and every glass button bend the
   wallpaper at their rim, over a lighter blur (`bend`, `fringe`, `bezel`, `liquid_blur` in `look.rs`, tunable live with `nctl.mjs set`). Seen on the TV by Sam (2026-11-24); the values may be tuned later.
+  **Glass lab (2026-11-24, dev builds):** Settings > Appearance > Glass lab, or launch with `{"view":"glass-lab"}`, opens the
+  home screen with only the app bar and the three top buttons, neither usable, and a panel of sliders for every glass value in
+  `look.rs`. New values added for it, each off or as before by default: `edge_shape` (2 is the round edge as before, higher is
+  flatter in the middle and steeper at the rim), `magnify`, `specular` and `light_angle` (a glint along the rim facing the light),
+  `rim_light`, `colour_rims` (the blue and pink rims on the bar), `button_colour_rims`, `sheen`, `frost` (white haze) and `glow`.
+  The panel shows how long the last frame took to draw, and frames a second while "Move focus by itself" is on. What is set
+  there is kept in the look file, as with `nctl.mjs set`; Reset puts back only the glass values. **(verify)** Sam has not tried it yet.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.

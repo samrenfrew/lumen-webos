@@ -251,6 +251,7 @@ pub struct Home {
     veil: Tex,
     blurs_made_with: [i32; 5],
     bar_made_with: f32,
+    plates_made_with: [f32; 8],
     shift: Anim,
     veil_fade: Anim,
     drop: Anim,
@@ -273,6 +274,7 @@ pub struct Home {
     pub refresh_ms: f32,
     pub reduce_motion: bool,
     pub panel_open: bool,
+    pub lab: Option<bool>,
     live: Vec<LiveTile>,
     live_at: usize,
     in_live: bool,
@@ -477,6 +479,7 @@ impl Home {
             veil: Tex::default(),
             blurs_made_with: [0; 5],
             bar_made_with: 0.0,
+            plates_made_with: [0.0; 8],
             shift: Anim::still(0.0),
             veil_fade: Anim::still(0.0),
             drop: Anim::still(0.0),
@@ -498,6 +501,7 @@ impl Home {
             last_move: String::new(),
             refresh_ms: 20.0,
             reduce_motion: false,
+            lab: None,
             panel_open: false,
             live: Vec::new(),
             live_at: 0,
@@ -587,7 +591,7 @@ impl Home {
         if Self::blur_strengths(d) != self.blurs_made_with {
             self.blur_wallpaper(d);
         }
-        if d.look.bezel != self.bar_made_with {
+        if Self::plate_look(d) != self.plates_made_with {
             d.let_go(|key| key.starts_with("bar:"));
         }
     }
@@ -1091,6 +1095,10 @@ impl Home {
         self.animate_to_state(d, was_lower, was_shift, now);
     }
 
+    pub fn bar_focus(&self) -> Option<(usize, usize)> {
+        (self.zone == Zone::Rows && !self.engaged && self.place_of(self.focus).0 == 0).then_some((self.focus, self.bar_count))
+    }
+
     pub fn moving(&self, now: u32) -> bool {
         let anims = [&self.wallpaper_fade, &self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
         anims.iter().any(|a| a.busy(now))
@@ -1223,6 +1231,11 @@ impl Home {
         resting
     }
 
+    fn plate_look(d: &Draw) -> [f32; 8] {
+        let l = &d.look;
+        [l.bezel, l.edge_shape, l.specular, l.light_angle, l.colour_rims, l.rim_light, l.sheen, l.glow]
+    }
+
     fn bar_plates(&mut self, d: &mut Draw) -> (Tex, Tex) {
         if let (Some(lens), Some(gloss)) = (d.pictures.find("bar:lens"), d.pictures.find("bar:gloss")) {
             return (lens, gloss);
@@ -1236,9 +1249,14 @@ impl Home {
             program.set4(c"u_bar", PLATE_MARGIN, PLATE_MARGIN, BAR_W, BAR_H);
             program.set1(c"u_radius", BAR_RADIUS);
             program.set1(c"u_bezel", d.look.bezel);
+            program.set1(c"u_edge_shape", d.look.edge_shape);
+            let [lx, ly] = d.light();
+            program.set4(c"u_light", lx, ly, d.look.specular, d.look.colour_rims);
+            program.set3(c"u_finish", [d.look.rim_light, d.look.sheen, d.look.glow]);
             d.gfx.quad(program, 0.0, 0.0, w, h);
         }
         self.bar_made_with = d.look.bezel;
+        self.plates_made_with = Self::plate_look(d);
         d.keep("bar:lens", lens);
         d.keep("bar:gloss", gloss);
         (lens, gloss)
@@ -1254,9 +1272,16 @@ impl Home {
         (-1.5 + 3.0 * eased).to_radians()
     }
 
+    fn tile_focus(&self, at: usize, now: u32) -> f32 {
+        match self.lab {
+            Some(focused) => if focused && at == self.focus { 1.0 } else { 0.0 },
+            None => self.tiles[at].focus.at(now),
+        }
+    }
+
     fn tile_box(&self, at: usize, shift: f32, grid_drop: f32, now: u32) -> (f32, f32, f32, f32, f32) {
         let (row, col) = self.place_of(at);
-        let f = self.tiles[at].focus.at(now);
+        let f = self.tile_focus(at, now);
         let left = tile_left(col);
         let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
         let lifting = self.moving.as_ref().is_some_and(|id| *id == self.tiles[at].app.id);
@@ -1293,6 +1318,8 @@ impl Home {
         program.set1(c"u_t", veiled);
         program.set4(c"u_plate", plate.0, plate.1, plate.2, plate.3);
         program.set3(c"u_tone", [d.look.saturate, d.look.brighten, d.look.tint]);
+        program.set1(c"u_frost", d.look.frost);
+        program.set3(c"u_mag", [BAR_X + BAR_W / 2.0, plate.1 + plate.3 / 2.0, d.magnify()]);
     }
 
     fn draw_bar(&self, d: &Draw, lens: Tex, gloss: Tex, bar_y: f32, veiled: f32, now: u32) {
@@ -1315,7 +1342,10 @@ impl Home {
         d.gfx.quad(rim, px, iy, ix - px, ih);
         d.gfx.quad(rim, ix + iw, iy, px + pw - ix - iw, ih);
 
-        let glow = self.shine_alpha.at(now);
+        let glow = match self.lab {
+            Some(focused) => if focused { 1.0 } else { 0.0 },
+            None => self.shine_alpha.at(now),
+        };
         if glow > 0.0 {
             let reach = BAR_W / 2.0 - BAR_RADIUS - 130.0;
             let x = (self.shine_x.at(now) - DESIGN_W / 2.0).clamp(-reach, reach) + DESIGN_W / 2.0 - 130.0;
@@ -1492,7 +1522,10 @@ impl Home {
             return;
         }
         for (at, (_, label, glyph)) in TOP_ITEMS.iter().enumerate() {
-            let f = self.top_focus[at].at(now);
+            let f = match self.lab {
+                Some(focused) => if focused && at == 0 { 1.0 } else { 0.0 },
+                None => self.top_focus[at].at(now),
+            };
             let scale = 1.0 + (PILL_LIFT - 1.0) * f;
             let size = PILL * scale;
             let (cx, cy) = (pill_left(at) + PILL / 2.0, PILL_TOP + PILL / 2.0);
@@ -1500,7 +1533,7 @@ impl Home {
             let icon = d.glyph(glyph, 28, 1.8);
             let g = 28.0 * scale;
             d.inked_picture(icon, cx - g / 2.0, cy - g / 2.0, g, g, [1.0, 1.0, 1.0, 0.62 * alpha]);
-            if f > 0.0 && !self.panel_open {
+            if f > 0.0 && !self.panel_open && self.lab.is_none() {
                 if let Some(text) = d.text(label, &PILL_LABEL) {
                     let x = if at == TOP_ITEMS.len() - 1 { pill_left(at) + PILL - text.advance } else { cx - text.advance / 2.0 };
                     text.draw(d, x, PILL_LABEL_BASELINE, f * alpha);
@@ -1680,8 +1713,11 @@ impl Home {
             glEnable(GL_BLEND);
             glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
         }
-        self.draw_forecast(d, status_alpha);
-        self.draw_caption(d, status_alpha);
+        let in_lab = self.lab.is_some();
+        if !in_lab {
+            self.draw_forecast(d, status_alpha);
+            self.draw_caption(d, status_alpha);
+        }
         let focus_row = self.place_of(self.focus).0;
         let lifted = self.moving.as_ref().and_then(|id| self.tiles.iter().position(|t| &t.app.id == id));
         self.draw_live(d, shift, grid_drop, now);
@@ -1698,11 +1734,18 @@ impl Home {
                     self.draw_tile(d, at, *resting, *icon, shift, grid_drop, now);
                 }
             }
-            self.draw_labels(d, row, shift, grid_drop, now);
+            if !in_lab {
+                self.draw_labels(d, row, shift, grid_drop, now);
+            }
         }
 
-        self.draw_status(d, status_alpha);
+        if !in_lab {
+            self.draw_status(d, status_alpha);
+        }
         self.draw_top(d, status_alpha, now);
+        if in_lab {
+            return self.draw_toast(d, now);
+        }
         if self.moving.is_some() && self.zone == Zone::Rows {
             let hint = Style { px: 26, weight: "500", spacing_em: 0.0, feature: "", ink: INK_ON_PHOTO, shadows: &TEXT_SHADOW };
             if let Some(text) = d.text("Move with the arrows · OK to drop · Hold OK for more", &hint) {

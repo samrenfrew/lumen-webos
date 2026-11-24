@@ -55,19 +55,22 @@ void main() { gl_FragColor = vec4(mix(texture2D(u_wall, v_uv).rgb, texture2D(u_v
 pub const LENS_FRAGMENT: &str = r#"uniform vec4 u_bar;
 uniform float u_radius;
 uniform float u_bezel;
+uniform float u_edge_shape;
 void main() {
   vec2 hs = u_bar.zw * 0.5;
   vec2 p = v_px - (u_bar.xy + hs);
   float d = rr(p, hs, u_radius);
   float shadow = 0.28 * (1.0 - smoothstep(-26.0, 44.0, rr(p - vec2(0.0, 20.0), hs, u_radius)));
   float e = clamp(1.0 + d / u_bezel, 0.0, 1.0);
-  vec2 off = -rr_normal(p, hs, u_radius) * (1.0 - sqrt(1.0 - e * e));
+  vec2 off = -rr_normal(p, hs, u_radius) * (1.0 - pow(max(1.0 - pow(e, u_edge_shape), 0.0), 1.0 / u_edge_shape));
   gl_FragColor = vec4((off * 127.0 + 128.0) / 255.0, clamp(0.5 - d, 0.0, 1.0), shadow);
 }
 "#;
 
 pub const GLOSS_FRAGMENT: &str = r#"uniform vec4 u_bar;
 uniform float u_radius;
+uniform vec4 u_light;
+uniform vec3 u_finish;
 vec4 over(vec4 under, vec3 c, float a) { return vec4(under.rgb * (1.0 - a) + c * a, under.a * (1.0 - a) + a); }
 void main() {
   vec2 hs = u_bar.zw * 0.5;
@@ -76,16 +79,19 @@ void main() {
   vec2 n = rr_normal(p, hs, u_radius);
   float s = dot(p + hs, vec2(0.7071));
   float span = (u_bar.z + u_bar.w) * 0.7071;
-  float sheen = mix(0.13, 0.03, clamp(s / 200.0, 0.0, 1.0)) + 0.05 * clamp((s - span + 200.0) / 200.0, 0.0, 1.0);
-  float tl = smoothstep(0.0, 0.5, dot(n, vec2(-0.7071)));
-  float br = smoothstep(0.0, 0.5, dot(n, vec2(0.7071)));
+  float sheen = u_finish.y * (mix(0.13, 0.03, clamp(s / 200.0, 0.0, 1.0)) + 0.05 * clamp((s - span + 200.0) / 200.0, 0.0, 1.0));
+  float facing = dot(n, u_light.xy);
+  float tl = smoothstep(0.0, 0.5, facing);
+  float br = smoothstep(0.0, 0.5, -facing);
   float line = smoothstep(-2.5, -0.5, d);
   float band = smoothstep(-5.0, -2.0, d) * (1.0 - line);
-  vec4 g = vec4(1.0, 1.0, 1.0, 1.0) * sheen;
-  g = over(g, vec3(0.43, 0.78, 1.0), band * 0.5 * tl);
-  g = over(g, vec3(1.0, 0.47, 0.75), band * 0.28 * br);
-  g = over(g, vec3(1.0), line * (0.55 * tl + 0.2 * br));
-  g = over(g, vec3(1.0), 0.05 * smoothstep(-14.0, 0.0, d));
+  vec4 g = vec4(1.0, 1.0, 1.0, 1.0) * clamp(sheen, 0.0, 1.0);
+  g = over(g, vec3(0.43, 0.78, 1.0), clamp(band * 0.5 * tl * u_light.w, 0.0, 1.0));
+  g = over(g, vec3(1.0, 0.47, 0.75), clamp(band * 0.28 * br * u_light.w, 0.0, 1.0));
+  g = over(g, vec3(1.0), clamp(line * (0.55 * tl + 0.2 * br) * u_finish.x, 0.0, 1.0));
+  g = over(g, vec3(1.0), clamp(0.05 * u_finish.z * smoothstep(-14.0, 0.0, d), 0.0, 1.0));
+  float spark = pow(max(facing, 0.0), 6.0) * (smoothstep(-4.0, -0.5, d) + 0.35 * smoothstep(-16.0, 0.0, d)) + 0.5 * pow(max(-facing, 0.0), 6.0) * smoothstep(-4.0, -0.5, d);
+  g = over(g, vec3(1.0), clamp(u_light.z * spark, 0.0, 1.0));
   gl_FragColor = g;
 }
 "#;
@@ -101,12 +107,15 @@ vec3 behind(vec2 uv) {
   if (u_t >= 1.0) return texture2D(u_veil, uv).rgb;
   return mix(texture2D(u_glass, uv).rgb, texture2D(u_veil, uv).rgb, u_t);
 }
+uniform float u_frost;
+uniform vec3 u_mag;
 vec3 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  col = col * (1.0 - u_frost) + u_frost;
   vec4 g = texture2D(u_gloss, q);
   return col * (1.0 - g.a) + g.rgb;
 }
-void main() { gl_FragColor = vec4(glazed(behind(v_uv), (v_px - u_plate.xy) / u_plate.zw), 1.0); }
+void main() { gl_FragColor = vec4(glazed(behind(v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0)), (v_px - u_plate.xy) / u_plate.zw), 1.0); }
 "#;
 
 pub const BAR_RIM_FRAGMENT: &str = r#"uniform sampler2D u_glass;
@@ -120,8 +129,11 @@ vec3 behind(vec2 uv) {
   if (u_t >= 1.0) return texture2D(u_veil, uv).rgb;
   return mix(texture2D(u_glass, uv).rgb, texture2D(u_veil, uv).rgb, u_t);
 }
+uniform float u_frost;
+uniform vec3 u_mag;
 vec3 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  col = col * (1.0 - u_frost) + u_frost;
   vec4 g = texture2D(u_gloss, q);
   return col * (1.0 - g.a) + g.rgb;
 }
@@ -132,10 +144,11 @@ void main() {
   vec4 lens = texture2D(u_lens, q);
   if (lens.b <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, lens.a); return; }
   vec2 off = (lens.rg * 255.0 - 128.0) / 127.0 * u_bend.x / vec2(1920.0, 1080.0);
+  vec2 uv = v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0);
   vec3 col;
-  if (u_bend.x == 0.0) col = behind(v_uv);
-  else if (u_bend.y > 0.0) col = vec3(behind(v_uv + off * (1.0 + u_bend.y)).r, behind(v_uv + off).g, behind(v_uv + off * (1.0 - u_bend.y)).b);
-  else col = behind(v_uv + off);
+  if (u_bend.x == 0.0) col = behind(uv);
+  else if (u_bend.y > 0.0) col = vec3(behind(uv + off * (1.0 + u_bend.y)).r, behind(uv + off).g, behind(uv + off * (1.0 - u_bend.y)).b);
+  else col = behind(uv + off);
   gl_FragColor = vec4(glazed(col, q) * lens.b, lens.b + (1.0 - lens.b) * lens.a);
 }
 "#;
@@ -208,6 +221,8 @@ uniform vec4 u_look;
 uniform vec3 u_tone;
 uniform float u_alpha;
 uniform vec3 u_bend;
+uniform vec4 u_shape;
+uniform vec4 u_light;
 void main() {
   vec2 hs = u_box.zw * 0.5;
   vec2 p = v_px - (u_box.xy + hs);
@@ -218,11 +233,12 @@ void main() {
   if (a <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_alpha); return; }
   vec2 n = rr_normal(p, hs, r);
   vec3 seen;
-  if (u_bend.x == 0.0) seen = texture2D(u_glass, v_uv).rgb;
+  if (u_bend.x == 0.0 && u_shape.y == 0.0) seen = texture2D(u_glass, v_uv).rgb;
   else {
     float bezel = min(u_bend.z, 0.5 * min(hs.x, hs.y));
     float e = clamp(1.0 + d / bezel, 0.0, 1.0);
-    vec2 off = -n * (1.0 - sqrt(1.0 - e * e)) * u_bend.x * bezel / u_bend.z / vec2(1920.0, 1080.0);
+    float lift = 1.0 - pow(max(1.0 - pow(e, u_shape.x), 0.0), 1.0 / u_shape.x);
+    vec2 off = (-n * lift * u_bend.x * bezel / u_bend.z - p * u_shape.y) / vec2(1920.0, 1080.0);
     seen = vec3(texture2D(u_glass, v_uv + off * (1.0 + u_bend.y)).r, texture2D(u_glass, v_uv + off).g, texture2D(u_glass, v_uv + off * (1.0 - u_bend.y)).b);
   }
   float grey = dot(seen, vec3(0.299, 0.587, 0.114));
@@ -234,11 +250,24 @@ void main() {
   float sheen = u_look.z * (g < 0.42 ? mix(0.13, 0.03, g / 0.42) : mix(0.03, 0.08, (g - 0.42) / 0.58));
   col = col * (1.0 - sheen) + sheen;
   alpha = alpha + (1.0 - alpha) * sheen;
+  col = col * (1.0 - u_shape.z) + u_shape.z;
+  alpha = alpha + (1.0 - alpha) * u_shape.z;
+  float facing = dot(n, u_light.xy);
+  float band = smoothstep(-5.0, -2.0, d) * (1.0 - smoothstep(-2.5, -0.5, d));
+  float blue = clamp(band * 0.5 * smoothstep(0.0, 0.5, facing) * u_light.w, 0.0, 1.0);
+  float pink = clamp(band * 0.28 * smoothstep(0.0, 0.5, -facing) * u_light.w, 0.0, 1.0);
+  col = col * (1.0 - blue) + vec3(0.43, 0.78, 1.0) * blue;
+  alpha = alpha + (1.0 - alpha) * blue;
+  col = col * (1.0 - pink) + vec3(1.0, 0.47, 0.75) * pink;
+  alpha = alpha + (1.0 - alpha) * pink;
   float edge = 1.0 - smoothstep(0.0, 2.0, -d);
   float glow = 1.0 - smoothstep(0.0, 14.0, -d);
-  float rim = u_look.w * (edge * (0.55 * max(-(n.x + n.y) * 0.7071, 0.0) + 0.25 * max((n.x + n.y) * 0.7071, 0.0)) + 0.05 * glow);
+  float rim = clamp(u_look.w * (edge * (0.55 * max(facing, 0.0) + 0.25 * max(-facing, 0.0)) + 0.05 * u_shape.w * glow), 0.0, 1.0);
   col = col * (1.0 - rim) + rim;
   alpha = alpha + (1.0 - alpha) * rim;
+  float spark = clamp(u_light.z * (pow(max(facing, 0.0), 6.0) * (smoothstep(-4.0, -0.5, d) + 0.35 * glow) + 0.5 * pow(max(-facing, 0.0), 6.0) * smoothstep(-4.0, -0.5, d)), 0.0, 1.0);
+  col = col * (1.0 - spark) + spark;
+  alpha = alpha + (1.0 - alpha) * spark;
   gl_FragColor = vec4(col * a, alpha * a + (1.0 - alpha * a) * shadow) * u_alpha;
 }
 "#;

@@ -295,15 +295,36 @@ impl Draw {
         if self.liquid { self.look.bend } else { 0.0 }
     }
 
+    pub fn magnify(&self) -> f32 {
+        if self.liquid { self.look.magnify } else { 0.0 }
+    }
+
+    pub fn light(&self) -> [f32; 2] {
+        let a = self.look.light_angle.to_radians();
+        [a.sin(), -a.cos()]
+    }
+
+    pub fn fill(&self, x: f32, y: f32, w: f32, h: f32, radius: f32, ink: [f32; 4]) {
+        let p = &self.p.fill;
+        p.activate();
+        p.set4(c"u_box", x, y, w, h);
+        p.set1(c"u_radius", radius);
+        p.set4(c"u_ink", ink[0], ink[1], ink[2], ink[3]);
+        self.gfx.quad(p, x, y, w, h);
+    }
+
     pub fn glass(&self, g: &Glass) {
         let p = &self.p.glass;
         p.bind(0, c"u_glass", self.glass_backdrop.tex);
         p.set4(c"u_box", g.x, g.y, g.w, g.h);
-        p.set4(c"u_look", g.radius, if self.liquid { 1.0 } else { g.blur }, g.sheen, g.rim);
+        p.set4(c"u_look", g.radius, if self.liquid { 1.0 } else { g.blur }, g.sheen * self.look.sheen, g.rim * self.look.rim_light);
         p.set3(c"u_tone", [self.look.saturate, self.look.brighten, self.look.tint]);
         p.set1(c"u_alpha", g.alpha);
         p.set1(c"u_shadow_strength", self.look.glass_shadow);
         p.set3(c"u_bend", [self.bend(), self.look.fringe, self.look.bezel]);
+        p.set4(c"u_shape", self.look.edge_shape, self.magnify(), self.look.frost, self.look.glow);
+        let [lx, ly] = self.light();
+        p.set4(c"u_light", lx, ly, self.look.specular, self.look.button_colour_rims);
         let margin = 40.0;
         self.gfx.quad(p, g.x - margin, g.y - margin, g.w + 2.0 * margin, g.h + 2.0 * margin);
     }
