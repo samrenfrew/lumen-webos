@@ -4,7 +4,8 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 SDK=${WEBOS_SDK:-$HOME/toolchains/arm-webos-linux-gnueabi_sdk-buildroot}
 TARGET=armv7-unknown-linux-gnueabi
 PKG=$HERE/build/pkg
-rm -rf "$PKG" && mkdir -p "$PKG"
+SAVER_PKG=$HERE/build/pkg-saver
+rm -rf "$PKG" "$SAVER_PKG" && mkdir -p "$PKG" "$SAVER_PKG"
 export CC_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-gcc"
 export AR_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-ar"
 export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK/bin/arm-webos-linux-gnueabi-gcc"
@@ -20,4 +21,8 @@ cp "$CARGO_TARGET_DIR/$TARGET/release/lumen" "$PKG/"
 cp "$HERE/appinfo.json" "$PKG/"
 cp "$HERE/../../app/public/icon.png" "$HERE/../../app/public/largeIcon.png" "$PKG/"
 sh "$HERE/assets.sh" "$PKG"
-echo "Built: $PKG"
+cp "$PKG/lumen" "$SAVER_PKG/lumen-saver"
+cp "$HERE/appinfo-saver.json" "$SAVER_PKG/appinfo.json"
+cp "$PKG/icon.png" "$PKG/largeIcon.png" "$SAVER_PKG/"
+sh "$HERE/assets.sh" "$SAVER_PKG" saver
+echo "Built: $PKG $SAVER_PKG"
