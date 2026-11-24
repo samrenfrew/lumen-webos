@@ -95,17 +95,30 @@ Each is small, answers one question on the TV, and is written up in `docs/resear
    TV scripts; a small root helper started by the TV scripts that takes fixed commands on a socket. The last always works, and
    may be the quickest of the three (today each root command starts a shell). Prove: list apps, launch one, read and set a
    picture setting, run one root command.
+   **Answered 2026-11-24: the first route works.** The app calls the TV itself through `libluna-service2` on a nameless handle
+   (LG's SDL holds the app's own name). No role file or helper is needed. A root command costs about 45 ms.
 3. **A place to keep things.** The jail cannot see `/var/lib/homehook`. Find where the app may write files that last (settings,
    the icon and logo caches, the next wallpaper), and how it reads other apps' icons, which the web app gets as text through root.
+   **Answered 2026-11-24:** a folder of its own under `/media/developer`. `/tmp` is shared with root. `/var/lib/homehook` and
+   LG's app folders cannot be seen, so their icons and the TV scripts' files come through a root command.
 4. **Staying alive.** The app is sent to the back and brought forward without restarting, gets its launch parameters each time,
    the Home button (LG Input Hook) and power-on open it, and the TV's memory manager treats it no worse than the web one
    (`docs/keep-alive.md`).
+   **Partly answered 2026-11-24:** like the web app, it is closed when another app opens unless it is on the TV's keep-alive
+   lists. Launch parameters arrive on a fresh start. The rest needs it on the lists and a reboot.
 5. **Video.** The live preview and the video wallpaper are `<video>` elements today. Natively they need the TV's media service
    with a hole cut in the window. Find out whether both work, and whether the picture under a native window can be read (it
    cannot from a web page). If not, both stay out and glass over video stays a tint.
+   **Partly answered 2026-11-24:** a video wallpaper plays under the native window (seen by Sam). Reading the video's picture for
+   glass, and the live TV preview, are not proven.
 6. **Text.** A paragraph in each of the nine languages with FreeType and HarfBuzz, beside the web page's.
+   **Answered 2026-11-24: yes**, within 2% of the web page's line widths. The SDK has no HarfBuzz; the build links a stand-in.
 7. **The test app's memory.** Why 62 MB, and what one screen-size target costs on this driver.
+   **Answered 2026-11-24:** 21 MB is pictures. A depth buffer SDL asks for by default costs 16 MB, and a drawing target per
+   tile 12 MB. Without both: 33 MB. A screen-size target is 8.3 MB of pixels.
 8. **50 or 60.** Why the screen is at 50 a second, whether it changes with the input or the content, and what the web page gets.
+   **Answered 2026-11-24:** the panel keeps the rate of the last video source (50 after Live TV, 60 after a 60 a second HDMI
+   input). The web page always draws 60, so it drops one frame in six at 50. A native app is given the panel's beat.
 9. **Shipping.** The release workflow builds a native package and the Homebrew Channel lists it under the new id beside the old.
 
 ## Phases

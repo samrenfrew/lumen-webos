@@ -537,3 +537,19 @@ Spike 5. **A video wallpaper works. Glass that shows the video through it, and t
 - **The live TV preview is not proven.** The web app plays `tv://<channel>` in a `<video>`; what the web engine calls for that
   was not captured. Next step: run `ls-monitor` on the TV while the web Lumen starts a preview, and repeat those calls from
   the probe with the exported window id.
+
+## Staying alive, so far (2026-11-24)
+Spike 4, the part that needs no reboot:
+
+- **Out of the box a native app is closed the moment another app opens**, as the web Lumen was before it went on the TV's
+  lists (`docs/keep-alive.md`). Lumen Rust Test launched the C test app with `applicationManager/launch`, and was gone with
+  no "close" line in its log. Its next launch was a fresh start.
+- **Launch parameters reach a fresh start** as the second program argument: `…"parameters":{"view":"ambient"}…`.
+- LG's SDL registers the app with the app manager itself, so how a relaunch of a running app arrives (an SDL event, or
+  nothing) is not known yet.
+- When the two test apps were opened in turn a few seconds apart, the window manager relaunched the one just closed
+  (`NL_APP_LAUNCH_BEGIN … "caller_id":"com.webos.surfacemanager","mode":"autoReload"`). Not understood.
+- **(verify)** with `com.samrenfrew.lumen.rtest` added to `com.webos.memorymanager.KeepAlive` and `KeepOnLaunchEx` and the TV
+  rebooted (the memory manager reads the lists only at start): it survives another app opening, it is told when it goes to
+  the back and comes forward, a launch while it runs delivers the new parameters, and its memory in the back.
+- The Home button and power-on are settings that name an app id (`keybinds.json`, `home-setup.sh`), the same for a native app.
