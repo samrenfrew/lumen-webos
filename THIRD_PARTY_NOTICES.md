@@ -13,6 +13,7 @@ This repository holds the launcher's source (`app/`), build tools, notes and TV-
 | [Simple Icons](https://simpleicons.org) glyph paths | CC0 | `tools/glyphs.json`, used to draw some app tiles |
 | Wallpaper catalogue (`tools/catalog.json`) | links and titles only | points to pictures on Reddit's image host and to their posts; the pictures belong to their authors and are loaded from the internet, not stored here |
 | Video wallpaper (`tools/wallpaperVideos.ts`) | links only | streams [Mixkit](https://mixkit.co/license/#videoFree) free stock videos (free use, no attribution needed) and Apple's tvOS aerial screensaver videos from Apple's own server; nothing is stored here or on the TV, and the videos belong to their makers |
+| JSON parser in the native screensaver (`native/saver/vendor/`) | [cJSON](https://github.com/DaveGamble/cJSON) 1.7.18 (MIT, licence in `native/saver/vendor/LICENSE`) | reads settings and Immich answers |
 | Weather | [Open-Meteo](https://open-meteo.com) (CC BY 4.0), location from [ipwho.is](https://ipwho.is) | optional date/weather line |
 
 App icons, logos and names of third-party apps are trademarks of their owners. They are not included in this repository and this project is not
