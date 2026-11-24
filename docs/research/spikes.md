@@ -512,3 +512,28 @@ page over DevTools, in the page's own font stack at weight 500, measured and cap
   loads at run time. The NUC build uses Debian's HarfBuzz.
 - Not done: right-to-left text (no language needs it), line breaking, an ellipsis for text that is too long, and font
   fallback glyph by glyph (the splitter knows Latin and Devanagari only).
+
+## Video under a native window (2026-11-24)
+Spike 5. **A video wallpaper works. Glass that shows the video through it, and the live TV preview, are not proven.**
+
+- **A video plays under the native app.** In see-through mode (`see_through=1` in `/tmp/ntest-tune`: the frame is cleared to
+  alpha 0 and the wallpaper is not drawn) Lumen Rust Test showed the bar and tiles over a playing clip. Seen by Sam: the
+  mountain video moves behind the bar. Steps, all from inside the jail:
+  1. Export the window for video with the `wl_webos_foreign` Wayland protocol (`lumen_export_video_window` in
+     `native/rtest/src/webos_shell.c`): the TV answers with an id such as `_Window_Id_66`.
+  2. On a bus handle named `com.webos.media.client.<anything>` (the role file allows it), call `com.webos.media/load` with
+     `{"uri":…,"type":"media","payload":{"option":{"appId":"<id>","windowId":"_Window_Id_66"}}}`. It answers with a `mediaId`.
+  3. `com.webos.media/play` with that id. `subscribe` sends the time every 200 ms and `endOfStream`; `seek` to 0 replays it.
+  The media service connects the decoder to the screen itself (`videooutput/getStatus`: MAIN connected, 1280x720 in, the
+  whole panel out). Without the window id the clip decodes but never reaches the screen.
+- **The clip must be unloaded.** The pipeline outlived the app: after the app closed it was still listed, holding a decoder,
+  until `com.webos.media/unload`. The app must unload on every way out, and a TV script should sweep for strays.
+- **The glass bar does not show the video**: it still read the still wallpaper's blurred copy, as Sam saw. To blur the
+  video the app would have to read the video's picture. PicCap does read it on this TV (it holds a `VT_CAPTURE` pipeline, as
+  root, for Hyperion), so it can be done; it was not tried from the jail, because a second capture client may take the
+  capture away from Hyperion. Until that is tried, glass over video is a tint and rims, as the web app has it.
+- **Screenshots cannot check video.** `capture/executeOneShot` shows black where the video is, in every mode, and the app is
+  not allowed to call the capture service at all ("Not permitted"): the one TV service found so far that refuses it.
+- **The live TV preview is not proven.** The web app plays `tv://<channel>` in a `<video>`; what the web engine calls for that
+  was not captured. Next step: run `ls-monitor` on the TV while the web Lumen starts a preview, and repeat those calls from
+  the probe with the exported window id.
