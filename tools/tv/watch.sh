@@ -535,9 +535,11 @@ while true; do
           # the app it came up over, so a key that ends the screensaver goes back to it (plain app ids only; not Lumen, LG Home or Frame)
           from=""
           case "$app" in ''|$LGHOME|$FRAME) ;; *) [ -z "$front" ] && printf '%s' "$app" | grep -qE '^[A-Za-z0-9._-]+$' && from=",\"from\":\"$app\"" ;; esac
-          if [ -n "$from" ] && [ -d "$APPS/$SAVER" ]; then
-            # over the app, as an overlay: the app stays the card in front, so it is where you left it after a key
+          if [ -d "$APPS/$SAVER" ] && { [ -n "$from" ] || [ -n "$front" ]; }; then
+            # over the app (or Lumen), as an overlay: the app stays the card in front, so it is where you left it after a key. The TV
+            # leaves its screensaver state first, as Hyperion stops while the TV is in it
             who=$SAVER
+            luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
             r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$SAVER\",\"params\":{${from#,}}}" </dev/null 2>&1)
           else
             who=$target

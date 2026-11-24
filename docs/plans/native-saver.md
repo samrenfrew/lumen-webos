@@ -172,8 +172,23 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
 - First picture 3.8 s after launch; building a pair with the Print look takes 300-550 ms of it.
 - Hyperion after the run: Piccap `connected` and `videoRunning` true, `hyperiond` on 19400.
 
+### The mount is off (2026-11-24)
+
+Seen by Sam over three runs: Hyperion stops whenever the TV is in its own "Screen Saver" power state, and WLED then falls back
+to its own preset with the lights on full. It restarts (the rainbow) when the state ends. LG's stock screensaver does the same.
+Under the overlay (Art mode, Quick Settings) the TV stays "Active" and Hyperion keeps running. So the native screensaver is no
+longer put in LG's screensaver's place:
+
+- `saver-mount off` on the TV, and Lumen now only ever takes the mount out at launch (`setSaverMount(false)` in `app.tsx`).
+- The TV's timer still puts the TV in its screensaver state. watch.sh's hand-over branch ends that state at once
+  (`turnOnScreen`) and opens the side app as an overlay, over Lumen too (it used to open Lumen's built-in one there).
+- The mount code in `home-setup.sh` and watch.sh's mounted branch are left in place, unused.
+
 ### Open checks
 
+- **(verify)** With the mount off: the TV's timer over an app and over Lumen opens the overlay, a key goes back, and Hyperion
+  does not restart (no rainbow) from the second or so the TV spends in its screensaver state.
+- **(verify)** WLED's fallback when Hyperion stops: Sam wants the lights off, not WLED's preset.
 - **(verify)** Built 2026-11-24, not installed: with the side app installed, Lumen's idle timer and Control Center's Art mode
   open it (`showScreensaver` in `app.tsx`), and Lumen's own built-in screensaver is only the fallback. When the TV's timer then
   starts the copy in LG's place over it, that copy waits (it sees the other one's `showing` file) and watch.sh ends it (`nsover`).

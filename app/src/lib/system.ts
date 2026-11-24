@@ -15,7 +15,7 @@ export function setAmbientFlag (on: boolean): void {
 	root.setAmbientFlag(on).catch(() => undefined);
 }
 
-/** Settings > Screensaver Enabled puts Lumen Screensaver in LG's screensaver's place (when the side app is installed); Disabled puts LG's back. */
+/** Lumen Screensaver in LG's screensaver's place, or LG's back. Lumen only ever takes it out now: Hyperion stops while the TV is in its own screensaver state, so watch.sh ends that state and opens the side app as an overlay (docs/plans/native-saver.md). */
 export function setSaverMount (on: boolean): void {
 	if (!isWebOS()) return;
 	root.saverMount(on).catch(() => undefined);

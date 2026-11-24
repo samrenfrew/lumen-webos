@@ -434,8 +434,8 @@ export function App () {
 	const saverFrom = useRef('');
 	useEffect(() => setVideoWallpaper(videoOn), [videoOn]);
 	useEffect(() => { setAmbientFlag(config.ambientOn); }, [config.ambientOn]);
-	// out of the launch's way; it also picks up a screensaver side app installed since the last launch
-	useEffect(() => { const t = window.setTimeout(() => setSaverMount(config.ambientOn), SAVER_MOUNT_DELAY_MS); return () => window.clearTimeout(t); }, [config.ambientOn]);
+	// out of the launch's way: a mount left by an older build is taken out, as the TV's own screensaver state stops Hyperion
+	useEffect(() => { const t = window.setTimeout(() => setSaverMount(false), SAVER_MOUNT_DELAY_MS); return () => window.clearTimeout(t); }, []);
 	useEffect(() => { clearSaverOffFlag(); }, []);
 	useEffect(() => { setVideoPaused(screen !== 'home'); document.documentElement.classList.toggle('in-settings', screen === 'settings' || screen === 'guide'); }, [screen]);
 	const lastScreen = useRef(screen);
