@@ -60,6 +60,34 @@ pub fn fetch(pick: String, url: String, as_next: bool, then: impl FnOnce(Result<
     });
 }
 
+const PLAIN_BASE: [f32; 3] = [10.0, 15.0, 30.0];
+const PLAIN_GLOWS: [([f32; 3], f32, f32, f32, f32, f32); 3] = [
+    ([30.0, 170.0, 190.0], 0.34, 0.55, 1.0, 0.70, 0.50),
+    ([170.0, 80.0, 230.0], 0.38, 0.85, 0.30, 0.55, 0.60),
+    ([70.0, 120.0, 255.0], 0.45, 0.18, 0.18, 0.60, 0.55),
+];
+const PLAIN_GLOW_END: f32 = 0.7;
+
+pub fn plain(w: i32, h: i32) -> Vec<u8> {
+    let mut rgba = Vec::with_capacity((w * h * 4) as usize);
+    for y in 0..h {
+        for x in 0..w {
+            let (u, v) = ((x as f32 + 0.5) / w as f32, (y as f32 + 0.5) / h as f32);
+            let mut colour = PLAIN_BASE;
+            for (glow, strength, cx, cy, rx, ry) in PLAIN_GLOWS {
+                let reach = (((u - cx) / rx).powi(2) + ((v - cy) / ry).powi(2)).sqrt();
+                let a = strength * (1.0 - reach / PLAIN_GLOW_END).max(0.0);
+                for c in 0..3 {
+                    colour[c] += (glow[c] - colour[c]) * a;
+                }
+            }
+            rgba.extend(colour.iter().map(|c| c.round() as u8));
+            rgba.push(255);
+        }
+    }
+    rgba
+}
+
 pub const SETTLE_ON_HOME_MS: u64 = 30_000;
 
 #[derive(Default)]
@@ -95,6 +123,23 @@ impl HomeClock {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_plain_background_is_dark_navy_with_blue_top_left_and_purple_top_right() {
+        let (w, h) = (192, 108);
+        let picture = plain(w, h);
+        let at = |u: f32, v: f32| {
+            let i = (((v * h as f32) as i32 * w + (u * w as f32) as i32) * 4) as usize;
+            [picture[i], picture[i + 1], picture[i + 2]]
+        };
+        let top_left = at(0.18, 0.18);
+        assert!(top_left[2] > 120 && top_left[0] < 50, "{top_left:?}");
+        let top_right = at(0.85, 0.30);
+        assert!(top_right[0] > 70 && top_right[2] > 100, "{top_right:?}");
+        let low_left = at(0.0, 0.7);
+        assert!(low_left.iter().all(|&c| c < 50), "{low_left:?}");
+        assert_eq!(picture.len(), (w * h * 4) as usize);
+    }
 
     #[test]
     fn the_wallpaper_timer_counts_only_home_time_and_waits_half_a_minute_after_coming_back() {

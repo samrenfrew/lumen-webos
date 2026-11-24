@@ -36,7 +36,7 @@ mod vector;
 mod wallpaper;
 mod weather;
 
-use draw::{decoded, Draw};
+use draw::{decoded, Decoded, Draw};
 use ffi::*;
 use gfx::{DESIGN_H, DESIGN_W};
 use home::{Action, Home, Key, Shown};
@@ -60,6 +60,8 @@ const SETTINGS_FILE: &str = "lumen-config.json";
 const LAUNCH_POINTS_FILE: &str = "launch-points.json";
 const LOOK_FILE: &str = "look";
 const APPS_WITHOUT_SETTINGS: usize = 24;
+const PLAIN_W: i32 = 384;
+const PLAIN_H: i32 = 216;
 const BOOT_WINDOW_MS: u128 = 5000;
 const SHOT_SETTLED_MS: u32 = 100_000;
 const FIXED_UNIX_NOW: u64 = 1_795_555_020;
@@ -234,6 +236,15 @@ impl App {
     }
 
     fn show_wallpaper(&mut self) {
+        if self.settings.wallpaper_type == "plain" {
+            self.home.night = self.is_night();
+            let (w, h) = (PLAIN_W, PLAIN_H);
+            let fade = self.shown_once;
+            self.home.set_wallpaper(&mut self.draw, &Decoded { rgba: wallpaper::plain(w, h), w, h }, fade, ticks());
+            self.home.caption = None;
+            self.redraw = true;
+            return;
+        }
         let bundled = format!("{}/wallpaper.jpg", self.draw.app_dir);
         let kept = decoded(&store::path(wallpaper::SHOWN));
         let from_store = kept.is_some();
@@ -551,6 +562,7 @@ impl App {
         });
         self.tick_clock();
         self.show_wallpaper();
+        self.fetch_a_wallpaper_if_wanted();
         self.ask_for_weather();
     }
 
@@ -631,7 +643,6 @@ impl App {
     }
 
     fn fetch_a_wallpaper_if_wanted(&mut self) {
-        // ponytail: plain comes with the wallpaper settings
         if !self.fetch_wallpapers || self.alone || self.fetching_wallpaper || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
