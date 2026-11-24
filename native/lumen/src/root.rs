@@ -6,6 +6,12 @@ const HOMEHOOK: &str = "/var/lib/homehook";
 const LOG: &str = "/var/lib/homehook/lumen.log";
 const LOG_MAX_BYTES: usize = 64 * 1024;
 const SHARED_FILES: [&str; 2] = ["lumen-config.json", "recent"];
+const SHARED_LOGOS: &str = "/var/lib/homehook/logos";
+const PROGRAM_PF: &str = "com.webos.service.legacybroadcast.programPF:4";
+const PF_FIELDS: [&str; 5] = ["signalChannelId", "programName", "startTime", "endTime", "isPresent"];
+const PROGRAM_SCH: &str = "com.webos.service.legacybroadcast.programSCH:4";
+const SCH_FIELDS: [&str; 6] = ["signalChannelId", "programName", "startTime", "endTime", "isSubtitle", "isAD"];
+pub const EVENT_BATCH: usize = 10;
 
 pub fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
@@ -29,6 +35,76 @@ pub fn base64(bytes: &[u8]) -> String {
         }
     }
     out
+}
+
+fn luna(uri: &str, payload: serde_json::Value) -> String {
+    format!("luna-send -n 1 {uri} {}", shell_quote(&payload.to_string()))
+}
+
+pub fn channel_id_ok(id: &str) -> bool {
+    let parts: Vec<&str> = id.split('_').collect();
+    parts.len() == 7 && parts.iter().all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn db8_page_ok(page: &str) -> bool {
+    (1..=128).contains(&page.len()) && page.chars().all(|c| c.is_ascii_alphanumeric() || "+/=_.-".contains(c))
+}
+
+fn local_time_ok(stamp: &str) -> bool {
+    let parts: Vec<&str> = stamp.split(',').collect();
+    parts.len() == 6 && parts.iter().enumerate().all(|(i, p)| p.len() == if i == 0 { 4 } else { 2 } && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn channel_list_command() -> String {
+    luna("luna://com.webos.service.iepg/getChannelList", json!({"dataType": 0, "sort": 0, "channelMode": "Terrestrial", "attribute": [{"filterType": "Invisible", "value": false}]}))
+}
+
+fn db8_find_command(mut query: serde_json::Value, page: Option<&str>) -> Option<String> {
+    if let Some(page) = page {
+        if !db8_page_ok(page) {
+            return None;
+        }
+        query["page"] = json!(page);
+    }
+    Some(luna("luna://com.webos.epgdb/find", json!({ "query": query })))
+}
+
+fn now_next_command(page: Option<&str>, slim: bool) -> Option<String> {
+    let mut query = json!({"from": PROGRAM_PF, "limit": 500});
+    if slim {
+        query["select"] = json!(PF_FIELDS);
+    }
+    db8_find_command(query, page)
+}
+
+fn schedule_command(page: Option<&str>) -> Option<String> {
+    db8_find_command(json!({"from": PROGRAM_SCH, "select": SCH_FIELDS, "limit": 500}), page)
+}
+
+fn event_list_command(channel_ids: &[String], local_start: &str, local_end: &str) -> Option<String> {
+    if channel_ids.is_empty() || channel_ids.len() > EVENT_BATCH || !channel_ids.iter().all(|id| channel_id_ok(id)) || !local_time_ok(local_start) || !local_time_ok(local_end) {
+        return None;
+    }
+    Some(luna(
+        "luna://com.webos.service.iepg/getEventList",
+        json!({"bFVPChannelId": true, "channelId": channel_ids, "dataType": 0, "fepgType": "Forward", "localStartTime": local_start, "localEndTime": local_end, "sort": 0}),
+    ))
+}
+
+fn current_channel_command() -> String {
+    luna("luna://com.webos.service.utp.boot/getLastChannelId", json!({}))
+}
+
+fn open_channel_command(channel_id: &str) -> Option<String> {
+    channel_id_ok(channel_id).then(|| luna("luna://com.webos.service.apiadapter/tv/openChannel", json!({ "channelId": channel_id })))
+}
+
+fn copy_logos_command(into_dir: &str) -> Option<String> {
+    if !plain_absolute_path(into_dir) {
+        return None;
+    }
+    let dir = shell_quote(into_dir);
+    Some(format!("mkdir -p {dir}; for f in {SHARED_LOGOS}/*.png; do [ -f \"$f\" ] || continue; d={dir}/${{f##*/}}; [ -f \"$d\" ] || cp \"$f\" \"$d\"; done; ls {dir}"))
 }
 
 fn copy_shared_file_command(name: &str, into_dir: &str) -> Option<String> {
@@ -105,6 +181,34 @@ pub fn uninstall(id: &str, then: impl FnOnce(Result<bool, String>) + Send + 'sta
     run(uninstall_command(id), 30000, move |out| then(out.map(|text| text.contains("gone"))));
 }
 
+pub fn channel_list(then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(Some(channel_list_command()), 12000, then);
+}
+
+pub fn now_next(page: Option<&str>, slim: bool, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(now_next_command(page, slim), 12000, then);
+}
+
+pub fn schedule(page: Option<&str>, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(schedule_command(page), 12000, then);
+}
+
+pub fn event_list(channel_ids: &[String], local_start: &str, local_end: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(event_list_command(channel_ids, local_start, local_end), 12000, then);
+}
+
+pub fn current_channel(then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(Some(current_channel_command()), 6000, then);
+}
+
+pub fn open_channel(channel_id: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(open_channel_command(channel_id), 6000, then);
+}
+
+pub fn copy_logos(into_dir: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(copy_logos_command(into_dir), 15000, then);
+}
+
 pub fn append_log(text: &str) {
     run(Some(append_log_command(text)), 6000, |_| {});
 }
@@ -165,6 +269,35 @@ mod tests {
         assert_eq!(base64(b"fo"), "Zm8=");
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
         assert_eq!(base64("11° é".as_bytes()), "MTHCsCDDqQ==");
+    }
+
+    #[test]
+    fn live_tv_calls_take_only_channel_ids_paging_keys_and_times_of_the_tvs_own_shape() {
+        let ids = ["1_41_1_101_16522_17546_9018".to_string()];
+        let (from, to) = ("2026,11,24,15,00,00", "2026,11,24,23,00,00");
+        assert_eq!(
+            event_list_command(&ids, from, to).as_deref(),
+            Some(r#"luna-send -n 1 luna://com.webos.service.iepg/getEventList '{"bFVPChannelId":true,"channelId":["1_41_1_101_16522_17546_9018"],"dataType":0,"fepgType":"Forward","localEndTime":"2026,11,24,23,00,00","localStartTime":"2026,11,24,15,00,00","sort":0}'"#)
+        );
+        assert_eq!(event_list_command(&["1_41_1_101_16522_17546".to_string()], from, to), None);
+        assert_eq!(event_list_command(&ids, "2026,11,24,15,00", to), None);
+        assert_eq!(event_list_command(&vec![ids[0].clone(); EVENT_BATCH + 1], from, to), None);
+        assert_eq!(open_channel_command("1_41_1_101_16522_17546_9018';reboot'"), None);
+        assert_eq!(
+            now_next_command(Some("1mo403xMB5CPD5OWTZO1+F"), true).as_deref(),
+            Some(r#"luna-send -n 1 luna://com.webos.epgdb/find '{"query":{"from":"com.webos.service.legacybroadcast.programPF:4","limit":500,"page":"1mo403xMB5CPD5OWTZO1+F","select":["signalChannelId","programName","startTime","endTime","isPresent"]}}'"#)
+        );
+        assert_eq!(now_next_command(Some("x' y"), false), None);
+        assert_eq!(schedule_command(Some("")), None);
+    }
+
+    #[test]
+    fn logos_are_copied_only_into_a_plain_folder() {
+        assert_eq!(
+            copy_logos_command("/media/developer/lumen/logos").as_deref(),
+            Some(r#"mkdir -p '/media/developer/lumen/logos'; for f in /var/lib/homehook/logos/*.png; do [ -f "$f" ] || continue; d='/media/developer/lumen/logos'/${f##*/}; [ -f "$d" ] || cp "$f" "$d"; done; ls '/media/developer/lumen/logos'"#)
+        );
+        assert_eq!(copy_logos_command("/tmp/a b"), None);
     }
 
     #[test]

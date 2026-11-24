@@ -2,7 +2,7 @@ use serde_json::Value;
 
 pub type Reply = Result<Value, String>;
 
-fn answered(text: &str) -> Reply {
+pub fn answered(text: &str) -> Reply {
     let reply: Value = serde_json::from_str(text).map_err(|e| format!("not JSON: {e}"))?;
     if reply["returnValue"].as_bool() == Some(false) {
         return Err(reply["errorText"].as_str().unwrap_or("the call failed").to_string());

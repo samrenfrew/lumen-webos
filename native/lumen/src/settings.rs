@@ -26,6 +26,8 @@ pub struct Settings {
     pub folders: Vec<Folder>,
     pub wp_auto_minutes: f64,
     pub wallpaper_dim: String,
+    pub live_tv_row: bool,
+    pub live_channels: Option<Vec<String>>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -65,6 +67,8 @@ impl Settings {
             folders: Vec::new(),
             wp_auto_minutes: 0.0,
             wallpaper_dim: "off".into(),
+            live_tv_row: true,
+            live_channels: None,
         }
     }
 
@@ -113,6 +117,8 @@ impl Settings {
                 Some(dim @ ("night" | "always")) => dim.to_string(),
                 _ => "off".to_string(),
             },
+            live_tv_row: saved["liveTvRow"].as_bool() != Some(false),
+            live_channels: strings(&saved["liveChannels"]),
         })
     }
 }
@@ -143,6 +149,14 @@ mod tests {
     fn a_field_that_is_missing_or_wrong_takes_its_default() {
         let saved = Settings::parse(r#"{"appIds":"none","firstRow":9,"clockFormat":"13h","showAmPm":"yes","wallpaperType":"cube","reduceMotion":1}"#).unwrap();
         assert_eq!(saved, Settings::defaults());
+    }
+
+    #[test]
+    fn the_live_tv_row_is_on_until_switched_off_and_its_channels_are_unpicked_until_a_list_is_saved() {
+        let unpicked = Settings::parse(r#"{"liveTvRow":"no","liveChannels":null}"#).unwrap();
+        assert_eq!((unpicked.live_tv_row, unpicked.live_channels), (true, None));
+        let picked = Settings::parse(r#"{"liveTvRow":false,"liveChannels":["1_41_2_102_16522_17472_9018",3]}"#).unwrap();
+        assert_eq!((picked.live_tv_row, picked.live_channels), (false, Some(vec!["1_41_2_102_16522_17472_9018".to_string()])));
     }
 
     #[test]

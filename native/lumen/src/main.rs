@@ -9,6 +9,7 @@ mod draw;
 mod ffi;
 mod gfx;
 mod home;
+mod livetv;
 mod look;
 mod pictures;
 mod root;
