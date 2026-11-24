@@ -40,7 +40,6 @@ static struct {
     SDL_mutex *lock;
     SDL_cond *emptied;
     SDL_Surface *frame;
-    Picture picked;
 } slot;
 
 static struct {
@@ -132,7 +131,6 @@ static int fetcher(void *unused) {
         }
         failures = 0;
         SDL_LockMutex(slot.lock);
-        slot.picked = pic;
         slot.frame = frame;
         SDL_UnlockMutex(slot.lock);
     }
@@ -161,7 +159,6 @@ static SDL_Texture *take_from_slot(SDL_Renderer *r, Uint32 next_is_due) {
     if (SDL_TryLockMutex(slot.lock) != 0) return NULL;
     SDL_Surface *frame = slot.frame;
     if (!frame) { SDL_UnlockMutex(slot.lock); return NULL; }
-    picker_shown(&slot.picked);
     slot.frame = NULL;
     fetch_next_after = next_is_due - (photo_ms < FETCH_LEAD_MS ? photo_ms : FETCH_LEAD_MS);
     SDL_CondSignal(slot.emptied);
@@ -194,7 +191,6 @@ static int pick_only(const char *app_dir, int count) {
         Picture pic;
         if (!picker_next(&pic)) { printf("pick %d: none\n", i); continue; }
         printf("pick %d: %s, %d photo(s), %dx%d, at %.2f %.2f / %.2f %.2f\n", i, pic.id, pic.count, pic.img[0]->w, pic.img[0]->h, pic.x[0], pic.y[0], pic.x[1], pic.y[1]);
-        picker_shown(&pic);
         picture_free(&pic);
     }
     printf("RSS %ld kB, peak %ld kB, log in %s/log\n", status_kb("VmRSS"), status_kb("VmHWM"), state_dir());

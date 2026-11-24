@@ -655,6 +655,9 @@ static void ready_path(char *out, size_t n, int i) {
 }
 
 static void keep_ready(const Picture *pic, Buffer jpg[2]) {
+    char described[128];
+    ready_path(described, sizeof described, -1);
+    unlink(described);
     for (int i = 0; i < pic->count; i++) { char p[128]; ready_path(p, sizeof p, i); write_file(p, jpg[i].data, jpg[i].len); }
     cJSON *meta = cJSON_CreateObject();
     cJSON_AddStringToObject(meta, "id", pic->id);
@@ -671,7 +674,6 @@ static int take_ready(Picture *out) {
     char p[128];
     ready_path(p, sizeof p, -1);
     cJSON *meta = read_json(p);
-    unlink(p);
     const char *id = str(meta, "id");
     int count = (int)num(meta, "count");
     const cJSON *xy = cJSON_GetObjectItemCaseSensitive(meta, "xy");
@@ -838,7 +840,10 @@ int picker_next(Picture *out) {
     Uint32 t0 = SDL_GetTicks();
     int ok = 0;
     const char *how = "";
-    if (cfg->immich && *server_url && (ok = take_ready(out))) how = "kept from last time";
+    static int opened;
+    int opening = !opened;
+    opened = 1;
+    if (opening && cfg->immich && *server_url && (ok = take_ready(out))) how = "kept from last time";
     else if (cfg->immich && *server_url && (ok = from_immich(out))) how = "from Immich";
     else if ((ok = from_picks(out))) how = "from the wallpaper pictures";
     else if ((ok = from_files(out))) how = "from the developer folder";
@@ -847,13 +852,6 @@ int picker_next(Picture *out) {
         note("picture: %s %s, %d photo%s, %u ms", out->id, how, out->count, out->count > 1 ? "s" : "", SDL_GetTicks() - t0);
     }
     return ok;
-}
-
-void picker_shown(const Picture *pic) {
-    (void)pic;
-    char p[128];
-    ready_path(p, sizeof p, -1);
-    unlink(p);
 }
 
 void picture_free(Picture *pic) {

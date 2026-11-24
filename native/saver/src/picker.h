@@ -17,5 +17,4 @@ typedef struct {
 
 void picker_init(const char *app_dir, SaverConfig *config);
 int picker_next(Picture *out);
-void picker_shown(const Picture *pic);
 void picture_free(Picture *pic);

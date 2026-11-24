@@ -164,6 +164,9 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
   ordinary memory on this TV, so holding it anywhere cost the same 8 MB. At rest: 19.6 MB of graphics memory and 8 MB of its own
   (RSS); 27.7 MB for the 12 s around a change. The cost: a run that ends mid-wait leaves no kept picture (`ready.json`) for the
   next start, which then waits on the download (first picture 3.3 s, of which 2 s is the pick and download).
+- The last photo downloaded stays on disk (`ready.json` and its JPEGs are no longer removed once shown), and only the first pick
+  of a run uses it. A start over Live TV with it: first picture 0.9 s after launch (renderer 0.5 s, building the pair 0.4 s).
+  The 3 s seen over Lumen was the wait for Lumen's own screensaver, which was up at the time.
 - A restage must keep the staged folder itself: the screensaver's jail holds it bound, so `rm -rf` of it fails with "busy".
   `saver_stage` now replaces what is in it, and the jail sees the new files.
 - First picture 3.8 s after launch; building a pair with the Print look takes 300-550 ms of it.
@@ -171,7 +174,6 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
 
 ### Open checks
 
-- **(verify)** The start time (3.8 s) against the 1.3 s of the spike.
 - **(verify)** Graphics memory while up, against the 30 MB of spike A and the 180 MB of the web one (plan part E).
 - **(verify)** The look against Lumen's own screensaver side by side: clock, date, weather line, both forecast sizes, Print look.
 - **(verify)** Backlight dims and comes back, over Live TV (input `dtv`) and over an app (input `default`).
