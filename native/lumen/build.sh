@@ -5,7 +5,7 @@ SDK=${WEBOS_SDK:-$HOME/toolchains/arm-webos-linux-gnueabi_sdk-buildroot}
 TARGET=armv7-unknown-linux-gnueabi
 PKG=$HERE/build/pkg
 SAVER_PKG=$HERE/build/pkg-saver
-rm -rf "$PKG" "$SAVER_PKG" && mkdir -p "$PKG" "$SAVER_PKG"
+rm -rf "$PKG" "$SAVER_PKG" "$HERE/build/pkg-guide" "$HERE/build/pkg-quick" && mkdir -p "$PKG" "$SAVER_PKG"
 export CC_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-gcc"
 export AR_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-ar"
 export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK/bin/arm-webos-linux-gnueabi-gcc"
@@ -25,4 +25,12 @@ cp "$PKG/lumen" "$SAVER_PKG/lumen-saver"
 cp "$HERE/appinfo-saver.json" "$SAVER_PKG/appinfo.json"
 cp "$PKG/icon.png" "$PKG/largeIcon.png" "$SAVER_PKG/"
 sh "$HERE/assets.sh" "$SAVER_PKG" saver
-echo "Built: $PKG $SAVER_PKG"
+for SIDE in guide quick; do
+  SIDE_PKG=$HERE/build/pkg-$SIDE
+  mkdir -p "$SIDE_PKG"
+  cp "$PKG/lumen" "$SIDE_PKG/lumen-$SIDE"
+  cp "$HERE/appinfo-$SIDE.json" "$SIDE_PKG/appinfo.json"
+  cp "$HERE/../../app/public-$SIDE/icon.png" "$HERE/../../app/public-$SIDE/largeIcon.png" "$SIDE_PKG/"
+  sh "$HERE/assets.sh" "$SIDE_PKG" side
+done
+echo "Built: $PKG $SAVER_PKG $HERE/build/pkg-guide $HERE/build/pkg-quick"

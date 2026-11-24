@@ -440,9 +440,10 @@ impl Guide {
         if !self.over_live_tv {
             d.copy_whole(d.veil_backdrop, 1.0, 1.0, 0.0, 0.0);
         }
+        let (alpha_from, alpha_kept) = if self.over_live_tv { (GL_ONE, GL_ONE_MINUS_SRC_ALPHA) } else { (GL_ZERO, GL_ONE) };
         unsafe {
             glEnable(GL_BLEND);
-            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, alpha_from, alpha_kept);
         }
         let clock = |at: u64| clock_text(at, twenty_four_hour);
         match (self.view, self.over_live_tv) {
@@ -862,8 +863,7 @@ impl crate::App {
         self.live.guide_opened(false, &self.settings, crate::clock::unix_now());
         self.redraw = true;
         if self.over_live_tv {
-            // ponytail: the Guide over Live TV quits when closed; LIST and GUIDE pressed again, and closing after 30 s without a key, need the side app's packaging
-            self.running = false;
+            self.close_side();
         }
     }
 
@@ -876,6 +876,7 @@ impl crate::App {
         match outcome {
             Outcome::Stay => {}
             Outcome::Close => self.close_guide(),
+            Outcome::Mode(_) if self.over_live_tv => {}
             Outcome::Mode(full) => self.edit_settings(|c| {
                 c.insert("guideFull".into(), serde_json::json!(full));
             }),

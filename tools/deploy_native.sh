@@ -2,6 +2,7 @@
 # Builds Lumen Native (native/lumen/) with tools/build_native.sh and installs it on the TV over SSH.
 # It is a separate app, so Lumen is left as it is. LUMEN_LAUNCH=1 also opens it. npm run deploy:native.
 # LUMEN_SAVER=1 also installs its screensaver package, which replaces the C one (native/saver) under the same id.
+# LUMEN_SIDE=1 also installs Lumen Guide and Lumen Quick Settings (com.samrenfrew.lumen.native.guide and .quick).
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tools/env.sh"
@@ -10,6 +11,7 @@ OUT=${LUMEN_BUILD_DIR:-$ROOT/build}
 BUILT=$(LUMEN_BUILD_DIR="$OUT" sh "$ROOT/tools/build_native.sh")
 IPKS=$(echo "$BUILT" | head -1)
 [ "$LUMEN_SAVER" = 1 ] && IPKS="$IPKS $(echo "$BUILT" | sed -n 2p)"
+[ "$LUMEN_SIDE" = 1 ] && IPKS="$IPKS $(echo "$BUILT" | sed -n 3,4p | tr '\n' ' ')"
 
 for IPK in $IPKS; do
   REMOTE_IPK="/tmp/$(basename "$IPK")"

@@ -169,6 +169,11 @@ reach the native one, so Settings can be ported late.
    re-order and the hold-OK menu, captions, toasts, the pointer, in English. Then the Home
    button points at it and Sam uses it daily.
 3. **Control Center and Inputs**, in Lumen and as Quick Settings over any app. The brightness schedule.
+   **Quick Settings built 2026-11-24 (verify on the TV):** the same program as `com.samrenfrew.lumen.native.quick` (`lumen-quick`,
+   `src/side_apps.rs`), an overlay with the web Quick Settings' layout: Sound, Picture, the backlight and Eye Comfort, All settings,
+   Screensaver (opens Lumen Screensaver), Screen off, and Restart, which asks for a second OK. A dark corner sits behind it, and the
+   glass is a flat dark tint, since an overlay cannot see the app under it. It closes, not hides, on Back, the gear again and 30 s
+   without a key: a native cold open should be fast enough that nothing is kept running. `gear.sh` opens it when installed.
    **Sleep timer (Sam, 2026-11-24)** takes the light/dark tile's place: it sets the TV's own `sleepTimer` (category `time`), which the TV takes and reads back. (verify) that the TV switches off when it runs out.
 4. **Live TV.** The row, Now and Next, the Full guide, typed channel numbers, and the Guide over Live TV.
    **Data ported 2026-11-24, not yet drawn:** `native/lumen/src/livetv.rs` reads the channels, Now and Next, the guide
@@ -184,6 +189,11 @@ reach the native one, so Settings can be ported late.
    **Live previews built 2026-11-24 (verify by eye):** `src/preview.rs` opens `utp.broadcast` on the app's own bus name after 0.6 s on a
    channel, places the picture with `wl_webos_exported_set_exported_window` (the TV reports it at the tile's place, doubled for the 4K
    panel), and cuts a hole once `avmutemanager` says the picture is unmuted. Screenshots show the hole black, so only Sam can see it work.
+   **The Guide over Live TV packaged 2026-11-24 (verify on the TV):** `com.samrenfrew.lumen.native.guide` (`lumen-guide`), an
+   overlay that opens on Now, or on the Full guide with `{"view":"full"}`. It closes on Back, OK on a channel, LIST again (any
+   relaunch) and 30 s without a key, and is never started hidden. `watch.sh` binds LIST and GUIDE to it in Live TV when it is
+   installed, in place of the web Lumen Guide. Its panels used to be drawn with no coverage of their own, so they would not have
+   shown over Live TV; they now do.
 5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
    **Built 2026-11-24, not yet on the TV.** `settings_screen.rs` (pages and drawing), `settings_options.rs` (rows and what
@@ -191,6 +201,8 @@ reach the native one, so Settings can be ported late.
    the new root commands in `root.rs`. Kept pictures `shots/settings*.png`. Gaps, each a `ponytail:` in the code: no Channels
    page until the Live TV channel list; Home and power-on can be turned off but not pointed at Lumen Native until
    `home-setup.sh` knows its id; home still shows only picked pictures (no plain, Immich or timed change yet).
+   **Since then (2026-11-24):** Settings > Channels picks and orders the Live TV row (shown while the row is on and channels are
+   known), and the Plain wallpaper draws the web Lumen's soft colour glows.
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
    the screensaver share the photo picker.
 7. **Ship.** The new ids in the release workflow and the Channel, release notes, the README, `CLAUDE.md` and the `tv` skill

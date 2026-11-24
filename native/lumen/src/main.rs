@@ -26,6 +26,7 @@ mod settings;
 mod settings_options;
 mod settings_screen;
 mod settings_tv;
+mod side_apps;
 mod shaders;
 mod store;
 mod text;
@@ -102,6 +103,8 @@ pub struct App {
     guide: Option<guide::Guide>,
     live: live::Live,
     over_live_tv: bool,
+    side: Option<side_apps::Side>,
+    quit_at: Option<u32>,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -200,6 +203,10 @@ pub fn launched_as(launch_argument: &str) -> Option<String> {
 }
 
 impl App {
+    fn on_its_own(&self) -> bool {
+        self.alone || self.side.is_some()
+    }
+
     fn mark(&mut self, stage: &str) {
         let at = self.began.elapsed().as_millis();
         if at < BOOT_WINDOW_MS {
@@ -209,7 +216,7 @@ impl App {
 
     fn write_boot_line(&mut self) {
         self.boot_written = true;
-        let line = format!("boot native {}, RSS {} kB", self.boot.join(", "), status_kb("VmRSS"));
+        let line = format!("boot native{} {}, RSS {} kB", self.side.map_or(String::new(), |s| format!(" {}", s.app_id())), self.boot.join(", "), status_kb("VmRSS"));
         note!("{}", line);
         root::append_log(&format!("{} {}\n", util::utc_stamp(clock::unix_now()), line));
     }
@@ -280,7 +287,7 @@ impl App {
     }
 
     fn show_apps(&mut self) {
-        if self.alone {
+        if self.on_its_own() {
             return;
         }
         let listed = apps::listed(&self.launch_points, &self.known);
@@ -326,7 +333,7 @@ impl App {
     }
 
     fn tick_clock(&mut self) -> u32 {
-        if self.is_night() != self.home.night && self.fixed_clock.is_none() && !self.alone {
+        if self.is_night() != self.home.night && self.fixed_clock.is_none() && !self.on_its_own() {
             self.home.night = self.is_night();
             self.show_wallpaper();
         }
@@ -586,6 +593,7 @@ impl App {
                 self.panel = None;
                 match what {
                     "lg-home" => self.open("com.webos.app.home".to_string()),
+                    "art" if self.side.is_some() => self.open(saver_mode::SAVER_APP_ID.to_string()),
                     "art" => {
                         self.open_saver();
                         self.redraw = true;
@@ -601,6 +609,9 @@ impl App {
                 self.tick_clock();
             }
             control_center::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
+        }
+        if self.side.is_some() && self.panel.is_none() {
+            self.close_side();
         }
     }
 
@@ -627,7 +638,7 @@ impl App {
         if !self.wallpaper_clock.due(on_home, ticks(), minutes) {
             return;
         }
-        if self.alone || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
+        if self.on_its_own() || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
         self.wallpaper_clock.changed();
@@ -645,7 +656,7 @@ impl App {
     }
 
     fn fetch_a_wallpaper_if_wanted(&mut self) {
-        if !self.fetch_wallpapers || self.alone || self.fetching_wallpaper || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
+        if !self.fetch_wallpapers || self.on_its_own() || self.fetching_wallpaper || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
         let as_next = store::has(wallpaper::SHOWN);
@@ -688,6 +699,9 @@ impl App {
 
     fn key(&mut self, key: Key) {
         self.touched_at = ticks();
+        if self.quit_at.is_some() {
+            return;
+        }
         if self.saver.is_some() {
             return self.saver_key(key);
         }
@@ -746,7 +760,7 @@ impl App {
     fn idle_wait_ms(&mut self) -> Option<u32> {
         let idle_ms = self.settings.idle_seconds * 1000;
         let on_home = self.screen.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none();
-        if idle_ms == 0 || self.hidden || self.alone || !on_home {
+        if idle_ms == 0 || self.hidden || self.on_its_own() || !on_home {
             return None;
         }
         let left_alone = ticks().wrapping_sub(self.touched_at);
@@ -780,6 +794,9 @@ impl App {
         self.touched_at = ticks();
         if self.alone {
             return note!("relaunch {}: already up as the screensaver", parameters);
+        }
+        if self.side.is_some() {
+            return self.side_relaunched(&parameters);
         }
         #[cfg(feature = "webos")]
         let came_forward = unsafe { lumen_shell_state(SHELL_FULL_SCREEN) };
@@ -863,6 +880,9 @@ impl App {
         if self.saver.is_some() {
             return self.draw_saver(now);
         }
+        if self.side == Some(side_apps::Side::Quick) {
+            return self.draw_quick(now);
+        }
         if let Some(guide) = self.guide.as_mut() {
             self.draw.pictures.next_frame();
             self.draw.gfx.into_screen();
@@ -899,6 +919,9 @@ impl App {
         }
         if let Some(guide) = &self.guide {
             return guide.moving(now) || self.home.toast_showing(now);
+        }
+        if self.side.is_some() {
+            return self.panel.as_ref().is_some_and(|p| p.moving(now));
         }
         if let Some(screen) = &self.screen {
             return screen.moving(now) || self.home.toast_showing(now);
@@ -1081,18 +1104,24 @@ fn run() -> i32 {
     let alone = saver_mode::runs_alone(&args);
     note!("start: {}", args.get(1).map_or("no launch argument", String::as_str));
     let start_view = args.get(1).and_then(|launch| launch_view(launch));
-    // ponytail: the Guide over Live TV runs from this binary when launched as its app id, but its appinfo.json, its own bus name, a see-through window and LIST and GUIDE on the remote are not packaged yet
-    let over_live_tv = args.get(1).and_then(|launch| launched_as(launch)).as_deref() == Some(guide::GUIDE_APP_ID);
+    let side = if alone { None } else { side_apps::side_of(&args) };
+    let over_live_tv = side == Some(side_apps::Side::Guide);
+    let overlay = alone || side.is_some();
 
     let (window, context, app_dir);
     let (mut screen_w, mut screen_h) = (0, 0);
     unsafe {
         lumen_abi_checked();
         SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_BACK".as_ptr(), c"true".as_ptr());
-        if alone {
+        if overlay {
             SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_EXIT".as_ptr(), c"true".as_ptr());
         }
-        if bus::start(if alone { saver_mode::SAVER_APP_ID } else { APP_ID }) {
+        let bus_name = match (alone, side) {
+            (true, _) => saver_mode::SAVER_APP_ID,
+            (false, Some(side)) => side.app_id(),
+            (false, None) => APP_ID,
+        };
+        if bus::start(bus_name) {
             bus::subscribe(REGISTER, json!({}), heard_from_the_app_manager);
         }
         if SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0 {
@@ -1136,7 +1165,7 @@ fn run() -> i32 {
             return 1;
         }
         #[cfg(feature = "webos")]
-        match lumen_claim_window(window, alone as c_int) {
+        match lumen_claim_window(window, overlay as c_int) {
             1 => note!("window: no wayland info"),
             2 => note!("window: no wl_webos_shell"),
             _ => {}
@@ -1166,6 +1195,8 @@ fn run() -> i32 {
         guide: None,
         live: live::Live::new(),
         over_live_tv,
+        side,
+        quit_at: None,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),
@@ -1193,14 +1224,15 @@ fn run() -> i32 {
     app.mark("programs");
     if alone {
         app.start_alone();
+    } else if let Some(side) = side {
+        let launch = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).unwrap_or(Value::Null);
+        app.start_side(side, &launch);
     } else {
         app.load_kept();
         app.refresh_from_tv();
-    }
-    if over_live_tv && !alone {
-        app.open_guide(start_view.as_deref() == Some("full"));
-    } else if start_view.is_some() && !alone {
-        app.apply_view(start_view.as_deref());
+        if start_view.is_some() {
+            app.apply_view(start_view.as_deref());
+        }
     }
 
     if taking_a_shot {
@@ -1278,13 +1310,14 @@ fn run() -> i32 {
 
         let until_next_minute = app.tick_clock();
         let saver_wait = app.tick_saver(ticks());
+        let side_wait = app.side_wait_ms();
         if !app.running {
             break;
         }
         app.change_wallpaper_if_due();
         app.live_tick();
         app.preview_tick(ticks());
-        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).chain(app.idle_wait_ms()).chain(app.preview.wait_ms(ticks())).min();
+        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).chain(app.idle_wait_ms()).chain(app.preview.wait_ms(ticks())).chain(side_wait).min();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
             app.write_boot_line();
         }
@@ -1325,6 +1358,9 @@ fn run() -> i32 {
             app.shown_once = true;
             app.mark("first-frame");
             note!("first frame shown {} ms after start, RSS {} kB", app.began.elapsed().as_millis(), status_kb("VmRSS"));
+            if app.side.is_some() {
+                app.write_boot_line();
+            }
         }
     }
 

@@ -39,14 +39,21 @@ enum Cell {
     Settings,
     Backlight,
     Eye,
+    Restart,
 }
 
-// ponytail: Restart, which only Quick Settings' layout shows
-const GRID: [&[(Cell, usize)]; 4] = [
+type Grid = &'static [&'static [(Cell, usize)]];
+
+const GRID: Grid = &[
     &[(Cell::Sound, 2), (Cell::Picture, 2)],
     &[(Cell::Clock, 2), (Cell::Sleep, 2)],
     &[(Cell::Art, 1), (Cell::Home, 1), (Cell::ScreenOff, 1), (Cell::Settings, 1)],
     &[(Cell::Backlight, 3), (Cell::Eye, 1)],
+];
+const QUICK_GRID: Grid = &[
+    &[(Cell::Sound, 2), (Cell::Picture, 2)],
+    &[(Cell::Backlight, 3), (Cell::Eye, 1)],
+    &[(Cell::Settings, 1), (Cell::Art, 1), (Cell::ScreenOff, 1), (Cell::Restart, 1)],
 ];
 const COLUMNS: usize = 4;
 const SLEEP_CHOICES: [&str; 7] = ["off", "10", "30", "60", "90", "120", "180"];
@@ -103,6 +110,7 @@ const HOUSE: &str = "M3 11.5 12 4l9 7.5M5.5 9.8V20h13V9.8M10 20v-6h4v6";
 const GEAR: &str = "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
 const IMAGE: &str = "M3.5 5h17v14h-17zM3.5 15.5l5-5 4 4 3-3 5 5M15.5 9.3a.8.8 0 1 0 0-.1";
 const POWER: &str = "M12 3.5v8M7 6.5a7.5 7.5 0 1 0 10 0";
+const RESTART: &str = "M19 12a7 7 0 1 1-2.2-5.1M19 4.5V8h-3.5";
 const SUN: &str = "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4";
 const EYE: &str = "M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
 const STAND_IN_ICON: &str = "hdmigeneric.png";
@@ -148,34 +156,34 @@ fn send_waiting_backlight(only: Option<u64>) {
     }
 }
 
-fn cell_at(row: usize, x: usize) -> (Cell, usize) {
+fn cell_at(grid: Grid, row: usize, x: usize) -> (Cell, usize) {
     let mut start = 0;
-    for &(cell, span) in GRID[row] {
+    for &(cell, span) in grid[row] {
         if x < start + span {
             return (cell, start);
         }
         start += span;
     }
-    let (last, span) = GRID[row][GRID[row].len() - 1];
+    let (last, span) = grid[row][grid[row].len() - 1];
     (last, COLUMNS - span)
 }
 
-fn start_of(row: usize, i: usize) -> usize {
-    GRID[row][..i].iter().map(|c| c.1).sum()
+fn start_of(grid: Grid, row: usize, i: usize) -> usize {
+    grid[row][..i].iter().map(|c| c.1).sum()
 }
 
-fn cell_box(cell: Cell) -> (f32, f32, f32, f32) {
-    for (row, cells) in GRID.iter().enumerate() {
+fn cell_box(grid: Grid, cell: Cell) -> (f32, f32, f32, f32) {
+    for (row, cells) in grid.iter().enumerate() {
         if let Some(i) = cells.iter().position(|c| c.0 == cell) {
             let span = cells[i].1 as f32;
-            return (start_of(row, i) as f32 * (UNIT + GAP), row as f32 * (UNIT + GAP), span * UNIT + (span - 1.0) * GAP, UNIT);
+            return (start_of(grid, row, i) as f32 * (UNIT + GAP), row as f32 * (UNIT + GAP), span * UNIT + (span - 1.0) * GAP, UNIT);
         }
     }
     (0.0, 0.0, UNIT, UNIT)
 }
 
-fn cell_index(cell: Cell) -> usize {
-    GRID.iter().flat_map(|cells| cells.iter()).position(|c| c.0 == cell).unwrap_or(0)
+fn cell_index(grid: Grid, cell: Cell) -> usize {
+    grid.iter().flat_map(|cells| cells.iter()).position(|c| c.0 == cell).unwrap_or(0)
 }
 
 fn cell_label(cell: Cell) -> &'static str {
@@ -190,6 +198,7 @@ fn cell_label(cell: Cell) -> &'static str {
         Cell::Settings => "All settings",
         Cell::Backlight => "Backlight",
         Cell::Eye => "Eye Comfort",
+        Cell::Restart => "Restart",
     }
 }
 
@@ -199,6 +208,7 @@ fn circle_glyph(cell: Cell) -> &'static str {
         Cell::Settings => GEAR,
         Cell::Art => IMAGE,
         Cell::ScreenOff => POWER,
+        Cell::Restart => RESTART,
         _ => EYE,
     }
 }
@@ -268,8 +278,8 @@ struct Geo {
     list: End,
 }
 
-fn geometry(cell: Cell, count: usize) -> Geo {
-    let (x, y, w, h) = cell_box(cell);
+fn geometry(grid: Grid, cell: Cell, count: usize) -> Geo {
+    let (x, y, w, h) = cell_box(grid, cell);
     let fh = list_height(count);
     let s = FOCUS_LIFT;
     Geo {
@@ -343,6 +353,8 @@ struct Morph {
 
 pub struct ControlCenter {
     kind: Kind,
+    grid: Grid,
+    restart_asked: bool,
     clock_format: String,
     row: usize,
     x: usize,
@@ -385,7 +397,7 @@ impl ControlCenter {
     }
 
     fn fresh(kind: Kind, clock_format: &str, now: u32) -> ControlCenter {
-        let cells = GRID.iter().map(|r| r.len()).sum();
+        let cells = GRID.iter().map(|r| r.len()).sum::<usize>().max(QUICK_GRID.iter().map(|r| r.len()).sum());
         let mut lifts = vec![Anim::still(0.0); cells];
         lifts[0] = Anim::still(1.0);
         let shown = match &kind {
@@ -397,6 +409,8 @@ impl ControlCenter {
         grow.go(1.0, grow_ms, &EASE_GROW, now);
         ControlCenter {
             kind,
+            grid: GRID,
+            restart_asked: false,
             clock_format: clock_format.to_string(),
             row: 0,
             x: 0,
@@ -410,6 +424,12 @@ impl ControlCenter {
             input_lifts: Vec::new(),
             drawn_at_rest: false,
         }
+    }
+
+    pub fn quick(now: u32) -> ControlCenter {
+        let mut panel = ControlCenter::new(Kind::Controls, "auto", now);
+        panel.grid = QUICK_GRID;
+        panel
     }
 
     pub fn key(&mut self, d: &Draw, key: Key, now: u32) -> Outcome {
@@ -427,7 +447,7 @@ impl ControlCenter {
     }
 
     fn lift_focused(&mut self, now: u32, focus_ms: f32) {
-        let focused = cell_index(cell_at(self.row, self.x).0);
+        let focused = cell_index(self.grid, cell_at(self.grid, self.row, self.x).0);
         for (i, lift) in self.lifts.iter_mut().enumerate() {
             lift.go(if i == focused { 1.0 } else { 0.0 }, focus_ms, &EASE_OUT, now);
         }
@@ -472,6 +492,7 @@ impl ControlCenter {
         self.row = row;
         self.x = x;
         self.bottom_down = None;
+        self.restart_asked = false;
     }
 
     fn controls_key(&mut self, key: Key, now: u32) -> Outcome {
@@ -494,7 +515,7 @@ impl ControlCenter {
                 _ => Outcome::Stay,
             };
         }
-        let (cell, start) = cell_at(self.row, self.x);
+        let (cell, start) = cell_at(self.grid, self.row, self.x);
         match key {
             Key::Back => Outcome::Close,
             Key::Ok => self.press(cell, now),
@@ -506,16 +527,17 @@ impl ControlCenter {
                 Outcome::Stay
             }
             Key::Left | Key::Right => {
-                let cells = GRID[self.row];
+                let cells = self.grid[self.row];
                 let i = cells.iter().position(|c| c.0 == cell).unwrap_or(0);
                 let j = if key == Key::Left { i.saturating_sub(1) } else { (i + 1).min(cells.len() - 1) };
                 if j != i {
-                    self.go_to(self.row, start_of(self.row, j));
+                    self.go_to(self.row, start_of(self.grid, self.row, j));
                 }
                 Outcome::Stay
             }
             Key::Up if self.row == 0 => Outcome::Close,
-            Key::Down if self.row == GRID.len() - 1 => self.double_down(now),
+            Key::Down if self.row == self.grid.len() - 1 && self.grid == GRID => self.double_down(now),
+            Key::Down if self.row == self.grid.len() - 1 => Outcome::Stay,
             Key::Up => {
                 self.go_to(self.row - 1, start);
                 Outcome::Stay
@@ -557,6 +579,18 @@ impl ControlCenter {
                 Outcome::Close
             }
             Cell::Backlight => Outcome::Stay,
+            Cell::Restart if !self.restart_asked => {
+                self.restart_asked = true;
+                Outcome::Stay
+            }
+            Cell::Restart => {
+                crate::root::reboot(|done| {
+                    if done.is_err() {
+                        toast_later("Couldn't restart the TV (it needs the Homebrew Channel)");
+                    }
+                });
+                Outcome::Close
+            }
         }
     }
 
@@ -711,7 +745,7 @@ impl ControlCenter {
     }
 
     fn draw_cell(&self, d: &mut Draw, cell: Cell, cx: f32, cy: f32, scale: f32, f: f32, alpha: f32, values: &Controls) {
-        let (_, _, w, h) = cell_box(cell);
+        let (_, _, w, h) = cell_box(self.grid, cell);
         let k = scale * (1.0 + (FOCUS_LIFT - 1.0) * f);
         Self::glass(d, cx, cy, w * k, h * k, f, alpha);
         match cell {
@@ -744,9 +778,10 @@ impl ControlCenter {
         if self.menu.is_some() {
             return None;
         }
-        match cell_at(self.row, self.x).0 {
+        match cell_at(self.grid, self.row, self.x).0 {
+            Cell::Restart if self.restart_asked => Some("Press OK again".to_string()),
             Cell::Eye => Some(format!("Eye Comfort: {}", if values.eye_comfort { "On" } else { "Off" })),
-            cell @ (Cell::Home | Cell::Settings | Cell::Art | Cell::ScreenOff) => Some(cell_label(cell).to_string()),
+            cell @ (Cell::Home | Cell::Settings | Cell::Art | Cell::ScreenOff | Cell::Restart) => Some(cell_label(cell).to_string()),
             _ => None,
         }
     }
@@ -757,7 +792,7 @@ impl ControlCenter {
         let (left, top) = (DESIGN_W - RIGHT_EDGE - CONTROLS_W, PANEL_TOP);
         let menu = self.menu.as_ref().map(|m| (m.cell, m.index, m.lifts.iter().map(|l| l.at(now)).collect::<Vec<f32>>()));
         let morph = self.morph_t(now);
-        let geo = menu.as_ref().map(|(cell, _, _)| geometry(*cell, options(*cell).len()));
+        let geo = menu.as_ref().map(|(cell, _, _)| geometry(self.grid, *cell, options(*cell).len()));
         let (grid_scale, grid_alpha) = match (morph, menu.is_some()) {
             (Some((true, t)), _) => (1.0 - GRID_SHRINK * ease_out(ramp(t, 0.0, 0.4)), 1.0 - ramp(t, 0.08, 0.4)),
             (Some((false, t)), _) => (1.0 - GRID_SHRINK + GRID_SHRINK * ease_out(ramp(t, 0.2, 1.0)), ramp(t, 0.25, 0.85)),
@@ -778,18 +813,18 @@ impl ControlCenter {
                 (Some((true, _)), Some((cell, _, _))) => Some(*cell),
                 _ => None,
             };
-            for cell in GRID.iter().flat_map(|r| r.iter().map(|c| c.0)) {
+            for cell in self.grid.iter().flat_map(|r| r.iter().map(|c| c.0)) {
                 if Some(cell) == hidden {
                     continue;
                 }
-                let (x, y, w, h) = cell_box(cell);
+                let (x, y, w, h) = cell_box(self.grid, cell);
                 let (cx, cy) = place(left + x + w / 2.0, top + y + h / 2.0);
-                let f = self.lifts[cell_index(cell)].at(now);
+                let f = self.lifts[cell_index(self.grid, cell)].at(now);
                 self.draw_cell(d, cell, cx, cy, outer, f, grow_alpha * grid_alpha, &values);
             }
             if let Some(caption) = self.caption(&values) {
                 if let Some(text) = d.text(&caption, &CAPTION) {
-                    let (cx, cy) = place(left + CONTROLS_W / 2.0, top + GRID.len() as f32 * (UNIT + GAP) + CAPTION_H / 2.0);
+                    let (cx, cy) = place(left + CONTROLS_W / 2.0, top + self.grid.len() as f32 * (UNIT + GAP) + CAPTION_H / 2.0);
                     text.draw_scaled(d, cx - text.advance * outer / 2.0, cy + 8.0 * outer, outer, grow_alpha * grid_alpha);
                 }
             }
@@ -862,6 +897,10 @@ impl ControlCenter {
         }
     }
 
+    pub fn opened(&self, now: u32) -> f32 {
+        self.grow.at(now)
+    }
+
     pub fn draw(&mut self, d: &mut Draw, now: u32) {
         self.settle(now);
         self.lift_focused(now, d.look.focus_ms);
@@ -892,7 +931,7 @@ impl ControlCenter {
                         let label = options(menu.cell).get(menu.index).map(|o| o.1.clone()).unwrap_or_default();
                         json!({"part": "option", "label": label, "index": menu.index, "in": cell_label(menu.cell)})
                     }
-                    None => json!({"part": "control", "label": cell_label(cell_at(self.row, self.x).0), "row": self.row}),
+                    None => json!({"part": "control", "label": cell_label(cell_at(self.grid, self.row, self.x).0), "row": self.row}),
                 };
                 json!({"panel": "controls", "focused": [focused]})
             }
@@ -927,13 +966,29 @@ mod tests {
     fn down_keeps_the_column_so_all_settings_leads_to_eye_comfort_and_screen_off_to_the_backlight() {
         let mut p = panel();
         press(&mut p, &[Key::Down, Key::Down, Key::Right, Key::Right, Key::Right, Key::Right], 0);
-        assert_eq!(cell_at(p.row, p.x).0, Cell::Settings);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Settings);
         press(&mut p, &[Key::Down], 0);
-        assert_eq!(cell_at(p.row, p.x).0, Cell::Eye);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Eye);
         press(&mut p, &[Key::Up, Key::Left], 0);
-        assert_eq!(cell_at(p.row, p.x).0, Cell::ScreenOff);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::ScreenOff);
         press(&mut p, &[Key::Down], 0);
-        assert_eq!(cell_at(p.row, p.x).0, Cell::Backlight);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Backlight);
+    }
+
+    #[test]
+    fn quick_settings_has_restart_in_place_of_lg_home_and_restarts_only_on_a_second_ok() {
+        let mut p = panel();
+        p.grid = QUICK_GRID;
+        assert!(!p.grid.iter().flat_map(|r| r.iter()).any(|c| matches!(c.0, Cell::Home | Cell::Clock | Cell::Sleep)));
+        press(&mut p, &[Key::Down, Key::Down, Key::Right, Key::Right, Key::Right], 0);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Restart);
+        assert_eq!(press(&mut p, &[Key::Ok], 0), Outcome::Stay);
+        assert_eq!(p.caption(&tvcontrols::values()).as_deref(), Some("Press OK again"));
+        press(&mut p, &[Key::Left, Key::Right], 0);
+        assert_eq!(p.caption(&tvcontrols::values()).as_deref(), Some("Restart"));
+        assert_eq!(press(&mut p, &[Key::Down, Key::Down], 0), Outcome::Stay);
+        press(&mut p, &[Key::Up], 0);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Eye);
     }
 
     #[test]

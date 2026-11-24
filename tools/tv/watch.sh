@@ -67,6 +67,8 @@ BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
 GUIDE=com.samrenfrew.lumen.guide
 QUICK=com.samrenfrew.lumen.quick
+NATIVE_GUIDE=com.samrenfrew.lumen.native.guide
+NATIVE_QUICK=com.samrenfrew.lumen.native.quick
 SAVER=com.samrenfrew.lumen.native.saver
 LGSAVER=com.webos.app.screensaver
 LGSAVER_DIR=/usr/palm/applications/$LGSAVER   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
@@ -116,6 +118,13 @@ me_in_front() {
   return 1
 }
 # prints the Lumen build Home should open: the last one in front if still installed, else the first installed one
+# Lumen Guide and Quick Settings: the native ones (Lumen Native's side apps) when installed, else the web ones. The native ones start in
+# well under the web ones' cold open and close when put away, so they are never started hidden.
+pick_side_apps() {
+  GUIDE=com.samrenfrew.lumen.guide; [ -d "$APPS/$NATIVE_GUIDE" ] && GUIDE=$NATIVE_GUIDE
+  QUICK=com.samrenfrew.lumen.quick; [ -d "$APPS/$NATIVE_QUICK" ] && QUICK=$NATIVE_QUICK
+}
+
 me_target() {
   if [ -n "$lastme" ] && [ -d "$APPS/$lastme" ]; then echo "$lastme"; return 0; fi
   for id in $ME; do [ -d "$APPS/$id" ] && { echo "$id"; return 0; }; done
@@ -174,9 +183,11 @@ PY
 }
 # the app in front changed from $2 to $1: into Live TV, the binds for it and the guide started hidden; out of it, the other binds and the guide closed
 guide_follow() {
+  pick_side_apps
   [ -d "$APPS/$GUIDE" ] || return
   if [ "$1" = "$LIVETV" ]; then
     guide_binds live
+    [ "$GUIDE" = "$NATIVE_GUIDE" ] && return
     ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$GUIDE\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
       echo "$(date +%T) guide: start hidden: $r" >> /tmp/homehook.log ) &
   elif [ "$2" = "$LIVETV" ] || [ -z "$2" ]; then
@@ -190,6 +201,7 @@ guide_follow() {
 # app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
 # Lumen over the app.) Every other bind is kept; the file is written only when it changes.
 gear_bind() {
+  pick_side_apps
   quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
   python3 - "$KEYBINDS" "$quick" <<'PY' 2>>/tmp/homehook.log
 import json, os, sys
@@ -284,7 +296,9 @@ ns_restore() {
 }
 
 quick_start() {
+  pick_side_apps
   [ -d "$APPS/$QUICK" ] || return
+  [ "$QUICK" = "$NATIVE_QUICK" ] && return
   run=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)
   case "$run" in *'"id":"'$QUICK'"'*) return ;; esac
   ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$QUICK\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
