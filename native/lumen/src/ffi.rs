@@ -14,6 +14,7 @@ pub const GL_ZERO: GLenum = 0;
 pub const GL_ONE_MINUS_SRC_ALPHA: GLenum = 0x0303;
 pub const GL_DEPTH_TEST: GLenum = 0x0B71;
 pub const GL_BLEND: GLenum = 0x0BE2;
+pub const GL_SCISSOR_TEST: GLenum = 0x0C11;
 pub const GL_UNPACK_ALIGNMENT: GLenum = 0x0CF5;
 pub const GL_PACK_ALIGNMENT: GLenum = 0x0D05;
 pub const GL_TEXTURE_2D: GLenum = 0x0DE1;
@@ -75,6 +76,7 @@ extern "C" {
     pub fn glGetUniformLocation(program: GLuint, name: *const c_char) -> GLint;
     pub fn glLinkProgram(program: GLuint);
     pub fn glPixelStorei(name: GLenum, param: GLint);
+    pub fn glScissor(x: GLint, y: GLint, w: GLsizei, h: GLsizei);
     pub fn glReadPixels(x: GLint, y: GLint, w: GLsizei, h: GLsizei, format: GLenum, kind: GLenum, pixels: *mut c_void);
     pub fn glShaderSource(shader: GLuint, count: GLsizei, strings: *const *const c_char, lengths: *const GLint);
     pub fn glTexImage2D(target: GLenum, level: GLint, internal: GLint, w: GLsizei, h: GLsizei, border: GLint, format: GLenum, kind: GLenum, pixels: *const c_void);

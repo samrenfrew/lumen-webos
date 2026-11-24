@@ -13,10 +13,13 @@ mod look;
 mod pictures;
 mod root;
 mod settings;
+mod settings_options;
 mod settings_screen;
+mod settings_tv;
 mod shaders;
 mod store;
 mod text;
+mod thumbs;
 mod util;
 mod vector;
 mod wallpaper;
@@ -66,6 +69,13 @@ pub fn post(job: impl FnOnce(&mut App) + Send + 'static) {
 
 pub fn wake() {
     post(|app| app.redraw = true);
+}
+
+pub fn toast(text: String, error: bool) {
+    post(move |app| {
+        app.home.toast(&text, error, ticks());
+        app.redraw = true;
+    });
 }
 
 pub struct App {
@@ -452,8 +462,27 @@ impl App {
     fn open_settings(&mut self) {
         let config = if self.saved.get("config").is_some_and(Value::is_object) { self.saved["config"].clone() } else { self.saved.clone() };
         let listed = apps::listed(&self.launch_points, &self.known);
-        self.screen = Some(settings_screen::SettingsScreen::new(config, listed, ticks()));
+        let mut screen = settings_screen::SettingsScreen::new(config, listed, ticks());
+        screen.online = self.fetch_wallpapers;
+        self.screen = Some(screen);
         self.redraw = true;
+    }
+
+    fn restore_settings(&mut self) {
+        root::copy_shared_file(SETTINGS_FILE, store::dir(), |copied| {
+            post(move |app| {
+                if copied.is_err() {
+                    return app.home.toast("No settings backup found on the TV", true, ticks());
+                }
+                app.settings_copied();
+                let config = if app.saved.get("config").is_some_and(Value::is_object) { app.saved["config"].clone() } else { app.saved.clone() };
+                if let Some(screen) = app.screen.as_mut() {
+                    screen.set_config(config);
+                }
+                app.home.toast("Settings restored from the TV", false, ticks());
+                app.redraw = true;
+            })
+        });
     }
 
     fn screen_key(&mut self, key: Key) {
@@ -462,16 +491,22 @@ impl App {
         match screen.key(&self.draw, key, ticks()) {
             settings_screen::Outcome::Stay => {}
             settings_screen::Outcome::Close => self.screen = None,
-            settings_screen::Outcome::Setting(name, value) => {
-                self.edit_settings(|c| {
-                    c.insert(name, value);
-                });
-                self.tick_clock();
-                self.show_wallpaper();
-                self.ask_for_weather();
-            }
+            settings_screen::Outcome::Setting(name, value) => self.settings_changed(vec![(name, value)]),
+            settings_screen::Outcome::Settings(changes) => self.settings_changed(changes),
+            settings_screen::Outcome::Restore => self.restore_settings(),
             settings_screen::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
         }
+    }
+
+    fn settings_changed(&mut self, changes: Vec<(String, Value)>) {
+        self.edit_settings(|c| {
+            for (name, value) in changes {
+                c.insert(name, value);
+            }
+        });
+        self.tick_clock();
+        self.show_wallpaper();
+        self.ask_for_weather();
     }
 
     fn panel_key(&mut self, key: Key) {
@@ -607,7 +642,11 @@ impl App {
         if self.held_since.is_some() {
             return;
         }
-        if self.screen.is_some() || self.panel.is_some() || !self.home.can_hold() {
+        let can_hold = match &self.screen {
+            Some(screen) => screen.can_hold(),
+            None => self.panel.is_none() && self.home.can_hold(),
+        };
+        if !can_hold {
             return self.key(Key::Ok);
         }
         self.held_since = Some(ticks());
@@ -629,7 +668,10 @@ impl App {
         if held >= home::HOLD_MS {
             self.hold_fired = true;
             self.redraw = true;
-            self.home.hold(&self.draw, ticks());
+            match self.screen.as_mut() {
+                Some(screen) => screen.hold(ticks()),
+                None => self.home.hold(&self.draw, ticks()),
+            }
             return None;
         }
         Some(home::HOLD_MS - held)
@@ -716,7 +758,7 @@ impl App {
         let mut words = line.splitn(3, ' ');
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
-            "where" => said(&answer, match (&self.screen, &self.panel) {
+            "where" => said(&answer, match (self.screen.as_mut(), &self.panel) {
                 (Some(screen), _) => screen.where_now(),
                 (None, Some(panel)) => panel.where_now(),
                 (None, None) => self.home.where_now(),
@@ -806,7 +848,10 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
         match arg.as_str() {
             "--at" => at_ms = rest.next().and_then(|ms| ms.parse().ok()).unwrap_or(SHOT_SETTLED_MS),
             "--against" => against = rest.next().cloned(),
-            "hold" => app.home.hold(&app.draw, 1000),
+            "hold" => match app.screen.as_mut() {
+                Some(screen) => screen.hold(ticks()),
+                None => app.home.hold(&app.draw, 1000),
+            },
             name => match key_named(name) {
                 Some(key) => app.key(key),
                 None if out.is_none() => out = Some(name.to_string()),
