@@ -22,11 +22,24 @@ working on the TV. This is the spec for rewriting Lumen and its side apps as nat
   this was written) and gets no fixes. The README says which is which.
 - **One TV.** The native build targets the LG 43UT91006LA on webOS 25 only: its PowerVR chip, its SDL 2.0.14 and its glibc 2.35.
 
-## Open decision (Sam)
+## What does not come over (Sam, 2026-11-24)
 
-**What does not come over.** Suggested to leave behind unless missed: the light look, Liquid glass as a setting (it becomes the
-one glass), Dock blur as a setting, and the Print look on the home screen if art wallpapers read well without it. The video
-wallpaper and the live preview depend on spike 5.
+The port starts as today's Lumen, one to one, less what Sam does not use. Anything left out can be added later if missed.
+
+Left out:
+- **The video wallpaper.** So glass over video needs no answer.
+- **The light look.** Dark only.
+- **Liquid glass, and glass as a setting.** The native Lumen has the one glass the web Lumen shows today. Liquid glass and Dock
+  blur are not choices; Liquid glass may come back later.
+- **The Print look** on the home screen.
+- **Focus strength** as a setting. One strength.
+- **Hide the dock** and its dim.
+- **The cloud wallpaper library.** Sam uses the built-in Landscape and Art wallpapers; those stay.
+- **Languages other than English.** Text shaping for all nine is proven (spike 6), so they can return as strings only.
+
+Kept, asked and not dropped: the live TV preview (so the open half of spike 5 still matters), folders, the pointer, Immich
+photos, the brightness schedule. Not answered, so kept: the Full guide, the Guide over Live TV, Quick Settings over any app,
+typed channel numbers.
 
 ## What the measurements ask for
 
@@ -129,11 +142,11 @@ reach the native one, so Settings can be ported late.
 1. **Foundation.** The layers above up to Services, the control channel, the NUC build, the first tests. Shows the test app's
    scene with Sam's real apps, wallpaper and clock, and OK opens an app. Done when the budgets hold.
 2. **Home, complete.** The status block and weather, top buttons, the bar and grid with scrolling, Recent, folders, open-app dots,
-   re-order and the hold-OK menu, Hide the dock and its dim, captions, toasts, the pointer, all nine languages. Then the Home
+   re-order and the hold-OK menu, captions, toasts, the pointer, in English. Then the Home
    button points at it and Sam uses it daily.
 3. **Control Center and Inputs**, in Lumen and as Quick Settings over any app. The brightness schedule.
 4. **Live TV.** The row, Now and Next, the Full guide, typed channel numbers, and the Guide over Live TV.
-5. **Settings.** All twelve pages, the wallpaper picker and its cloud library, Immich, Side apps, Home and Power, Privacy,
+5. **Settings.** All twelve pages, the wallpaper picker, Immich, Side apps, Home and Power, Privacy,
    TV scripts, backup.
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
    the screensaver share the photo picker.
@@ -152,7 +165,7 @@ reach the native one, so Settings can be ported late.
 | Wallpapers | `lib/wallpaper.ts`, `wpstore.ts`, `components/WallpaperPicker.tsx`, `config/wallpapers.ts` | Thumbnails go through the picture cache. |
 | Immich, the screensaver | `lib/immich.ts`, `components/Ambient.tsx` | Done natively in `native/saver` (`picker.c`, `compose.c`, `status.c`). |
 | Weather, clock, languages | `lib/weather.ts`, `clock.ts`, `i18n.ts`, `config/cities.ts` | Weather done in `native/saver/src/weather.c`. Strings are generated from `i18n.ts`, as `tools/gen_saver_look.mjs` does. |
-| Video wallpaper, live preview | `lib/wallpaperVideo.ts`, `components/LivePreview.tsx` | Spike 5. |
+| Live preview | `components/LivePreview.tsx` | Spike 5. The video wallpaper (`lib/wallpaperVideo.ts`) is not ported. |
 | Root commands | `lib/root.ts` | Same shape, behind whichever route spike 2 picks. |
 | TV scripts | `tools/tv/watch.sh`, `home-setup.sh` | Kept. They learn the new ids, and lose the work a native app can do itself. |
 | Log and boot timeline | `lib/log.ts`, `boot.ts` | Same lines in `lumen.log`, so `startup-perf.md` still reads them. |
