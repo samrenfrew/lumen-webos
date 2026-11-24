@@ -12,9 +12,10 @@
 #   sh home-setup.sh power-on on        the power button, the TV's own button and a cold start open Lumen (a copy of bootd's file).
 #                                       Starts working after one full restart (`reboot`).
 #   sh home-setup.sh power-on off       the TV opens its last input again from the next restart.
-#   sh home-setup.sh saver-mount on     LG's screensaver app becomes Lumen Screensaver: a copy of the side app under LG's screensaver id
-#                                       is bind-mounted over LG's folder (docs/plans/side-apps.md section 4). Redone at each boot by the
-#                                       guard, which also stages the copy again after the side app changes.
+#   sh home-setup.sh saver-mount on     LG's screensaver app becomes Lumen Screensaver: a copy of the native side app under LG's screensaver
+#                                       id, with Lumen's settings, pictures and fonts, is bind-mounted over LG's folder (docs/plans/side-apps.md
+#                                       section 4, docs/plans/native-saver.md). Redone at each boot by the guard, which also stages the copy
+#                                       again after the side app, Lumen's pictures or the fonts change. Refuses the old web side app.
 #   sh home-setup.sh saver-mount off    back to LG's screensaver.
 #   sh home-setup.sh guard              run at each boot (and each TV scripts restart) by 60-homehook: undoes the mounts if no Lumen
 #                                       build is installed, mounts them again, and removes the power-on copy if a firmware update
@@ -130,7 +131,7 @@ do_state () {
   else echo poweron_support=ok; fi
   echo "poweron_loaded=$(cat "$LOADED" 2>/dev/null || echo unknown)"
   # saver: on (mounted and the app manager has it), off, or broken (asked for but not in place)
-  if saver_mounted && [ "$(sam_type "$LGSAVER")" = web ]; then echo saver=on
+  if saver_mounted && [ "$(sam_type "$LGSAVER")" = native ]; then echo saver=on
   elif [ -f "$SAVER_FLAG" ]; then echo saver=broken
   else echo saver=off; fi
 }
@@ -233,11 +234,33 @@ native_off () {
 
 saver_mounted () { [ -d "$SAVER_COPY" ] && [ "$(stat -c %d:%i "$LGSAVER_DIR" 2>/dev/null)" = "$(stat -c %d:%i "$SAVER_COPY" 2>/dev/null)" ]; }
 saver_up () { $LUNA -n 1 -w 4000 luna://com.webos.service.tvpower/power/getPowerState '{}' 2>/dev/null | grep -q '"Screen Saver"'; }
-# one sum over the side app's files, so the copy is staged again only when the side app changed
-saver_sum () { (cd "$APPS/$SAVER" && find . -type f | sort | xargs md5sum | md5sum | cut -d ' ' -f 1); }
+# the files a staged copy carries besides the side app's: Lumen's bundled wallpaper pictures (not their -bg copies; local:<n> is
+# photos/default-<n>.jpg) and the SF fonts, which the screensaver's jail cannot read where they are
+saver_extras () {
+  lt=$(target) && for f in "$APPS/$lt"/wallpapers/default-*.jpg; do case "$f" in *-bg.jpg) ;; *) [ -f "$f" ] && echo "$f" ;; esac; done
+  for f in "$HH"/fonts/sf*.ttf; do [ -f "$f" ] && echo "$f"; done
+}
+# one sum over the side app's files (not config/, which watch.sh keeps up to date) and the extras, so the copy is staged again only
+# when one of them changed
+saver_sum () { { (cd "$APPS/$SAVER" && find . -type f | grep -v '^\./config/' | sort | xargs -r md5sum); saver_extras | xargs -r md5sum; } | md5sum | cut -d ' ' -f 1; }
 saver_fresh () { [ "$(saver_sum)" = "$(cat "$SAVER_COPY/.lumen-sum" 2>/dev/null)" ]; }
+# the native side app; the old web one has saver.html instead of lumen-saver
+saver_native () { [ -f "$APPS/$SAVER/lumen-saver" ]; }
 
-# a fresh copy of the side app with LG's screensaver id; written aside and moved in, and only while it is not mounted
+# $1/config as watch.sh keeps it: Lumen's settings and Immich server (with their mtimes), and tv.json, the TV's language and clock
+saver_config () {
+  mkdir -p "$1/config" || return 1
+  for f in "$HH/lumen-config.json" "$HH/immich.json"; do
+    [ -f "$f" ] && cp "$f" "$1/config/" && chmod 644 "$1/config/${f##*/}" && touch -r "$f" "$1/config/${f##*/}"
+  done
+  loc=$($LUNA -n 1 luna://com.webos.settingsservice/getSystemSettings '{"keys":["localeInfo"]}' 2>/dev/null | sed -n 's/.*"UI": *"\([A-Za-z0-9-]*\)".*/\1/p')
+  hh=$($LUNA -n 1 luna://com.webos.service.systemservice/getPreferences '{"keys":["timeFormat"]}' 2>/dev/null | sed -n 's/.*"timeFormat": *"HH\([0-9]*\)".*/\1/p')
+  case "$hh" in 12|24) [ -n "$loc" ] && printf '{"locale":"%s","clock":"%sh"}\n' "$loc" "$hh" > "$1/config/tv.json" && chmod 644 "$1/config/tv.json" ;; esac
+  return 0
+}
+
+# a fresh copy of the side app with LG's screensaver id, its config, Lumen's pictures and the fonts; written aside and moved in, and
+# only while it is not mounted
 saver_stage () {
   rm -rf "$SAVER_COPY.new"
   cp -r "$APPS/$SAVER" "$SAVER_COPY.new" || { rm -rf "$SAVER_COPY.new"; return 1; }
@@ -246,20 +269,25 @@ saver_stage () {
   "id": "$LGSAVER",
   "version": "3.0.0",
   "vendor": "Lumen",
-  "type": "web",
-  "main": "saver.html",
+  "type": "native",
+  "main": "lumen-saver",
   "title": "Screen Saver",
   "icon": "",
   "visible": false,
-  "resolution": "1920x1080",
   "transparent": true,
   "supportRollingScreenMode": true,
   "defaultWindowType": "screenSaver",
   "noSplashOnLaunch": true,
-  "spinnerOnLaunch": false,
+  "nativeLifeCycleInterfaceVersion": 2,
   "requiredPermissions": ["all"]
 }
 EOF
+  saver_config "$SAVER_COPY.new" || { rm -rf "$SAVER_COPY.new"; return 1; }
+  mkdir -p "$SAVER_COPY.new/photos"
+  for f in $(saver_extras); do
+    case "$f" in *.ttf) mkdir -p "$SAVER_COPY.new/fonts" && cp "$f" "$SAVER_COPY.new/fonts/" ;; *) cp "$f" "$SAVER_COPY.new/photos/" ;; esac \
+      || { rm -rf "$SAVER_COPY.new"; return 1; }
+  done
   saver_sum > "$SAVER_COPY.new/.lumen-sum"
   rm -rf "$SAVER_COPY" && mv "$SAVER_COPY.new" "$SAVER_COPY"
 }
@@ -272,17 +300,21 @@ saver_give_back () {
 # idempotent: stages the copy if the side app changed, mounts it if it is not, and has the app manager read it if it still has LG's
 saver_on () {
   installed "$SAVER" || { say "saver-mount: Lumen Screensaver is not installed"; return 1; }
+  if ! saver_native; then
+    saver_mounted && saver_give_back
+    say "saver-mount: the installed Lumen Screensaver is the old web app; it stays an overlay until the native one is installed"; return 1
+  fi
   [ -f "$BLOCK_SCHEMA" ] || { say "saver-mount: this TV has no blockSystemApp, so the app manager cannot be made to read the copy"; return 1; }
   [ -d "$LGSAVER_DIR" ] || { say "saver-mount: no $LGSAVER_DIR on this TV"; return 1; }
   if ! saver_fresh; then
-    # the page must not change under a screensaver that is up; the next guard run (boot or TV scripts restart) stages it
+    # the copy must not change under a screensaver that is up; the next guard run (boot or TV scripts restart) stages it
     if saver_mounted && saver_up; then say "saver-mount: the screensaver is up; the new copy waits for the next restart of the TV scripts"; return 0; fi
     if saver_mounted; then umount "$LGSAVER_DIR" 2>/dev/null || umount -l "$LGSAVER_DIR" 2>/dev/null; fi
     saver_stage || { say "saver-mount: could not write the copy"; saver_give_back; return 1; }
   fi
   saver_mounted || mount --bind "$SAVER_COPY" "$LGSAVER_DIR" || { say "saver-mount: the mount failed"; return 1; }
-  [ "$(sam_type "$LGSAVER")" = web ] || reread "$LGSAVER"
-  if [ "$(sam_type "$LGSAVER")" != web ]; then saver_give_back; say "saver-mount: the app manager did not take the copy; LG's screensaver is back"; return 1; fi
+  [ "$(sam_type "$LGSAVER")" = native ] || reread "$LGSAVER"
+  if [ "$(sam_type "$LGSAVER")" != native ]; then saver_give_back; say "saver-mount: the app manager did not take the copy; LG's screensaver is back"; return 1; fi
   touch "$SAVER_FLAG"; sync
   say "saver-mount on: the TV's screensaver is Lumen Screensaver ($(sed -n 's/.*"version": *"\([0-9.]*\)".*/\1/p' "$APPS/$SAVER/appinfo.json" | head -1))"
 }
@@ -345,7 +377,7 @@ do_guard () {
     t=$(target "$(cat "$TAKEOVER")") || t=$(target)
     if [ -n "$t" ] && take "$t"; then log "guard: Home takeover mounted again ($t)"; else log "guard: Home takeover could not be mounted again"; fi
   fi
-  # the screensaver mount: put back after a restart, staged again after the side app changed, and undone if the side app is gone
+  # the screensaver mount: put back after a restart, staged again after the side app or its extras changed, and undone if the side app is gone
   if [ -f "$SAVER_FLAG" ]; then
     if ! installed "$SAVER"; then saver_off; log "guard: Lumen Screensaver is not installed, so LG's screensaver is back"
     elif ! saver_mounted || ! saver_fresh; then
@@ -367,5 +399,5 @@ case "$1" in
   power-on) case "$2" in on) power_on "$3" ;; off) power_off ;; *) echo "usage: power-on on [app-id] | off"; exit 2 ;; esac ;;
   saver-mount) case "$2" in on) saver_on ;; off) saver_off ;; *) echo "usage: saver-mount on | off"; exit 2 ;; esac ;;
   guard) do_guard ;;
-  *) sed -n '2,27p' "$0"; exit 2 ;;
+  *) sed -n '2,28p' "$0"; exit 2 ;;
 esac
