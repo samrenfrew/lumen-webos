@@ -35,6 +35,7 @@ pub struct Settings {
     pub immich_recent_days: u32,
     pub immich_picks: Vec<String>,
     pub guide_full: bool,
+    pub idle_seconds: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -83,6 +84,7 @@ impl Settings {
             immich_recent_days: 180,
             immich_picks: vec!["immich:recent".into()],
             guide_full: false,
+            idle_seconds: 0,
         }
     }
 
@@ -148,6 +150,7 @@ impl Settings {
             immich_recent_days: saved["immichRecentDays"].as_u64().filter(|d| [30, 90, 180, 365].contains(d)).map_or(defaults.immich_recent_days, |d| d as u32),
             immich_picks: strings(&saved["immichPicks"]).filter(|p| !p.is_empty()).unwrap_or(defaults.immich_picks),
             guide_full: saved["guideFull"].as_bool() == Some(true),
+            idle_seconds: saved["idleSeconds"].as_u64().filter(|s| [0, 30, 60, 120, 300].contains(s)).map_or(defaults.idle_seconds, |s| s as u32),
         })
     }
 }
@@ -178,6 +181,13 @@ mod tests {
     fn a_field_that_is_missing_or_wrong_takes_its_default() {
         let saved = Settings::parse(r#"{"appIds":"none","firstRow":9,"clockFormat":"13h","showAmPm":"yes","wallpaperType":"cube","reduceMotion":1}"#).unwrap();
         assert_eq!(saved, Settings::defaults());
+    }
+
+    #[test]
+    fn the_home_screensaver_waits_only_one_of_the_offered_times_and_otherwise_never_starts() {
+        assert_eq!(Settings::parse(r#"{"idleSeconds":120}"#).unwrap().idle_seconds, 120);
+        assert_eq!(Settings::parse(r#"{"idleSeconds":45}"#).unwrap().idle_seconds, 0);
+        assert_eq!(Settings::parse(r#"{}"#).unwrap().idle_seconds, 0);
     }
 
     #[test]

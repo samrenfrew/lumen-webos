@@ -1,4 +1,4 @@
-use crate::anim::{Anim, EASE, EASE_DOWN, EASE_OUT, EASE_SCROLL, EASE_UP, EASE_VEIL};
+use crate::anim::{Anim, EASE, EASE_OUT, EASE_SCROLL, EASE_VEIL};
 use crate::apps::background_of;
 use crate::draw::{decoded, Decoded, Draw, Glass, Plate, Style};
 use crate::ffi::*;
@@ -351,6 +351,11 @@ fn tile_key(id: &str) -> String {
 
 fn icon_key(id: &str) -> String {
     format!("icon:{id}")
+}
+
+fn live_in_view(at: usize, offset: f32) -> bool {
+    let left = ROWS_EDGE + at as f32 * (TILE_W + TILE_GAP) - offset;
+    left + TILE_W + 80.0 >= 0.0 && left - 80.0 <= DESIGN_W
 }
 
 pub fn pill_left(at: usize) -> f32 {
@@ -707,7 +712,7 @@ impl Home {
         self.shine_alpha.go(if shown && row == 0 { 1.0 } else { 0.0 }, self.ms(200.0), &EASE, now);
         let shift = if lower { self.shift_for(row) } else { 0.0 };
         if lower != was_lower {
-            self.shift.go(shift, self.ms(if lower { look.down_ms } else { look.up_ms }), if lower { &EASE_DOWN } else { &EASE_UP }, now);
+            self.shift.go(shift, self.ms(if lower { look.down_ms } else { look.up_ms }), &if lower { [look.down_x1, look.down_y1, look.down_x2, look.down_y2] } else { [look.up_x1, look.up_y1, look.up_x2, look.up_y2] }, now);
             self.veil_fade.go(slid, self.ms(if lower { look.veil_down_ms } else { look.veil_up_ms }), &EASE_VEIL, now);
             self.drop.go(slid, self.ms(200.0), &EASE_OUT, now);
             self.status_alpha.go_after(self.ms(if lower { look.hide_top_wait_ms } else { look.show_top_wait_ms }), 1.0 - slid, self.ms(look.fade_ms), &EASE, now);
@@ -1605,7 +1610,8 @@ impl Home {
             });
         }
         if self.live_top() - shift + grid_drop - LIVE_TITLE_H <= DESIGN_H {
-            for live in self.live.iter_mut().filter(|l| l.shown.id != GUIDE_TILE) {
+            let offset = self.live_offset.at(now);
+            for (_, live) in self.live.iter_mut().enumerate().filter(|(at, l)| l.shown.id != GUIDE_TILE && live_in_view(*at, offset)) {
                 let icon = Self::channel_icon(d, &live.tile);
                 Self::resting_tile(d, &mut live.tile, icon);
             }
@@ -1734,7 +1740,7 @@ impl Home {
         let order: Vec<usize> = (0..self.live.len()).filter(|&at| at != self.live_at).chain(std::iter::once(self.live_at)).collect();
         for at in order {
             let left = ROWS_EDGE + at as f32 * step - offset;
-            if left + TILE_W + 80.0 < 0.0 || left - 80.0 > DESIGN_W {
+            if !live_in_view(at, offset) {
                 continue;
             }
             let f = self.live[at].tile.focus.at(now);
@@ -2026,6 +2032,14 @@ mod tests {
         assert_eq!(live_offset(5, 12, 3), 2.0 * step);
         assert_eq!(live_offset(11, 12, 3), 7.0 * step);
         assert_eq!(live_offset(1, 2, 0), 0.0);
+    }
+
+    #[test]
+    fn only_the_live_tv_tiles_on_screen_are_drawn_however_many_channels_there_are() {
+        let in_view: Vec<usize> = (0..209).filter(|&at| live_in_view(at, 0.0)).collect();
+        assert_eq!(in_view, (0..7).collect::<Vec<_>>());
+        let far = live_offset(200, 209, 3);
+        assert!((0..209).filter(|&at| live_in_view(at, far)).all(|at| at > 195));
     }
 
     #[test]

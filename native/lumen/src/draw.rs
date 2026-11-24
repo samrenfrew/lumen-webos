@@ -271,6 +271,7 @@ impl Draw {
         p.set4(c"u_look", g.radius, g.blur, g.sheen, g.rim);
         p.set3(c"u_tone", [self.look.saturate, self.look.brighten, self.look.tint]);
         p.set1(c"u_alpha", g.alpha);
+        p.set1(c"u_shadow_strength", self.look.glass_shadow);
         let margin = 40.0;
         self.gfx.quad(p, g.x - margin, g.y - margin, g.w + 2.0 * margin, g.h + 2.0 * margin);
     }

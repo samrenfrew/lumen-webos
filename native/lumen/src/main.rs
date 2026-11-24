@@ -111,6 +111,7 @@ pub struct App {
     weather_asked_at: Option<Instant>,
     wallpaper_changed_at: Instant,
     held_since: Option<u32>,
+    touched_at: u32,
     hold_fired: bool,
     shown_once: bool,
     hidden: bool,
@@ -568,6 +569,11 @@ impl App {
                 self.panel = None;
                 match what {
                     "lg-home" => self.open("com.webos.app.home".to_string()),
+                    "art" => {
+                        self.open_saver();
+                        self.redraw = true;
+                    }
+                    "settings" => self.open("com.palm.app.settings".to_string()),
                     other => self.home.toast(&format!("{other} is not built yet"), false, ticks()),
                 }
             }
@@ -664,6 +670,7 @@ impl App {
     }
 
     fn key(&mut self, key: Key) {
+        self.touched_at = ticks();
         if self.saver.is_some() {
             return self.saver_key(key);
         }
@@ -683,6 +690,7 @@ impl App {
     }
 
     fn pointer_moved(&mut self, x: i32, y: i32) {
+        self.touched_at = ticks();
         if self.screen.is_some() || self.panel.is_some() || self.saver.is_some() || self.guide.is_some() || self.hidden {
             return;
         }
@@ -718,6 +726,21 @@ impl App {
         }
     }
 
+    fn idle_wait_ms(&mut self) -> Option<u32> {
+        let idle_ms = self.settings.idle_seconds * 1000;
+        let on_home = self.screen.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none();
+        if idle_ms == 0 || self.hidden || self.alone || !on_home {
+            return None;
+        }
+        let left_alone = ticks().wrapping_sub(self.touched_at);
+        if left_alone >= idle_ms {
+            self.open_saver();
+            self.redraw = true;
+            return None;
+        }
+        Some(idle_ms - left_alone)
+    }
+
     fn hold_wait_ms(&mut self) -> Option<u32> {
         let since = self.held_since?;
         if self.hold_fired {
@@ -737,6 +760,7 @@ impl App {
     }
 
     fn relaunched(&mut self, parameters: Value) {
+        self.touched_at = ticks();
         if self.alone {
             return note!("relaunch {}: already up as the screensaver", parameters);
         }
@@ -1135,6 +1159,7 @@ fn run() -> i32 {
         weather_asked_at: None,
         wallpaper_changed_at: Instant::now(),
         held_since: None,
+        touched_at: 0,
         hold_fired: false,
         shown_once: false,
         hidden: false,
@@ -1237,7 +1262,7 @@ fn run() -> i32 {
         }
         app.change_wallpaper_if_due();
         app.live_tick();
-        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).min();
+        let hold_wait = app.hold_wait_ms().into_iter().chain(app.guide_wait_ms()).chain(app.idle_wait_ms()).min();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
             app.write_boot_line();
         }

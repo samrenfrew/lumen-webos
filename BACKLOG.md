@@ -35,3 +35,4 @@
 - Lumen Native: the Live TV row on home shows channel names on coloured tiles, while the Guide shows the real logos. Use the logos in the row too.
 - Lumen Native: in the Full guide, the subtitles mark is drawn over the first letters of the programme name ("This is BBC Three").
 - Lumen Native: the first Down into the Live TV row drops frames (23 of 30, one of 159 ms) while the guide loads.
+- Lumen Native: now the frame rate allows it, try tiles that squash together a little as they slide off screen on Up and Down.

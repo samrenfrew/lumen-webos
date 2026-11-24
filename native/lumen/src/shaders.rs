@@ -202,6 +202,7 @@ void main() { gl_FragColor = vec4(u_ink.rgb, 1.0) * texture2D(u_tex, (v_px - u_b
 "#;
 
 pub const GLASS_FRAGMENT: &str = r#"uniform sampler2D u_glass;
+uniform float u_shadow_strength;
 uniform vec4 u_box;
 uniform vec4 u_look;
 uniform vec3 u_tone;
@@ -212,7 +213,7 @@ void main() {
   float r = min(u_look.x, min(hs.x, hs.y));
   float d = rr(p, hs, r);
   float a = clamp(0.5 - d, 0.0, 1.0);
-  float shadow = 0.25 * (1.0 - smoothstep(-10.0, 18.0, rr(p - vec2(0.0, 8.0), hs, r)));
+  float shadow = u_shadow_strength * (1.0 - smoothstep(-10.0, 18.0, rr(p - vec2(0.0, 8.0), hs, r)));
   if (a <= 0.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, shadow * u_alpha); return; }
   vec3 seen = texture2D(u_glass, v_uv).rgb;
   float grey = dot(seen, vec3(0.299, 0.587, 0.114));

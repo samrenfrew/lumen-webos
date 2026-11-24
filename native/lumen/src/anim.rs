@@ -13,7 +13,7 @@ pub struct Anim {
     to: f32,
     start: u32,
     dur: u32,
-    ease: &'static Curve,
+    ease: Curve,
 }
 
 fn bezier(a: f32, b: f32, t: f32) -> f32 {
@@ -42,7 +42,7 @@ pub fn eased(e: &Curve, x: f32) -> f32 {
 
 impl Anim {
     pub fn still(value: f32) -> Anim {
-        Anim { from: value, to: value, start: 0, dur: 0, ease: &EASE }
+        Anim { from: value, to: value, start: 0, dur: 0, ease: EASE }
     }
 
     fn since(&self, now: u32) -> i32 {
@@ -57,7 +57,7 @@ impl Anim {
         if since <= 0 {
             return self.from;
         }
-        self.from + (self.to - self.from) * eased(self.ease, since as f32 / self.dur as f32)
+        self.from + (self.to - self.from) * eased(&self.ease, since as f32 / self.dur as f32)
     }
 
     pub fn to_value(&self) -> f32 {
@@ -68,11 +68,11 @@ impl Anim {
         self.dur != 0 && self.since(now) < self.dur as i32
     }
 
-    pub fn go(&mut self, to: f32, ms: f32, ease: &'static Curve, now: u32) {
+    pub fn go(&mut self, to: f32, ms: f32, ease: &Curve, now: u32) {
         self.go_after(0.0, to, ms, ease, now);
     }
 
-    pub fn go_after(&mut self, wait_ms: f32, to: f32, ms: f32, ease: &'static Curve, now: u32) {
+    pub fn go_after(&mut self, wait_ms: f32, to: f32, ms: f32, ease: &Curve, now: u32) {
         if self.to == to {
             return;
         }
@@ -80,7 +80,7 @@ impl Anim {
         self.to = to;
         self.start = now.wrapping_add(wait_ms as u32);
         self.dur = (ms as u32).max(1);
-        self.ease = ease;
+        self.ease = *ease;
     }
 
     pub fn set(&mut self, value: f32) {
