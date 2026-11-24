@@ -223,7 +223,7 @@ In rough order of value:
 ## Parked
 
 - Native (GPU) version of Lumen. Reference: PlxNative (Rust, SDL2, OpenGL ES, webosbrew native NDK; GPL-3.0-or-later, so read for approach
-  only). If picked up again, start with a native Immich screensaver as a pilot rather than the whole launcher.
+  only). The pilot, a native screensaver, started 2026-11-24: `docs/plans/native-saver.md`.
 - `content-visibility: auto` on off-screen rows: the lower rows are kept painted at opacity 0 on purpose, so showing them is a fade, not a
   first paint. Revisit only with a trace.
 

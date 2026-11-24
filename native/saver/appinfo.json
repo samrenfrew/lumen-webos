@@ -1,0 +1,13 @@
+{
+  "id": "com.samrenfrew.lumen.nsaver",
+  "version": "0.0.1",
+  "vendor": "Sam Renfrew",
+  "type": "native",
+  "main": "lumen-saver",
+  "title": "Lumen Native Saver",
+  "icon": "icon.png",
+  "visible": false,
+  "transparent": true,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 60
+}
