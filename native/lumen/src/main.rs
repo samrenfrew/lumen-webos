@@ -541,6 +541,21 @@ impl App {
         }
     }
 
+    fn pointer_moved(&mut self, x: i32, y: i32) {
+        if self.panel.is_some() || self.hidden {
+            return;
+        }
+        let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
+        if self.home.point(&self.draw, dx, dy, ticks()) {
+            self.redraw = true;
+        }
+    }
+
+    fn pointer_on_something(&self, x: i32, y: i32) -> bool {
+        let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
+        self.panel.is_some() || self.home.hit(dx, dy, ticks()).is_some() || !self.home.resting_zone()
+    }
+
     fn ok_down(&mut self) {
         if self.held_since.is_some() {
             return;
@@ -923,6 +938,30 @@ fn run() -> i32 {
                         Some(Key::Ok) => app.ok_down(),
                         Some(key) => app.key(key),
                         None => note!("key {}, scancode {}", sym, scancode),
+                    }
+                }
+                SDL_MOUSEMOTION => {
+                    let (x, y) = unsafe { (e.motion.x, e.motion.y) };
+                    app.pointer_moved(x, y);
+                }
+                SDL_MOUSEBUTTONDOWN => {
+                    let (x, y, button) = unsafe { (e.button.x, e.button.y, e.button.button) };
+                    if button == 1 {
+                        app.pointer_moved(x, y);
+                        if app.pointer_on_something(x, y) {
+                            app.ok_down();
+                        }
+                    }
+                }
+                SDL_MOUSEBUTTONUP => {
+                    if unsafe { e.button.button } == 1 {
+                        app.ok_up();
+                    }
+                }
+                SDL_MOUSEWHEEL => {
+                    let y = unsafe { e.wheel.y };
+                    if y != 0 {
+                        app.key(if y > 0 { Key::Up } else { Key::Down });
                     }
                 }
                 SDL_KEYUP => {

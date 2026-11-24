@@ -148,7 +148,7 @@ pub enum Action {
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Zone {
+pub enum Zone {
     Rows,
     Top,
     Menu,
@@ -829,6 +829,60 @@ impl Home {
             _ => {}
         }
         None
+    }
+
+    pub fn hit(&self, x: f32, y: f32, now: u32) -> Option<(Zone, usize)> {
+        if !matches!(self.zone, Zone::Rows | Zone::Top) || self.moving.is_some() {
+            return None;
+        }
+        if self.status_alpha.at(now) > 0.5 {
+            for at in 0..TOP_ITEMS.len() {
+                let (cx, cy) = (pill_left(at) + PILL / 2.0, PILL_TOP + PILL / 2.0);
+                if (x - cx).powi(2) + (y - cy).powi(2) <= (PILL / 2.0 + 6.0).powi(2) {
+                    return Some((Zone::Top, at));
+                }
+            }
+        }
+        let shift = self.shift.at(now);
+        let grid_drop = self.drop.at(now) * GRID_DROP;
+        (0..self.tiles.len()).find_map(|at| {
+            let (row, col) = self.place_of(at);
+            let top = row_top(row) - shift + if row > 0 { grid_drop } else { 0.0 };
+            let left = tile_left(col) - TILE_GAP / 2.0;
+            (x >= left && x < left + TILE_W + TILE_GAP && y >= top - 20.0 && y < top + TILE_H + 20.0).then_some((Zone::Rows, at))
+        })
+    }
+
+    pub fn point(&mut self, d: &Draw, x: f32, y: f32, now: u32) -> bool {
+        let target = self.hit(x, y, now);
+        let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
+        let before = (self.engaged, self.zone, self.focus, self.top_index);
+        match target {
+            Some((Zone::Top, at)) => {
+                self.engaged = true;
+                self.zone = Zone::Top;
+                self.top_index = at;
+            }
+            Some((_, at)) => {
+                self.engaged = true;
+                self.zone = Zone::Rows;
+                self.focus = at;
+            }
+            None if matches!(self.zone, Zone::Rows | Zone::Top) && self.moving.is_none() && !self.lower() => {
+                self.engaged = false;
+                self.zone = Zone::Rows;
+            }
+            None => {}
+        }
+        let changed = before != (self.engaged, self.zone, self.focus, self.top_index);
+        if changed {
+            self.animate_to_state(d, was_lower, was_shift, now);
+        }
+        changed
+    }
+
+    pub fn resting_zone(&self) -> bool {
+        matches!(self.zone, Zone::Rows | Zone::Top) && self.moving.is_none()
     }
 
     pub fn go_to_bar(&mut self, d: &Draw, now: u32) {
@@ -1610,6 +1664,17 @@ mod tests {
         home.open_menu(false);
         assert_eq!(home.react(Key::Ok), None);
         assert_eq!(home.react(Key::Ok), Some(Action::Uninstall("bbc.iplayer.3.0".into())));
+    }
+
+    #[test]
+    fn the_pointer_finds_the_tile_or_top_button_under_it_and_nothing_between() {
+        let mut home = Home::new();
+        home.tiles = ["a", "b", "c", "d", "e", "f", "g"].iter().map(|id| Tile { app: app(id), bg: [0.0; 3], focus: Anim::still(0.0) }).collect();
+        home.bar_count = 6;
+        assert_eq!(home.hit(tile_centre(1), BAR_TILES_TOP + 70.0, 0), Some((Zone::Rows, 1)));
+        assert_eq!(home.hit(tile_centre(0), FIRST_GRID_TOP + 70.0, 0), Some((Zone::Rows, 6)));
+        assert_eq!(home.hit(pill_left(2) + PILL / 2.0, PILL_TOP + PILL / 2.0, 0), Some((Zone::Top, 2)));
+        assert_eq!(home.hit(960.0, 400.0, 0), None);
     }
 
     #[test]

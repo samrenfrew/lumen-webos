@@ -109,6 +109,10 @@ pub const SDL_QUIT: u32 = 0x100;
 pub const SDL_WINDOWEVENT: u32 = 0x200;
 pub const SDL_KEYDOWN: u32 = 0x300;
 pub const SDL_KEYUP: u32 = 0x301;
+pub const SDL_MOUSEMOTION: u32 = 0x400;
+pub const SDL_MOUSEBUTTONDOWN: u32 = 0x401;
+pub const SDL_MOUSEBUTTONUP: u32 = 0x402;
+pub const SDL_MOUSEWHEEL: u32 = 0x403;
 pub const SDLK_1: i32 = 49;
 pub const SDLK_KP_1: i32 = 0x4000_0059;
 pub const SDL_USEREVENT: u32 = 0x8000;
@@ -206,10 +210,54 @@ pub struct SDL_WindowEvent {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SDL_MouseMotionEvent {
+    pub kind: u32,
+    pub timestamp: u32,
+    pub window_id: u32,
+    pub which: u32,
+    pub state: u32,
+    pub x: i32,
+    pub y: i32,
+    pub xrel: i32,
+    pub yrel: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SDL_MouseButtonEvent {
+    pub kind: u32,
+    pub timestamp: u32,
+    pub window_id: u32,
+    pub which: u32,
+    pub button: u8,
+    pub state: u8,
+    pub clicks: u8,
+    pub padding1: u8,
+    pub x: i32,
+    pub y: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SDL_MouseWheelEvent {
+    pub kind: u32,
+    pub timestamp: u32,
+    pub window_id: u32,
+    pub which: u32,
+    pub x: i32,
+    pub y: i32,
+    pub direction: u32,
+}
+
+#[repr(C)]
 pub union SDL_Event {
     pub kind: u32,
     pub key: SDL_KeyboardEvent,
     pub window: SDL_WindowEvent,
+    pub motion: SDL_MouseMotionEvent,
+    pub button: SDL_MouseButtonEvent,
+    pub wheel: SDL_MouseWheelEvent,
     pub padding: [u64; 7],
 }
 
