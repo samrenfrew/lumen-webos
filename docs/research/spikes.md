@@ -534,9 +534,19 @@ Spike 5. **A video wallpaper works. Glass that shows the video through it, and t
   capture away from Hyperion. Until that is tried, glass over video is a tint and rims, as the web app has it.
 - **Screenshots cannot check video.** `capture/executeOneShot` shows black where the video is, in every mode, and the app is
   not allowed to call the capture service at all ("Not permitted"): the one TV service found so far that refuses it.
-- **The live TV preview is not proven.** The web app plays `tv://<channel>` in a `<video>`; what the web engine calls for that
-  was not captured. Next step: run `ls-monitor` on the TV while the web Lumen starts a preview, and repeat those calls from
-  the probe with the exported window id.
+- **The live TV preview: the TV says it works; nobody has looked.** The web engine's calls were recorded with `ls-monitor`
+  while the web Lumen started a preview, then repeated from the probe on a nameless handle, with the exported window id:
+  1. `com.webos.service.utp.broadcast/open` with
+     `{"options":{"appId":"<id>","updateLastChannelId":false,"windowId":"_Window_Id_5"}}`: answers with a `broadcastId` (112 ms).
+  2. `…/setAudioMute` with `{"broadcastId":…,"isMuteOn":true,"muteOwner":"<id>"}` (13 ms).
+  3. `…/changeChannel` with `{"broadcastId":…,"channelId":"1_41_202_204_16522_18176_9018"}` (374 ms).
+  4. `…/close` with the `broadcastId` when done (298 ms). After it, `videooutput/getStatus` showed MAIN not connected.
+  After step 3 `videooutput/getStatus` showed MAIN connected to the decoder for `com.samrenfrew.lumen.rtest`, 1920x1080 at
+  25 a second, not muted, over the whole panel.
+  **(verify)** that the picture shows behind the bar: not tested, Sam could not get to the TV.
+  Not tried: placing it in a tile-sized box. The web engine does that through the exported window's regions
+  (`wl_webos_exported_set_exported_window`); the recording shows the window manager passing on
+  `displayOutput {x:384,y:691,width:294,height:165}`.
 
 ## Staying alive, so far (2026-11-24)
 Spike 4, the part that needs no reboot:

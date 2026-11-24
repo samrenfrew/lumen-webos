@@ -123,8 +123,8 @@ Each is small, answers one question on the TV, and is written up in `docs/resear
 5. **Video.** The live preview and the video wallpaper are `<video>` elements today. Natively they need the TV's media service
    with a hole cut in the window. Find out whether both work, and whether the picture under a native window can be read (it
    cannot from a web page). If not, both stay out and glass over video stays a tint.
-   **Partly answered 2026-11-24:** a video wallpaper plays under the native window (seen by Sam). Reading the video's picture for
-   glass, and the live TV preview, are not proven.
+   **Mostly answered 2026-11-24:** a video plays under the native window (seen by Sam), and the video wallpaper is not ported
+   anyway. The live TV preview's calls work from the native app and the TV reports the picture on screen; (verify) by eye.
 6. **Text.** A paragraph in each of the nine languages with FreeType and HarfBuzz, beside the web page's.
    **Answered 2026-11-24: yes**, within 2% of the web page's line widths. The SDK has no HarfBuzz; the build links a stand-in.
 7. **The test app's memory.** Why 62 MB, and what one screen-size target costs on this driver.
