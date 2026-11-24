@@ -25,3 +25,10 @@
 **Origin:** Stadia drops on 2026-11-13. A drop while a direction was held left Moonlight moving the character, and the drop cost a fight.
 **Idea:** When `stadia.sh` sees the controller drop, send Moonlight a "nothing pressed" report so held buttons let go, then a Start press so the game pauses until the controller works again.
 **Context for next agent:** Moonlight reads the controller from hidraw inside its jail (`/var/palm/jail/com.limelight.webos/dev`), and the dead device belongs to LG's HID host, so the reports must come from a gamepad of our own made through `/dev/uhid`. `tools/tv/stadia-bridge.py` already makes one (same IDs and report map, added to the jail); report ID 3, 10 bytes, rest is `[8,0,0,128,128,128,128,0,0,0]` (docs/research/spikes.md, "Bridge test"). Decide whether Moonlight treats it as the same player or a second controller, and which bit is Start.
+
+## Native screensaver (from the 2026-11-24 review)
+
+- The dark or light look (darkMode auto) is decided when the screensaver starts, so one that runs across 19:00 or 06:00 keeps the old look. Decide it per draw in `status_draw`.
+- `localtime`, `gmtime` and `strtok` are shared between the threads; move to the `_r` forms.
+- The log in `/tmp/lumen-saver-<uid>/log` is never trimmed (cleared at reboot).
+- Cloud wallpaper pictures kept in `/tmp` have no cap (about 300 KB each, until reboot).

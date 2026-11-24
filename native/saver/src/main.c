@@ -117,6 +117,7 @@ static int fetcher(void *unused) {
         Picture pic;
         SDL_Surface *frame = NULL;
         if (picker_next(&pic)) {
+            if (quitting) { picture_free(&pic); break; }
             Uint32 t0 = SDL_GetTicks();
             frame = compose_frame(&pic, frame_w, frame_h, settings.print, settings_night(&settings));
             note("compose: %u ms", SDL_GetTicks() - t0);
@@ -171,9 +172,11 @@ static SDL_Texture *take_from_slot(SDL_Renderer *r) {
     return t;
 }
 
-static void draw_frame(SDL_Renderer *r, SDL_Texture *t, float alpha, SDL_BlendMode mode) {
+static void draw_frame(SDL_Renderer *r, SDL_Texture *t, float brightness, float alpha, SDL_BlendMode mode) {
     if (!t || alpha <= 0) return;
+    Uint8 level = (Uint8)(brightness * 255);
     SDL_SetTextureBlendMode(t, mode);
+    SDL_SetTextureColorMod(t, level, level, level);
     SDL_SetTextureAlphaMod(t, (Uint8)(alpha * 255));
     SDL_RenderCopy(r, t, NULL, NULL);
 }
@@ -246,9 +249,10 @@ int main(int argc, char **argv) {
     slot.lock = SDL_CreateMutex();
     slot.emptied = SDL_CreateCond();
     sky.lock = SDL_CreateMutex();
-    SDL_Thread *worker = SDL_CreateThread(fetcher, "fetcher", NULL);
-    SDL_Thread *weatherman = weather_init(app_dir, &settings) ? SDL_CreateThread(forecaster, "forecaster", NULL) : NULL;
+    int wants_weather = weather_init(app_dir, &settings);
     int can_draw_status = status_init(app_dir, &settings);
+    SDL_Thread *worker = SDL_CreateThread(fetcher, "fetcher", NULL);
+    SDL_Thread *weatherman = wants_weather ? SDL_CreateThread(forecaster, "forecaster", NULL) : NULL;
     if (!can_draw_status) note("status: no font, so no clock");
 
     SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
@@ -312,10 +316,11 @@ int main(int argc, char **argv) {
             now = shown_at;
         }
 
-        if (!incoming && !leaving_at && (incoming = take_from_slot(r))) {
+        int fading_in = now - shown_at < fade_in_ms;
+        if (!incoming && !leaving_at && !fading_in && (incoming = take_from_slot(r))) {
             if (!settings.reduce_motion) read_tuning();
             now = SDL_GetTicks();
-            if (!shown) swap_at = now;
+            if (!shown || now > swap_at) swap_at = now;
         }
         int crossfading = incoming && now >= swap_at;
         float cross = crossfading ? ease((float)(now - swap_at) / crossfade_ms) : 0;
@@ -332,7 +337,7 @@ int main(int argc, char **argv) {
             redraw = 1;
         }
 
-        if (can_draw_status && !(crossfading && band)) {
+        if (can_draw_status && !((crossfading || fading_in) && band)) {
             time_t wall = time(NULL);
             int minute = localtime(&wall)->tm_min;
             SDL_LockMutex(sky.lock);
@@ -372,18 +377,18 @@ int main(int argc, char **argv) {
         SDL_SetRenderDrawColor(r, 0, 0, 0, (Uint8)(scene * 255));
         SDL_RenderClear(r);
         if (scene < 1) {
-            draw_frame(r, shown, scene, SDL_BLENDMODE_BLEND);
-            if (crossfading) draw_frame(r, incoming, scene * cross, SDL_BLENDMODE_BLEND);
+            draw_frame(r, shown, scene, 1, SDL_BLENDMODE_NONE);
+            if (crossfading) draw_frame(r, incoming, scene, cross, over_keeping_alpha);
         } else {
-            draw_frame(r, shown, 1, SDL_BLENDMODE_NONE);
-            if (crossfading) draw_frame(r, incoming, cross, over_keeping_alpha);
+            draw_frame(r, shown, 1, 1, SDL_BLENDMODE_NONE);
+            if (crossfading) draw_frame(r, incoming, 1, cross, over_keeping_alpha);
         }
         if (band) {
             SDL_Rect dst = {0, sh - band_h, sw, band_h};
             Uint8 level = (Uint8)(scene * 255);
             SDL_SetTextureBlendMode(band, premultiplied_over_keeping_alpha);
             SDL_SetTextureColorMod(band, level, level, level);
-            SDL_SetTextureAlphaMod(band, level);
+            SDL_SetTextureAlphaMod(band, 255);
             SDL_RenderCopy(r, band, NULL, &dst);
         }
         if (scene < 1) {
@@ -406,6 +411,7 @@ int main(int argc, char **argv) {
 done:
     quitting = 1;
     tell_watcher_showing(0);
+    SDL_HideWindow(window);
     SDL_LockMutex(slot.lock);
     SDL_CondSignal(slot.emptied);
     SDL_UnlockMutex(slot.lock);
