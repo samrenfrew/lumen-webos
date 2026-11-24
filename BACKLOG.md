@@ -29,11 +29,10 @@
 ## Native screensaver (from the 2026-11-24 review)
 
 - The dark or light look (darkMode auto) is decided when the screensaver starts, so one that runs across 19:00 or 06:00 keeps the old look. Decide it per draw in `status_draw`.
-- `localtime`, `gmtime` and `strtok` are shared between the threads; move to the `_r` forms.
-- The log in `/tmp/lumen-saver-<uid>/log` is never trimmed (cleared at reboot).
-- Cloud wallpaper pictures kept in `/tmp` have no cap (about 300 KB each, until reboot).
 - Lumen Native: the Live TV row on home shows channel names on coloured tiles, while the Guide shows the real logos. Use the logos in the row too.
 - Lumen Native: in the Full guide, the subtitles mark is drawn over the first letters of the programme name ("This is BBC Three").
 - Lumen Native: the first Down into the Live TV row drops frames (23 of 30, one of 159 ms) while the guide loads.
 - Lumen Native: now the frame rate allows it, try tiles that squash together a little as they slide off screen on Up and Down.
 - TV scripts: the web Quick Settings, `com.samrenfrew.lumen.quick`, is still installed and running beside Lumen Native's, holding memory. Uninstall it.
+- Lumen Native: more animations now the frame rate allows them. Settings fades in but vanishes on Back; the Guide opens and closes at once; the Guide over Live TV could slide in from the left; a launched app could grow out of its tile.
+- Lumen Native: a Liquid glass test screen, the look's values (`bend`, `fringe`, `bezel`, `liquid_blur`) on sliders over the home screen, so Sam can tune them with the remote. `nctl.mjs set` already changes them live from here.

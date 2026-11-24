@@ -209,6 +209,16 @@ reach the native one, so Settings can be ported late.
    `home-setup.sh` knows its id; home still shows only picked pictures (no plain, Immich or timed change yet).
    **Since then (2026-11-24):** Settings > Channels picks and orders the Live TV row (shown while the row is on and channels are
    known), and the Plain wallpaper draws the web Lumen's soft colour glows.
+   **Gaps closed (2026-11-24, (verify) on the TV):** Settings points Home and switching on at Lumen Native
+   (`home-setup.sh native-home on com.samrenfrew.lumen.native`, `power-on on ...`); the large weather widget draws on home with
+   the screensaver's layout; the backlight fill has the web gradient and rims; channel logos stretched onto a tile are sharpened
+   as they are drawn (the web Lumen's 3x copy is not needed, since all the native apps share one store). The five bundled
+   wallpapers stay out: the native picker offers only Landscapes and Art, so a `local:N` pick can only come from old settings,
+   and it is skipped.
+   **Animations and glass (2026-11-24, (verify) on the TV):** Control Center and Inputs shrink back into their button as they
+   close (`cc_close_ms`, `cc_close_to`, `cc_close_fade`), and the Guide's rows and cells have a light glass look baked into
+   their cached shapes: a soft light along the top and a faint lower rim (`guide_glass`, 0 is the flat look). All four are
+   tunable live with `nctl.mjs set`.
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
    the screensaver share the photo picker.
    **Done 2026-11-24.** The screensaver is a screen of Lumen and the same program packaged as Lumen Screensaver
