@@ -60,9 +60,55 @@ pub fn fetch(pick: String, url: String, as_next: bool, then: impl FnOnce(Result<
     });
 }
 
+pub const SETTLE_ON_HOME_MS: u64 = 30_000;
+
+#[derive(Default)]
+pub struct HomeClock {
+    last_tick: Option<u32>,
+    was_on_home: bool,
+    on_home_ms: u64,
+    settled_ms: u64,
+}
+
+impl HomeClock {
+    pub fn due(&mut self, on_home: bool, now: u32, minutes: f64) -> bool {
+        let step = self.last_tick.map_or(0, |last| now.wrapping_sub(last) as u64);
+        self.last_tick = Some(now);
+        if self.was_on_home && on_home {
+            self.on_home_ms += step;
+            self.settled_ms += step;
+        } else if self.was_on_home {
+            self.on_home_ms += step;
+        }
+        if !on_home {
+            self.settled_ms = 0;
+        }
+        self.was_on_home = on_home;
+        minutes > 0.0 && on_home && self.settled_ms >= SETTLE_ON_HOME_MS && self.on_home_ms as f64 >= minutes * 60_000.0
+    }
+
+    pub fn changed(&mut self) {
+        self.on_home_ms = 0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_wallpaper_timer_counts_only_home_time_and_waits_half_a_minute_after_coming_back() {
+        let mut clock = HomeClock::default();
+        assert!(!clock.due(true, 0, 1.0));
+        assert!(!clock.due(false, 50_000, 1.0));
+        assert!(!clock.due(false, 400_000, 1.0));
+        assert!(!clock.due(true, 410_000, 1.0));
+        assert!(!clock.due(true, 430_000, 1.0));
+        assert!(clock.due(true, 441_000, 1.0));
+        clock.changed();
+        assert!(!clock.due(true, 442_000, 1.0));
+        assert!(!clock.due(true, 600_000, 0.0));
+    }
 
     fn picks(keys: &[&str]) -> Vec<String> {
         keys.iter().map(|k| k.to_string()).collect()

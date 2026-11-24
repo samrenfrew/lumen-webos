@@ -110,7 +110,7 @@ pub struct App {
     fetching_wallpaper: bool,
     fetch_wallpapers: bool,
     weather_asked_at: Option<Instant>,
-    wallpaper_changed_at: Instant,
+    wallpaper_clock: wallpaper::HomeClock,
     held_since: Option<u32>,
     touched_at: u32,
     preview: preview::Preview,
@@ -609,13 +609,14 @@ impl App {
 
     fn change_wallpaper_if_due(&mut self) {
         let minutes = self.settings.wp_auto_minutes;
-        if minutes <= 0.0 || self.hidden || self.alone || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
+        let on_home = !self.hidden && self.saver.is_none() && self.guide.is_none() && self.screen.is_none();
+        if !self.wallpaper_clock.due(on_home, ticks(), minutes) {
             return;
         }
-        if self.wallpaper_changed_at.elapsed().as_secs_f64() < minutes * 60.0 {
+        if self.alone || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
-        self.wallpaper_changed_at = Instant::now();
+        self.wallpaper_clock.changed();
         self.fetch_wallpaper(false);
     }
 
@@ -1162,7 +1163,7 @@ fn run() -> i32 {
         fetching_wallpaper: false,
         fetch_wallpapers: !taking_a_shot,
         weather_asked_at: None,
-        wallpaper_changed_at: Instant::now(),
+        wallpaper_clock: wallpaper::HomeClock::default(),
         held_since: None,
         touched_at: 0,
         preview: preview::Preview::new(),
