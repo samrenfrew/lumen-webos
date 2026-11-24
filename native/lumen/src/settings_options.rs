@@ -274,7 +274,7 @@ pub fn options(config: &Value, facts: &Facts) -> Vec<Opt> {
     }
 
     r.switch("reduce-motion", Group::Appearance, "Reduce motion", "Focus, rows and panels change at once, without sliding, fading or zooming.", "reduceMotion", false);
-    r.switch("liquid-glass", Group::Appearance, "Liquid glass", "The glass bends the picture behind it at its edges, with a faint colour fringe, on the app bar and the button in focus.", "liquidGlass", false);
+    r.switch("liquid-glass", Group::Appearance, "Liquid glass", "The glass bends the picture behind it at its edges, with a faint colour fringe, on the app bar and every glass button.", "liquidGlass", false);
 
     let shown_key = if immich.key.is_empty() { "Not set".to_string() } else { format!("\u{2022}\u{2022}\u{2022}\u{2022} {}", immich.key.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect::<String>()) };
     r.out.push(Opt { id: "immich-url", group: Group::Photos, label: "Server address".into(), description: "Your Immich server as you would open it in a browser at home: scheme, address and port, for example http://192.168.1.10:2283.".into(), value: if immich.url.is_empty() { "Not set".into() } else { immich.url.clone() }, kind: Kind::Text { value: immich.url.clone(), placeholder: "http://192.168.1.10:2283" } });

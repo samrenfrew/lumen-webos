@@ -285,7 +285,7 @@ impl Draw {
         let p = &self.p.glass;
         p.bind(0, c"u_glass", self.glass_backdrop.tex);
         p.set4(c"u_box", g.x, g.y, g.w, g.h);
-        p.set4(c"u_look", g.radius, g.blur, g.sheen, g.rim);
+        p.set4(c"u_look", g.radius, if self.liquid { 1.0 } else { g.blur }, g.sheen, g.rim);
         p.set3(c"u_tone", [self.look.saturate, self.look.brighten, self.look.tint]);
         p.set1(c"u_alpha", g.alpha);
         p.set1(c"u_shadow_strength", self.look.glass_shadow);
