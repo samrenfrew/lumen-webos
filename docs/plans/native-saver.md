@@ -151,13 +151,19 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
 - Crossfade of a pair: 116 frames in 2.4 s (48 fps), 12 over 20 ms, slowest 27 ms. One earlier run had a single 131 ms frame.
 - Backlight: 52 to 30 one second after it came up, back to 53 (the schedule's level) one second after the key.
 - Over Lumen's own screensaver, watch.sh ended it and the TV closed it without `closeByAppId`.
-- Graphics memory: about 60 MB while up over YouTube (126 to 185), twice the spike's 30 MB. Not yet explained.
+- Graphics memory: 28 MB of its own, the same as the spike. `GPUTotal - GPUCached` rose by about 59 MB (126 to 185), but half of
+  that is the measure, not the app: the driver keeps a pool of freed pages (`GPUCached`, 35 MB before the run) and hands it back
+  to the system when the app starts, so the subtraction counts the pool's loss as use. The driver's own figures are the ones to
+  read: `/sys/kernel/debug/pvr/driver_stats` (`MemoryUsageAllocGPUMemUMA` went 105.8 to 134.1 MB and back) and, per process,
+  `/sys/kernel/debug/pvr/proc_stats/live_pids_stats/process_stats` (lumen-saver: 27.5 MB, 31.4 MB peak) or `/proc/gpu/<pid>`
+  in 4 kB pages (6935 at rest, 7087 in a crossfade). The 180 MB of the web one was measured the old way, so it may be up to a
+  pool's worth (about 35 MB) too high.
 - First picture 3.8 s after launch; building a pair with the Print look takes 300-550 ms of it.
 - Hyperion after the run: Piccap `connected` and `videoRunning` true, `hyperiond` on 19400.
 
 ### Open checks
 
-- **(verify)** Where the extra 30 MB of graphics memory goes, and the start time against the 1.3 s of the spike.
+- **(verify)** The start time (3.8 s) against the 1.3 s of the spike.
 - **(verify)** Graphics memory while up, against the 30 MB of spike A and the 180 MB of the web one (plan part E).
 - **(verify)** The look against Lumen's own screensaver side by side: clock, date, weather line, both forecast sizes, Print look.
 - **(verify)** Backlight dims and comes back, over Live TV (input `dtv`) and over an app (input `default`).
