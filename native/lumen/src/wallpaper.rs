@@ -88,7 +88,7 @@ pub fn plain(w: i32, h: i32) -> Vec<u8> {
     rgba
 }
 
-pub const SETTLE_ON_HOME_MS: u64 = 30_000;
+pub const SETTLE_ON_HOME_MS: u64 = 10_000;
 
 #[derive(Default)]
 pub struct HomeClock {
@@ -142,14 +142,14 @@ mod tests {
     }
 
     #[test]
-    fn the_wallpaper_timer_counts_only_home_time_and_waits_half_a_minute_after_coming_back() {
+    fn the_wallpaper_timer_counts_only_home_time_and_waits_ten_seconds_after_coming_back() {
         let mut clock = HomeClock::default();
         assert!(!clock.due(true, 0, 1.0));
         assert!(!clock.due(false, 50_000, 1.0));
         assert!(!clock.due(false, 400_000, 1.0));
         assert!(!clock.due(true, 410_000, 1.0));
-        assert!(!clock.due(true, 430_000, 1.0));
-        assert!(clock.due(true, 441_000, 1.0));
+        assert!(!clock.due(true, 419_000, 1.0));
+        assert!(clock.due(true, 421_000, 1.0));
         clock.changed();
         assert!(!clock.due(true, 442_000, 1.0));
         assert!(!clock.due(true, 600_000, 0.0));
