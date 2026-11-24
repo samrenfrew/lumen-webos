@@ -62,7 +62,7 @@ void settings_load(const char *app_dir, Settings *s) {
     cJSON_Delete(file);
     s->forecast_large = s->saver_forecast && !strcmp(size, "large");
     int h = local_hour();
-    s->dark = !strcmp(dark_mode, "off") ? 0 : !strcmp(dark_mode, "auto") ? (h >= 19 || h < 7) : 1;
+    s->dark = !strcmp(dark_mode, "off") ? 0 : !strcmp(dark_mode, "auto") ? (h >= 19 || h < 6) : 1;
 
     cJSON *tv = read_json(app_dir, "tv.json");
     if (tv) {
