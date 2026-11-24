@@ -831,6 +831,15 @@ impl Home {
         None
     }
 
+    pub fn go_to_bar(&mut self, d: &Draw, now: u32) {
+        let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
+        self.engaged = true;
+        self.zone = Zone::Rows;
+        let col = self.place_of(self.focus).1;
+        self.focus = col.min(self.bar_count.saturating_sub(1));
+        self.animate_to_state(d, was_lower, was_shift, now);
+    }
+
     pub fn go_home(&mut self, d: &Draw, now: u32) {
         let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
         self.zone = Zone::Rows;

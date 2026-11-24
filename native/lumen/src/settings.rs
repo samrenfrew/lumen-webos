@@ -10,6 +10,7 @@ pub enum ClockFormat {
 #[derive(Clone, PartialEq, Debug)]
 pub struct Settings {
     pub app_ids: Vec<String>,
+    pub source_ids: Vec<String>,
     pub first_row: usize,
     pub clock_format: ClockFormat,
     pub show_am_pm: bool,
@@ -48,6 +49,7 @@ impl Settings {
     pub fn defaults() -> Settings {
         Settings {
             app_ids: Vec::new(),
+            source_ids: Vec::new(),
             first_row: 6,
             clock_format: ClockFormat::FollowTv,
             show_am_pm: true,
@@ -75,6 +77,7 @@ impl Settings {
         let defaults = Settings::defaults();
         Some(Settings {
             app_ids: strings(&saved["appIds"]).unwrap_or(defaults.app_ids),
+            source_ids: strings(&saved["sourceIds"]).unwrap_or(defaults.source_ids),
             first_row: match saved["firstRow"].as_u64() {
                 Some(5) => 5,
                 Some(7) => 7,

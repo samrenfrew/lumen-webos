@@ -4,6 +4,7 @@ mod bus;
 mod clock;
 #[cfg(feature = "dev")]
 mod control;
+mod control_center;
 mod draw;
 mod ffi;
 mod gfx;
@@ -62,10 +63,15 @@ pub fn post(job: impl FnOnce(&mut App) + Send + 'static) {
     unsafe { SDL_PushEvent(&mut wake) };
 }
 
+pub fn wake() {
+    post(|app| app.redraw = true);
+}
+
 pub struct App {
     window: *mut SDL_Window,
     draw: Draw,
     home: Home,
+    panel: Option<control_center::ControlCenter>,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -352,6 +358,8 @@ impl App {
     fn act(&mut self, action: Action) {
         match action {
             Action::Open(id) => self.open(id),
+            Action::Top("controls") => self.open_panel(control_center::Kind::Controls),
+            Action::Top("inputs") => self.open_panel(control_center::Kind::Inputs(self.settings.source_ids.clone())),
             Action::Top(which) => {
                 note!("top: {}", which);
                 self.home.toast(&format!("{} is not built yet", home::TOP_ITEMS.iter().find(|t| t.0 == which).map_or(which, |t| t.1)), false, ticks());
@@ -409,6 +417,47 @@ impl App {
                     })
                 });
             }
+        }
+    }
+
+    fn open_panel(&mut self, kind: control_center::Kind) {
+        let clock = match self.settings.clock_format {
+            ClockFormat::Twelve => "12h",
+            ClockFormat::TwentyFour => "24h",
+            ClockFormat::FollowTv => "auto",
+        };
+        self.panel = Some(control_center::ControlCenter::new(kind, clock, ticks()));
+        self.redraw = true;
+    }
+
+    fn panel_key(&mut self, key: Key) {
+        let Some(panel) = self.panel.as_mut() else { return };
+        self.redraw = true;
+        match panel.key(&self.draw, key, ticks()) {
+            control_center::Outcome::Stay => {}
+            control_center::Outcome::Close => self.panel = None,
+            control_center::Outcome::CloseDown => {
+                self.panel = None;
+                self.home.go_to_bar(&self.draw, ticks());
+            }
+            control_center::Outcome::Open(id) => {
+                self.panel = None;
+                self.open(id);
+            }
+            control_center::Outcome::Action(what) => {
+                self.panel = None;
+                match what {
+                    "lg-home" => self.open("com.webos.app.home".to_string()),
+                    other => self.home.toast(&format!("{other} is not built yet"), false, ticks()),
+                }
+            }
+            control_center::Outcome::Setting(name, value) => {
+                self.edit_settings(|c| {
+                    c.insert(name.to_string(), value);
+                });
+                self.tick_clock();
+            }
+            control_center::Outcome::Toast(text, error) => self.home.toast(&text, error, ticks()),
         }
     }
 
@@ -483,6 +532,9 @@ impl App {
     }
 
     fn key(&mut self, key: Key) {
+        if self.panel.is_some() {
+            return self.panel_key(key);
+        }
         self.redraw = true;
         if let Some(action) = self.home.key(&self.draw, key, ticks()) {
             self.act(action);
@@ -493,7 +545,7 @@ impl App {
         if self.held_since.is_some() {
             return;
         }
-        if !self.home.can_hold() {
+        if self.panel.is_some() || !self.home.can_hold() {
             return self.key(Key::Ok);
         }
         self.held_since = Some(ticks());
@@ -564,8 +616,19 @@ impl App {
         })
     }
 
-    fn frame_pixels(&mut self, now: u32) -> *mut SDL_Surface {
+    fn draw_frame(&mut self, now: u32) {
         self.home.draw(&mut self.draw, now);
+        if let Some(panel) = self.panel.as_mut() {
+            panel.draw(&mut self.draw, now);
+        }
+    }
+
+    fn moving(&self, now: u32) -> bool {
+        self.home.moving(now) || self.panel.as_ref().is_some_and(|p| p.moving(now))
+    }
+
+    fn frame_pixels(&mut self, now: u32) -> *mut SDL_Surface {
+        self.draw_frame(now);
         unsafe { glFinish() }
         self.draw.gfx.read_screen()
     }
@@ -576,7 +639,10 @@ impl App {
         let mut words = line.splitn(3, ' ');
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
-            "where" => said(&answer, self.home.where_now()),
+            "where" => said(&answer, match &self.panel {
+                Some(panel) => panel.where_now(),
+                None => self.home.where_now(),
+            }),
             "stats" => said(&answer, self.stats()),
             "get" => said(&answer, Look::names().iter().map(|name| (name.to_string(), json!(self.draw.look.get(name)))).collect::<serde_json::Map<_, _>>().into()),
             "set" | "reset" => {
@@ -664,9 +730,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
             "--against" => against = rest.next().cloned(),
             "hold" => app.home.hold(&app.draw, 1000),
             name => match key_named(name) {
-                Some(key) => {
-                    let _ = app.home.key(&app.draw, key, 1000);
-                }
+                Some(key) => app.key(key),
                 None if out.is_none() => out = Some(name.to_string()),
                 None => {}
             },
@@ -804,6 +868,7 @@ fn run() -> i32 {
         window,
         draw: Draw::new(screen_w, screen_h, &app_dir, look),
         home: Home::new(),
+        panel: None,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),
@@ -884,7 +949,7 @@ fn run() -> i32 {
             app.write_boot_line();
         }
         let now = ticks();
-        let moving = app.home.moving(now);
+        let moving = app.moving(now);
         if !moving && app.home.move_ended(now) {
             app.redraw = true;
         }
@@ -902,7 +967,7 @@ fn run() -> i32 {
         app.redraw = false;
 
         let draw_from = unsafe { SDL_GetPerformanceCounter() };
-        app.home.draw(&mut app.draw, now);
+        app.draw_frame(now);
         if app.draw.look.finish != 0.0 {
             unsafe { glFinish() }
         }
