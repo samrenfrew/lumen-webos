@@ -2,6 +2,7 @@ mod anim;
 mod apps;
 mod bus;
 mod clock;
+mod compose;
 #[cfg(feature = "dev")]
 mod control;
 mod control_center;
@@ -11,8 +12,11 @@ mod gfx;
 mod home;
 mod livetv;
 mod look;
+mod picker;
 mod pictures;
 mod root;
+mod saver;
+mod saver_mode;
 mod settings;
 mod settings_screen;
 mod shaders;
@@ -75,6 +79,8 @@ pub struct App {
     home: Home,
     panel: Option<control_center::ControlCenter>,
     screen: Option<settings_screen::SettingsScreen>,
+    saver: Option<saver::Saver>,
+    alone: bool,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -233,6 +239,9 @@ impl App {
     }
 
     fn show_apps(&mut self) {
+        if self.alone {
+            return;
+        }
         let listed = apps::listed(&self.launch_points, &self.known);
         let chosen = if self.settings.app_ids.is_empty() { listed.iter().take(APPS_WITHOUT_SETTINGS).cloned().collect() } else { apps::in_order(&listed, &self.settings.app_ids) };
         let mut to_copy = Vec::new();
@@ -275,7 +284,7 @@ impl App {
     }
 
     fn tick_clock(&mut self) -> u32 {
-        if self.is_night() != self.home.night && self.fixed_clock.is_none() {
+        if self.is_night() != self.home.night && self.fixed_clock.is_none() && !self.alone {
             self.home.night = self.is_night();
             self.show_wallpaper();
         }
@@ -290,6 +299,9 @@ impl App {
         let period = if self.settings.show_am_pm && self.fixed_clock.is_none() { period } else { "" };
         self.home.twenty_four_hour = twenty_four_hour;
         self.home.unix_now = if self.fixed_clock.is_some() { FIXED_UNIX_NOW } else { clock::unix_now() };
+        if let Some(s) = self.saver.as_mut() {
+            (s.clock, s.twenty_four_hour, s.unix_now) = ((time.clone(), period.to_string(), date.clone()), twenty_four_hour, self.home.unix_now);
+        }
         if self.home.set_clock(time, period.to_string(), date) {
             self.redraw = true;
         }
@@ -320,7 +332,7 @@ impl App {
 
     fn ask_for_weather(&mut self) {
         let city = self.settings.weather_city.clone();
-        let wanted = self.settings.show_weather || self.settings.home_forecast != settings::Forecast::Off;
+        let wanted = self.settings.show_weather || self.settings.home_forecast != settings::Forecast::Off || self.settings.saver_forecast != settings::Forecast::Off;
         if city.is_empty() || !wanted || !self.fetch_wallpapers {
             return;
         }
@@ -534,7 +546,7 @@ impl App {
 
     fn change_wallpaper_if_due(&mut self) {
         let minutes = self.settings.wp_auto_minutes;
-        if minutes <= 0.0 || self.hidden || self.fetching_wallpaper || !self.fetch_wallpapers || self.settings.wallpaper_type != "pictures" {
+        if minutes <= 0.0 || self.hidden || self.alone || self.fetching_wallpaper || !self.fetch_wallpapers || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
         if self.wallpaper_changed_at.elapsed().as_secs_f64() < minutes * 60.0 {
@@ -555,8 +567,8 @@ impl App {
     }
 
     fn fetch_a_wallpaper_if_wanted(&mut self) {
-        // ponytail: pictures only, fetched at start; Immich, plain, and a new picture every few minutes come with the wallpaper settings
-        if !self.fetch_wallpapers || self.fetching_wallpaper || self.settings.wallpaper_type != "pictures" {
+        // ponytail: plain comes with the wallpaper settings
+        if !self.fetch_wallpapers || self.alone || self.fetching_wallpaper || !matches!(self.settings.wallpaper_type.as_str(), "pictures" | "immich") {
             return;
         }
         let as_next = store::has(wallpaper::SHOWN);
@@ -567,6 +579,18 @@ impl App {
     }
 
     fn fetch_wallpaper(&mut self, as_next: bool) {
+        if self.settings.wallpaper_type == "immich" {
+            self.fetching_wallpaper = true;
+            return saver::fetch_immich_wallpaper(&self.draw.app_dir, saver_mode::wallpaper_wants(&self.settings), as_next, move |fetched| {
+                note!("wallpaper from Immich: {}", fetched.as_ref().map_or_else(|why| why.as_str(), |_| if as_next { "kept for the next launch" } else { "fetched" }));
+                post(move |app| {
+                    app.fetching_wallpaper = false;
+                    if fetched.is_ok() && !as_next {
+                        app.show_wallpaper();
+                    }
+                });
+            });
+        }
         let shown = store::read(wallpaper::SHOWN_PICK);
         let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
         let known_picks: Vec<String> = self.settings.wallpaper_picks.iter().filter(|pick| wallpaper::url_of(&listed, pick).is_some()).cloned().collect();
@@ -586,6 +610,9 @@ impl App {
     }
 
     fn key(&mut self, key: Key) {
+        if self.saver.is_some() {
+            return self.saver_key(key);
+        }
         if self.screen.is_some() {
             return self.screen_key(key);
         }
@@ -599,7 +626,7 @@ impl App {
     }
 
     fn pointer_moved(&mut self, x: i32, y: i32) {
-        if self.screen.is_some() || self.panel.is_some() || self.hidden {
+        if self.screen.is_some() || self.panel.is_some() || self.saver.is_some() || self.hidden {
             return;
         }
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
@@ -610,14 +637,14 @@ impl App {
 
     fn pointer_on_something(&self, x: i32, y: i32) -> bool {
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
-        self.panel.is_some() || self.home.hit(dx, dy, ticks()).is_some() || !self.home.resting_zone()
+        self.panel.is_some() || self.saver.is_some() || self.home.hit(dx, dy, ticks()).is_some() || !self.home.resting_zone()
     }
 
     fn ok_down(&mut self) {
         if self.held_since.is_some() {
             return;
         }
-        if self.screen.is_some() || self.panel.is_some() || !self.home.can_hold() {
+        if self.screen.is_some() || self.panel.is_some() || self.saver.is_some() || !self.home.can_hold() {
             return self.key(Key::Ok);
         }
         self.held_since = Some(ticks());
@@ -646,6 +673,9 @@ impl App {
     }
 
     fn relaunched(&mut self, parameters: Value) {
+        if self.alone {
+            return note!("relaunch {}: already up as the screensaver", parameters);
+        }
         #[cfg(feature = "webos")]
         let came_forward = unsafe { lumen_shell_state(SHELL_FULL_SCREEN) };
         #[cfg(not(feature = "webos"))]
@@ -677,7 +707,8 @@ impl App {
                     self.open_panel(control_center::Kind::Controls);
                 }
             }
-            // ponytail: "guide" opens the Guide and "ambient" the screensaver once those screens are built
+            Some("ambient") => self.open_saver(),
+            // ponytail: "guide" opens the Guide once that screen is built
             Some(other) => note!("view {}: not built yet", other),
         }
         self.redraw = true;
@@ -685,7 +716,9 @@ impl App {
 
     fn window_event(&mut self, event: u8) {
         match event {
+            SDL_WINDOWEVENT_FOCUS_LOST if self.alone => note!("focus lost: the screensaver stays until a key"),
             SDL_WINDOWEVENT_FOCUS_LOST => {
+                self.close_saver();
                 self.hidden = true;
                 self.home.hidden(&mut self.draw);
                 note!("hidden: {} kB of pictures kept", (self.draw.pictures.bytes() + self.home.backdrop_bytes()) / 1024);
@@ -714,6 +747,9 @@ impl App {
     }
 
     fn draw_frame(&mut self, now: u32) {
+        if self.saver.is_some() {
+            return self.draw_saver(now);
+        }
         if let Some(screen) = self.screen.as_mut() {
             self.draw.pictures.next_frame();
             self.draw.gfx.into_screen();
@@ -733,6 +769,9 @@ impl App {
     }
 
     fn moving(&self, now: u32) -> bool {
+        if let Some(moving) = self.saver_moving(now) {
+            return moving;
+        }
         if let Some(screen) = &self.screen {
             return screen.moving(now) || self.home.toast_showing(now);
         }
@@ -751,6 +790,7 @@ impl App {
         let mut words = line.splitn(3, ' ');
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
+            "where" if self.saver.is_some() => said(&answer, self.saver.as_ref().map_or(Value::Null, |s| s.where_now(ticks()))),
             "where" => said(&answer, match (&self.screen, &self.panel) {
                 (Some(screen), _) => screen.where_now(),
                 (None, Some(panel)) => panel.where_now(),
@@ -842,6 +882,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
             "--at" => at_ms = rest.next().and_then(|ms| ms.parse().ok()).unwrap_or(SHOT_SETTLED_MS),
             "--against" => against = rest.next().cloned(),
             "hold" => app.home.hold(&app.draw, 1000),
+            "saver" => app.open_saver_for_shot(),
             name => match key_named(name) {
                 Some(key) => app.key(key),
                 None if out.is_none() => out = Some(name.to_string()),
@@ -904,6 +945,7 @@ fn run() -> i32 {
     util::init();
     let args: Vec<String> = std::env::args().collect();
     let taking_a_shot = args.get(1).is_some_and(|a| a == "--shot");
+    let alone = saver_mode::runs_alone(&args);
     note!("start: {}", args.get(1).map_or("no launch argument", String::as_str));
     let start_view = args.get(1).and_then(|launch| launch_view(launch));
 
@@ -912,7 +954,10 @@ fn run() -> i32 {
     unsafe {
         lumen_abi_checked();
         SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_BACK".as_ptr(), c"true".as_ptr());
-        if bus::start(APP_ID) {
+        if alone {
+            SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_EXIT".as_ptr(), c"true".as_ptr());
+        }
+        if bus::start(if alone { saver_mode::SAVER_APP_ID } else { APP_ID }) {
             bus::subscribe(REGISTER, json!({}), heard_from_the_app_manager);
         }
         if SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0 {
@@ -956,7 +1001,7 @@ fn run() -> i32 {
             return 1;
         }
         #[cfg(feature = "webos")]
-        match lumen_claim_window(window) {
+        match lumen_claim_window(window, alone as c_int) {
             1 => note!("window: no wayland info"),
             2 => note!("window: no wl_webos_shell"),
             _ => {}
@@ -981,6 +1026,8 @@ fn run() -> i32 {
         home: Home::new(),
         panel: None,
         screen: None,
+        saver: None,
+        alone,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),
@@ -1003,9 +1050,13 @@ fn run() -> i32 {
         boot_written: false,
     };
     app.mark("programs");
-    app.load_kept();
-    app.refresh_from_tv();
-    if start_view.is_some() {
+    if alone {
+        app.start_alone();
+    } else {
+        app.load_kept();
+        app.refresh_from_tv();
+    }
+    if start_view.is_some() && !alone {
         app.apply_view(start_view.as_deref());
     }
 
@@ -1083,6 +1134,10 @@ fn run() -> i32 {
         }
 
         let until_next_minute = app.tick_clock();
+        let saver_wait = app.tick_saver(ticks());
+        if !app.running {
+            break;
+        }
         app.change_wallpaper_if_due();
         let hold_wait = app.hold_wait_ms();
         if !app.boot_written && first_frame_shown && app.began.elapsed().as_millis() >= BOOT_WINDOW_MS {
@@ -1097,6 +1152,9 @@ fn run() -> i32 {
             wait_ms = if app.boot_written { until_next_minute } else { until_next_minute.min(1000) };
             if let Some(hold) = hold_wait {
                 wait_ms = wait_ms.min(hold.max(1));
+            }
+            if let Some(saver) = saver_wait {
+                wait_ms = wait_ms.min(saver.max(1));
             }
             if app.settings.wp_auto_minutes > 0.0 {
                 wait_ms = wait_ms.min(30_000);

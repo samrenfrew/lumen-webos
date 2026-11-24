@@ -20,9 +20,16 @@ pub fn init() {
 }
 
 pub fn http_get(url: &str) -> Result<Vec<u8>, String> {
-    let c_url = std::ffi::CString::new(url).map_err(|_| "bad url".to_string())?;
+    http_request(url, None, None)
+}
+
+pub fn http_request(url: &str, key: Option<&str>, post_json: Option<&str>) -> Result<Vec<u8>, String> {
+    use std::ffi::CString;
+    let c_url = CString::new(url).map_err(|_| "bad url".to_string())?;
+    let c_key = key.map(CString::new).transpose().map_err(|_| "bad key".to_string())?;
+    let c_body = post_json.map(CString::new).transpose().map_err(|_| "bad body".to_string())?;
     let (mut data, mut len) = (std::ptr::null_mut(), 0usize);
-    let status = unsafe { crate::ffi::lumen_http_get(c_url.as_ptr(), &mut data, &mut len) };
+    let status = unsafe { crate::ffi::lumen_http_request(c_url.as_ptr(), c_key.as_ref().map_or(std::ptr::null(), |k| k.as_ptr()), c_body.as_ref().map_or(std::ptr::null(), |b| b.as_ptr()), &mut data, &mut len) };
     if status != 200 || data.is_null() {
         return Err(format!("status {status}"));
     }

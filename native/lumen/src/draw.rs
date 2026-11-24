@@ -87,8 +87,20 @@ pub struct Draw {
 
 pub fn decoded(path: &str) -> Option<Decoded> {
     let c_path = CString::new(path).ok()?;
+    let loaded = unsafe { IMG_Load(c_path.as_ptr()) };
+    rgba_of(loaded)
+}
+
+pub fn decoded_bytes(bytes: &[u8]) -> Option<Decoded> {
+    let reader = unsafe { SDL_RWFromConstMem(bytes.as_ptr().cast(), bytes.len() as i32) };
+    if reader.is_null() {
+        return None;
+    }
+    rgba_of(unsafe { IMG_Load_RW(reader, 1) })
+}
+
+fn rgba_of(loaded: *mut SDL_Surface) -> Option<Decoded> {
     unsafe {
-        let loaded = IMG_Load(c_path.as_ptr());
         if loaded.is_null() {
             return None;
         }

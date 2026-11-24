@@ -293,12 +293,14 @@ extern "C" {
     pub fn SDL_UpperBlitScaled(src: *mut SDL_Surface, src_rect: *const SDL_Rect, dst: *mut SDL_Surface, dst_rect: *mut SDL_Rect) -> c_int;
     pub fn SDL_WaitEventTimeout(event: *mut SDL_Event, timeout: c_int) -> c_int;
     pub fn SDL_free(mem: *mut c_void);
+    pub fn SDL_RWFromConstMem(mem: *const c_void, size: c_int) -> *mut c_void;
 }
 
 #[link(name = "SDL2_image")]
 extern "C" {
     pub fn IMG_Init(flags: c_int) -> c_int;
     pub fn IMG_Load(path: *const c_char) -> *mut SDL_Surface;
+    pub fn IMG_Load_RW(src: *mut c_void, free_src: c_int) -> *mut SDL_Surface;
     pub fn IMG_Quit();
     pub fn IMG_SavePNG(surface: *mut SDL_Surface, path: *const c_char) -> c_int;
 }
@@ -307,7 +309,7 @@ extern "C" {
     pub fn getuid() -> u32;
     pub fn lumen_abi_checked() -> c_int;
     #[cfg(feature = "webos")]
-    pub fn lumen_claim_window(window: *mut SDL_Window) -> c_int;
+    pub fn lumen_claim_window(window: *mut SDL_Window, overlay: c_int) -> c_int;
 }
 
 extern "C" {
@@ -315,6 +317,7 @@ extern "C" {
     pub fn lumen_text_free(rgba: *mut u8);
     pub fn lumen_local_time(unix_seconds: i64, out: *mut c_int);
     pub fn lumen_http_get(url: *const c_char, data: *mut *mut u8, len: *mut usize) -> c_long;
+    pub fn lumen_http_request(url: *const c_char, key: *const c_char, post_json: *const c_char, data: *mut *mut u8, len: *mut usize) -> c_long;
     pub fn lumen_http_free(data: *mut u8);
 }
 

@@ -6,6 +6,7 @@ const HOMEHOOK: &str = "/var/lib/homehook";
 const LOG: &str = "/var/lib/homehook/lumen.log";
 const LOG_MAX_BYTES: usize = 64 * 1024;
 const SHARED_FILES: [&str; 2] = ["lumen-config.json", "recent"];
+const IMMICH_SERVER: &str = "immich.json";
 const SHARED_LOGOS: &str = "/var/lib/homehook/logos";
 const PROGRAM_PF: &str = "com.webos.service.legacybroadcast.programPF:4";
 const PF_FIELDS: [&str; 5] = ["signalChannelId", "programName", "startTime", "endTime", "isPresent"];
@@ -114,6 +115,20 @@ fn copy_shared_file_command(name: &str, into_dir: &str) -> Option<String> {
     Some(format!("cp -f {} {}", shell_quote(&format!("{HOMEHOOK}/{name}")), shell_quote(&format!("{into_dir}/{name}"))))
 }
 
+fn own_tmp_folder(dir: &str) -> bool {
+    dir.strip_prefix("/tmp/lumen-native-").is_some_and(|uid| !uid.is_empty() && uid.len() <= 10 && uid.bytes().all(|b| b.is_ascii_digit()))
+}
+
+fn copy_immich_server_command(into_dir: &str) -> Option<String> {
+    if !own_tmp_folder(into_dir) {
+        return None;
+    }
+    let part = format!("{into_dir}/{IMMICH_SERVER}.part");
+    Some(format!(
+        "[ -f {HOMEHOOK}/{IMMICH_SERVER} ] || exit 0; cp -f {HOMEHOOK}/{IMMICH_SERVER} {part} && chown $(stat -c %u {into_dir}) {part} && chmod 600 {part} && mv -f {part} {into_dir}/{IMMICH_SERVER}"
+    ))
+}
+
 fn copy_icons_command(icons: &[(String, String)], into_dir: &str) -> Option<String> {
     if !plain_absolute_path(into_dir) {
         return None;
@@ -167,6 +182,10 @@ fn run(command: Option<String>, timeout_ms: i32, then: impl FnOnce(Result<String
 
 pub fn copy_shared_file(name: &str, into_dir: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
     run(copy_shared_file_command(name, into_dir), 6000, then);
+}
+
+pub fn copy_immich_server(into_dir: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
+    run(copy_immich_server_command(into_dir), 6000, then);
 }
 
 pub fn copy_icons(icons: &[(String, String)], into_dir: &str, then: impl FnOnce(Result<String, String>) + Send + 'static) {
@@ -228,6 +247,17 @@ mod tests {
         assert_eq!(copy_shared_file_command("lumen-config.json", "/media/developer/lumen").as_deref(), Some("cp -f '/var/lib/homehook/lumen-config.json' '/media/developer/lumen/lumen-config.json'"));
         assert_eq!(copy_shared_file_command("../../etc/shadow", "/media/developer/lumen"), None);
         assert_eq!(copy_shared_file_command("recent", "/tmp/a b"), None);
+    }
+
+    #[test]
+    fn the_immich_key_is_copied_only_into_the_apps_own_folder_and_left_readable_by_that_app_alone() {
+        assert_eq!(
+            copy_immich_server_command("/tmp/lumen-native-6220").as_deref(),
+            Some("[ -f /var/lib/homehook/immich.json ] || exit 0; cp -f /var/lib/homehook/immich.json /tmp/lumen-native-6220/immich.json.part && chown $(stat -c %u /tmp/lumen-native-6220) /tmp/lumen-native-6220/immich.json.part && chmod 600 /tmp/lumen-native-6220/immich.json.part && mv -f /tmp/lumen-native-6220/immich.json.part /tmp/lumen-native-6220/immich.json")
+        );
+        for elsewhere in ["/media/developer/lumen", "/tmp/lumen-native-", "/tmp/lumen-native-1/../x", "/tmp/lumen-native-1;reboot"] {
+            assert_eq!(copy_immich_server_command(elsewhere), None, "{elsewhere}");
+        }
     }
 
     #[test]
