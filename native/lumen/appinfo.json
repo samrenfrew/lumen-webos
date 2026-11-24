@@ -4,7 +4,7 @@
   "vendor": "samrenfrew",
   "type": "native",
   "main": "lumen",
-  "title": "Lumen Native",
+  "title": "Home",
   "appDescription": "Lumen, rewritten as a native app. The home screen so far.",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",

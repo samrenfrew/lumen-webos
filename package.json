@@ -5,10 +5,9 @@
   "scripts": {
     "build:ipk": "sh tools/build_ipk.sh",
     "deploy": "sh tools/deploy.sh",
-    "deploy:home": "LUMEN_APP_ID=com.samrenfrew.lumen LUMEN_APP_TITLE=Home LUMEN_DEV=1 sh tools/deploy.sh && LUMEN_SIDE_IF_INSTALLED=1 sh tools/deploy_guide.sh && LUMEN_SIDE_IF_INSTALLED=1 sh tools/deploy_quick.sh && LUMEN_SIDE_IF_INSTALLED=1 sh tools/deploy_saver.sh",
+    "deploy:home": "LUMEN_APP_ID=com.samrenfrew.lumen LUMEN_APP_TITLE=Home LUMEN_DEV=1 sh tools/deploy.sh && LUMEN_SIDE_IF_INSTALLED=1 sh tools/deploy_guide.sh && LUMEN_SIDE_IF_INSTALLED=1 sh tools/deploy_quick.sh",
     "deploy:guide": "sh tools/deploy_guide.sh",
     "deploy:quick": "sh tools/deploy_quick.sh",
-    "deploy:saver": "sh tools/deploy_saver.sh",
     "deploy:ntest": "sh tools/deploy_ntest.sh",
     "deploy:rtest": "sh tools/deploy_rtest.sh",
     "deploy:native": "sh tools/deploy_native.sh",

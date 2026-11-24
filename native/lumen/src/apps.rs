@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn lumen_itself_and_entries_with_no_id_or_title_are_left_out() {
         let apps = listed(&json!({"launchPoints": [
-            {"id": "com.samrenfrew.lumen.native", "title": "Lumen Native"},
+            {"id": "com.samrenfrew.lumen.native", "title": "Home"},
             {"id": "", "title": "Nameless"},
             {"id": "untitled"},
             {"id": "kept", "title": "Kept"}

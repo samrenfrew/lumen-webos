@@ -1,4 +1,5 @@
-# Builds the public .ipk files, Lumen and its side apps: Lumen Guide, Lumen Quick Settings and Lumen Screensaver (no app/private/).
+# Builds the public .ipk files, Lumen and its side apps: Lumen Guide and Lumen Quick Settings (no app/private/).
+#  Lumen Screensaver is part of Lumen Native now (native/lumen/), which this workflow does not build yet: phase 7 of docs/plans/native-rewrite.md.
 #  - a push to main: a stable release. The version comes from appinfo.json; if that tag exists, the patch number goes up to the next free one.
 #    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. The side apps are built and
 #    published beside Lumen, each with its own version, which goes up only when that app changed (tools/build_release.py,
@@ -27,22 +28,6 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: app/package-lock.json
-      - name: webOS SDK cache
-        # the native screensaver's toolchain (openlgtv/buildroot-nc4 release 2026.08-webos), unpacked and relocated once, then restored from the cache
-        id: sdk-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/toolchains
-          key: webos-sdk-2026.08-webos-x86_64
-      - name: webOS SDK
-        if: steps.sdk-cache.outputs.cache-hit != 'true'
-        run: |
-          mkdir -p ~/toolchains
-          curl -fsSL -o sdk.tar.gz https://github.com/openlgtv/buildroot-nc4/releases/download/2026.08-webos/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz
-          echo "2230a6351e5cce6fcb9d4fdcb4697335f223995401ef969c81744aaeb14c5344  sdk.tar.gz" | sha256sum -c -
-          tar xzf sdk.tar.gz -C ~/toolchains
-          rm sdk.tar.gz
-          ~/toolchains/arm-webos-linux-gnueabi_sdk-buildroot/relocate-sdk.sh
       - name: Version
         # main: the appinfo.json version, or the next free patch above it; a branch: 1.1.0 -> 1.1.0xxx from the run number, so it sorts above the release
         env:
@@ -63,8 +48,7 @@ jobs:
           print(d['version'])
           PY
       - name: Build the .ipk files
-        # the side apps' versions follow the last release's hashes (an empty file on the first release); the native screensaver builds with
-        # the SDK above (tools/build_native_saver.sh runs it in debian:bookworm-slim if the runner's glibc is older than 2.36)
+        # the side apps' versions follow the last release's hashes (an empty file on the first release)
         env:
           LUMEN_DEV: ${{ github.ref_name == 'main' && '0' || '1' }}
           LUMEN_SIDE_STATE: side-state.json
@@ -79,12 +63,11 @@ jobs:
           LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
           GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
           QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
-          SAVER=$(ls release/com.samrenfrew.lumen.native.saver_*.ipk)
           {
             printf 'Built from %s.\n\nInstall: drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen, Settings > Side apps.\n\n' "$GITHUB_SHA"
-            for f in "$LUMEN" "$GUIDE" "$QUICK" "$SAVER"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
+            for f in "$LUMEN" "$GUIDE" "$QUICK"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
           } > notes.md
-          gh release create "v$VERSION" "$LUMEN" "$GUIDE" "$QUICK" "$SAVER" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
+          gh release create "v$VERSION" "$LUMEN" "$GUIDE" "$QUICK" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
       - name: Homebrew Channel repository
         # The Channel reads the index with XHR, so it is served from raw.githubusercontent.com (CORS allowed) on the hbc-repo branch:
         #   https://raw.githubusercontent.com/<repo>/hbc-repo/stable/apps.json
@@ -93,13 +76,12 @@ jobs:
           LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
           GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
           QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
-          SAVER=$(ls release/com.samrenfrew.lumen.native.saver_*.ipk)
           BASE="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/hbc-repo/stable"
           DL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION"
           git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
           git fetch origin hbc-repo && git worktree add hbc origin/hbc-repo || { git worktree add --detach hbc && git -C hbc checkout --orphan hbc-repo && git -C hbc rm -rfq .; }
           rm -rf hbc/stable
           python3 tools/gen_hbc_repo.py "$BASE" hbc/stable "$LUMEN" "$DL/$(basename "$LUMEN")" app/dist "$GUIDE" "$DL/$(basename "$GUIDE")" app/dist-guide \
-            "$QUICK" "$DL/$(basename "$QUICK")" app/dist-quick "$SAVER" "$DL/$(basename "$SAVER")" native/saver/build/pkg
+            "$QUICK" "$DL/$(basename "$QUICK")" app/dist-quick
           cp release/side-apps.json hbc/stable/side-apps.json
           cd hbc && git add -A && git commit -qm "stable: v$VERSION ${GITHUB_SHA:0:7}" && git push origin HEAD:hbc-repo

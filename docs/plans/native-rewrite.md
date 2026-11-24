@@ -22,6 +22,8 @@ working on the TV. This is the spec for rewriting Lumen and its side apps as nat
   this was written) and gets no fixes. The README says which is which.
 - **One TV.** The native build targets the LG 43UT91006LA on webOS 25 only: its PowerVR chip, its SDL 2.0.14 and its glibc 2.35.
 
+- **Its title is "Home" (Sam, 2026-11-24)**, as the web Lumen's is, because Home Assistant automations go by the app's name.
+  The id stays `com.samrenfrew.lumen.native`.
 - **The web Lumen is off the TV (Sam, 2026-11-24).** Home, Back and power-on point at Lumen Native (`home-setup.sh`), and
   `com.samrenfrew.lumen` was uninstalled so it cannot come back to the front. It stays in the repo and the Channel.
 
@@ -35,8 +37,7 @@ Left out:
 - **Liquid glass, and glass as a setting.** The native Lumen has the one glass the web Lumen shows today. Liquid glass and Dock
   blur are not choices; Liquid glass may come back later.
   Back on 2026-11-24 as Settings > Appearance > Liquid glass, off by default: the app bar and every glass button bend the
-  wallpaper at their rim, over a lighter blur (`bend`, `fringe`, `bezel`, `liquid_blur` in `look.rs`, tunable live with `nctl.mjs set`). **(verify)** the look and
-  the frame times on the TV.
+  wallpaper at their rim, over a lighter blur (`bend`, `fringe`, `bezel`, `liquid_blur` in `look.rs`, tunable live with `nctl.mjs set`). Seen on the TV by Sam (2026-11-24); the values may be tuned later.
 - **The Print look** on the home screen.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.
@@ -142,7 +143,7 @@ Each is small, answers one question on the TV, and is written up in `docs/resear
    with a hole cut in the window. Find out whether both work, and whether the picture under a native window can be read (it
    cannot from a web page). If not, both stay out and glass over video stays a tint.
    **Mostly answered 2026-11-24:** a video plays under the native window (seen by Sam), and the video wallpaper is not ported
-   anyway. The live TV preview's calls work from the native app and the TV reports the picture on screen; (verify) by eye.
+   anyway. The live TV preview's calls work from the native app and the TV reports the picture on screen; Seen by Sam (2026-11-24).
 6. **Text.** A paragraph in each of the nine languages with FreeType and HarfBuzz, beside the web page's.
    **Answered 2026-11-24: yes**, within 2% of the web page's line widths. The SDK has no HarfBuzz; the build links a stand-in.
 7. **The test app's memory.** Why 62 MB, and what one screen-size target costs on this driver.
@@ -174,12 +175,12 @@ reach the native one, so Settings can be ported late.
    re-order and the hold-OK menu, captions, toasts, the pointer, in English. Then the Home
    button points at it and Sam uses it daily.
 3. **Control Center and Inputs**, in Lumen and as Quick Settings over any app. The brightness schedule.
-   **Quick Settings built 2026-11-24 (verify on the TV):** the same program as `com.samrenfrew.lumen.native.quick` (`lumen-quick`,
+   **Quick Settings built 2026-11-24, seen working by Sam:** the same program as `com.samrenfrew.lumen.native.quick` (`lumen-quick`,
    `src/side_apps.rs`), an overlay with the web Quick Settings' layout: Sound, Picture, the backlight and Eye Comfort, All settings,
    Screensaver (opens Lumen Screensaver), Screen off, and Restart, which asks for a second OK. A dark corner sits behind it, and the
    glass is a flat dark tint, since an overlay cannot see the app under it. It closes, not hides, on Back, the gear again and 30 s
    without a key: a native cold open should be fast enough that nothing is kept running. `gear.sh` opens it when installed.
-   **Sleep timer (Sam, 2026-11-24)** takes the light/dark tile's place: it sets the TV's own `sleepTimer` (category `time`), which the TV takes and reads back. (verify) that the TV switches off when it runs out.
+   **Sleep timer (Sam, 2026-11-24)** takes the light/dark tile's place: it sets the TV's own `sleepTimer` (category `time`), which the TV takes and reads back. Seen working by Sam.
 4. **Live TV.** The row, Now and Next, the Full guide, typed channel numbers, and the Guide over Live TV.
    **Data ported 2026-11-24, not yet drawn:** `native/lumen/src/livetv.rs` reads the channels, Now and Next, the guide
    service and the schedule through root (the app's bus role is public only, so it cannot call `iepg` or `epgdb` itself),
@@ -191,10 +192,10 @@ reach the native one, so Settings can be ported late.
    `home-live`, `guide`, `guide-typed`, `guide-full`, `guide-full-later`, from `fixtures/livetv.json`. Not built: the Guide over
    Live TV as its own app (the code runs when launched as `com.samrenfrew.lumen.native.guide`, but nothing packages it), and
    the live preview beside the Guide.
-   **Live previews built 2026-11-24 (verify by eye):** `src/preview.rs` opens `utp.broadcast` on the app's own bus name after 0.6 s on a
+   **Live previews built 2026-11-24, seen by Sam:** `src/preview.rs` opens `utp.broadcast` on the app's own bus name after 0.6 s on a
    channel, places the picture with `wl_webos_exported_set_exported_window` (the TV reports it at the tile's place, doubled for the 4K
    panel), and cuts a hole once `avmutemanager` says the picture is unmuted. Screenshots show the hole black, so only Sam can see it work.
-   **The Guide over Live TV packaged 2026-11-24 (verify on the TV):** `com.samrenfrew.lumen.native.guide` (`lumen-guide`), an
+   **The Guide over Live TV packaged 2026-11-24, seen working by Sam:** `com.samrenfrew.lumen.native.guide` (`lumen-guide`), an
    overlay that opens on Now, or on the Full guide with `{"view":"full"}`. It closes on Back, OK on a channel, LIST again (any
    relaunch) and 30 s without a key, and is never started hidden. `watch.sh` binds LIST and GUIDE to it in Live TV when it is
    installed, in place of the web Lumen Guide. Its panels used to be drawn with no coverage of their own, so they would not have
@@ -210,6 +211,10 @@ reach the native one, so Settings can be ported late.
    known), and the Plain wallpaper draws the web Lumen's soft colour glows.
 6. **The screensaver joins.** `native/saver` becomes a mode of the one program, Lumen's built-in one goes, and the wallpaper and
    the screensaver share the photo picker.
+   **Done 2026-11-24.** The screensaver is a screen of Lumen and the same program packaged as Lumen Screensaver
+   (`src/saver_mode.rs`). The C app in `native/saver/`, its build and deploy scripts and its place in the release workflow are
+   removed; its C files are in the history. The test apps (`com.samrenfrew.lumen.ntest`, `.rtest`) are uninstalled from the
+   TV; their source stays in `native/home/` and `native/rtest/` as the record of the spikes.
 7. **Ship.** The new ids in the release workflow and the Channel, release notes, the README, `CLAUDE.md` and the `tv` skill
    rewritten for native, the web app tagged and frozen, `app/` kept in the repo as the record.
 
@@ -223,8 +228,8 @@ reach the native one, so Settings can be ported late.
 | Live TV and the Guide | `lib/livetv.ts`, `hooks/useLiveTv.ts`, `screens/Guide.tsx`, `FullGuide.tsx`, `guide/` | The largest logic to port. The Full guide draws only the cells in view. |
 | Settings | `screens/Settings.tsx`, `components/SettingsList.tsx`, `lib/storage.ts`, `tvsetup.ts`, `sideapps.ts`, `backup.ts` | Lists of rows on the blurred backdrop: simple to draw, many of them. |
 | Wallpapers | `lib/wallpaper.ts`, `wpstore.ts`, `components/WallpaperPicker.tsx`, `config/wallpapers.ts` | Thumbnails go through the picture cache. |
-| Immich, the screensaver | `lib/immich.ts`, `components/Ambient.tsx` | Done natively in `native/saver` (`picker.c`, `compose.c`, `status.c`). |
-| Weather, clock, languages | `lib/weather.ts`, `clock.ts`, `i18n.ts`, `config/cities.ts` | Weather done in `native/saver/src/weather.c`. Strings are generated from `i18n.ts`, as `tools/gen_saver_look.mjs` does. |
+| Immich, the screensaver | `lib/immich.ts`, `components/Ambient.tsx` | Ported into `native/lumen` (`picker.rs`, `compose.rs`, `saver.rs`). |
+| Weather, clock, languages | `lib/weather.ts`, `clock.ts`, `i18n.ts`, `config/cities.ts` | Weather ported in `native/lumen/src/weather.rs`. Strings are generated from `i18n.ts`, as `tools/gen_saver_look.mjs` does. |
 | Live preview | `components/LivePreview.tsx` | Spike 5. The video wallpaper (`lib/wallpaperVideo.ts`) is not ported. |
 | Root commands | `lib/root.ts` | Same shape, behind whichever route spike 2 picks. |
 | TV scripts | `tools/tv/watch.sh`, `home-setup.sh` | Kept. They learn the new ids, and lose the work a native app can do itself. |
