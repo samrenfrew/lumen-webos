@@ -30,7 +30,7 @@ export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 
 HH="${HH:-/var/lib/homehook}"
 APPS="${APPS:-/media/developer/apps/usr/palm/applications}"
-ME="com.samrenfrew.lumen com.samrenfrew.lumen.dev"
+ME="com.samrenfrew.lumen.native com.samrenfrew.lumen com.samrenfrew.lumen.dev"
 LGHOME=com.webos.app.home
 STOCK="${STOCK:-/etc/palm/bootd.json}"
 OVERRIDE="${OVERRIDE:-/var/luna/preferences/bootd.json}"
