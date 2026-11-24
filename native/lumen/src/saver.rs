@@ -55,7 +55,7 @@ const RAIN_NOTE: Style = Style { ink: RAIN_TEXT, ..CAST_NOTE };
 const RAIN_PERCENT: Style = Style { ink: RAIN_TEXT, ..CAST_TIME };
 const RAIN_TEXT: [f32; 3] = [0.659, 0.847, 1.0];
 const LARGE_COL: f32 = 76.0;
-const LARGE_HOURS: usize = 7;
+pub const LARGE_HOURS: usize = 7;
 const LARGE_HOURS_H: f32 = 18.0 * 1.2 + 2.0 + 3.0 + 32.0 + 3.0 + 26.0 * 1.2 + 8.0 + 46.0;
 const DATE_LINE: f32 = 32.0 * 1.2;
 const CLOCK_BELOW: f32 = BOTTOM - CLOCK_BASELINE;
@@ -442,14 +442,14 @@ impl Saver {
     }
 }
 
-struct Large {
+pub struct Large {
     big: String,
     meta: Option<String>,
     note: Option<String>,
     now_w: f32,
     now_h: f32,
-    height: f32,
-    width: f32,
+    pub height: f32,
+    pub width: f32,
 }
 
 pub fn rain_note(hours: &[weather::Hour], twenty_four_hour: bool) -> Option<String> {
@@ -461,7 +461,7 @@ pub fn high_low(w: &Weather) -> Option<String> {
 }
 
 impl Large {
-    fn lay_out(d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool) -> Large {
+    pub fn lay_out(d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool) -> Large {
         let big = format!("{}°", w.temp);
         let (meta, note) = (high_low(w), rain_note(hours, twenty_four_hour));
         let width_of = |d: &mut Draw, text: &str, style: &Style| d.text(text, style).map_or(0.0, |t| t.advance);
@@ -479,7 +479,7 @@ impl Large {
         Large { big, meta, note, now_w, now_h, height, width: now_w + 57.0 + hours.len() as f32 * LARGE_COL }
     }
 
-    fn draw(&self, d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool, right: f32, bottom: f32, alpha: f32) {
+    pub fn draw(&self, d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool, right: f32, bottom: f32, alpha: f32) {
         let (left, top) = (right - self.width, bottom - self.height);
         let now_top = top + (self.height - self.now_h) / 2.0;
         let hours_top = top + (self.height - LARGE_HOURS_H) / 2.0;

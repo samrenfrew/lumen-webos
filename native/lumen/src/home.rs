@@ -1385,14 +1385,23 @@ impl Home {
         if alpha <= 0.0 {
             return;
         }
-        // ponytail: the large widget draws as the small one; Sam uses the small one on home
+        if self.forecast == Forecast::Large {
+            let hours = weather::hours_ahead(&w, self.unix_now, crate::saver::LARGE_HOURS);
+            if hours.is_empty() {
+                return;
+            }
+            let large = crate::saver::Large::lay_out(d, &w, &hours, self.twenty_four_hour);
+            let shade = self.forecast_shade(d, large.width, large.height);
+            d.picture(shade, ROWS_EDGE - 90.0, CAST_BOTTOM - large.height - 60.0, shade.w as f32, shade.h as f32, alpha);
+            return large.draw(d, &w, &hours, self.twenty_four_hour, ROWS_EDGE + large.width, CAST_BOTTOM, alpha);
+        }
         let hours = weather::hours_ahead(&w, self.unix_now, CAST_HOURS);
         if hours.is_empty() {
             return;
         }
         let width = hours.len() as f32 * (CAST_COL + CAST_GAP) - CAST_GAP;
         let top = CAST_BOTTOM - 103.8;
-        let shade = self.forecast_shade(d, width);
+        let shade = self.forecast_shade(d, width, 103.8);
         d.picture(shade, ROWS_EDGE - 90.0, top - 60.0, shade.w as f32, shade.h as f32, alpha);
         for (i, hour) in hours.iter().enumerate() {
             let centre = ROWS_EDGE + i as f32 * (CAST_COL + CAST_GAP) + CAST_COL / 2.0;
@@ -1445,12 +1454,12 @@ impl Home {
         piece(d, 1.0 - ends / 64.0, 1.0, x + w - ends, ends);
     }
 
-    fn forecast_shade(&mut self, d: &mut Draw, width: f32) -> Tex {
-        let key = format!("shape:castshade:{}", width as i32);
+    fn forecast_shade(&mut self, d: &mut Draw, width: f32, height: f32) -> Tex {
+        let key = format!("shape:castshade:{}x{}", width as i32, height as i32);
         if let Some(p) = d.pictures.find(&key) {
             return p;
         }
-        let (w, h) = ((width + 180.0) as usize, (103.8f32 + 110.0) as usize);
+        let (w, h) = ((width + 180.0) as usize, (height + 110.0) as usize);
         let mut rgba = vec![0u8; w * h * 4];
         for y in 0..h {
             for x in 0..w {
