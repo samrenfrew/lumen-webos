@@ -1558,7 +1558,7 @@ impl SettingsScreen {
                     Icon::Glyph(_) | Icon::Missing => None,
                 };
                 let picture = file.as_deref().and_then(decoded);
-                let bg = colour.or_else(|| picture.as_ref().and_then(|p| background_of(&p.rgba, p.w as usize, p.h as usize))).unwrap_or(TILE_WITHOUT_COLOUR);
+                let bg = picture.as_ref().and_then(|p| background_of(&p.rgba, p.w as usize, p.h as usize)).or(*colour).unwrap_or(TILE_WITHOUT_COLOUR);
                 (picture.or_else(|| Some(Self::monogram(d, title))), bg)
             }
         };
