@@ -75,7 +75,8 @@ Build and install:
 
 ## Open checks
 
-- **(verify)** Back reaches the app and closes it. The key codes the TV sends are logged (`key <n>, scancode <n>`) when unknown.
+- Back reaches the app as scancode 482 with key code 0. Both test apps close on it; seen on the Rust one (`docs/research/spikes.md`, Rust).
+- **(verify)** Back closes the C test app, once it is reinstalled.
 - **(verify)** With the shapes drawn once, real Down, Up, Left and Right moves show every frame (the readout's "frames of").
 - **(verify)** Why the screen is at 50 a second, and whether Lumen's web page is too (`frame-rate.md` assumed 60).
 - **(verify)** Graphics memory while it is up (`/proc/gpu/<pid>` or the driver's `process_stats`), against the web home's 86 MB.

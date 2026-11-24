@@ -520,7 +520,12 @@ static void claim_window(SDL_Window *window) {
 }
 #endif
 
-static int closes(SDL_Keycode key) { return key == SDLK_ESCAPE || key == SDLK_BACKSPACE || key == SDLK_AC_BACK || key == SDLK_q; }
+enum { WEBOS_BACK_SCANCODE = 482 };
+
+static int closes(SDL_Keysym pressed) {
+    SDL_Keycode key = pressed.sym;
+    return key == SDLK_ESCAPE || key == SDLK_BACKSPACE || key == SDLK_AC_BACK || key == SDLK_q || (int)pressed.scancode == WEBOS_BACK_SCANCODE;
+}
 
 int main(int argc, char **argv) {
     Uint32 started_at = SDL_GetTicks();
@@ -630,7 +635,7 @@ int main(int argc, char **argv) {
             if (memcmp(glass_before, glass_after, sizeof glass_before) || strcmp(wallpaper_before, tune.wallpaper)) build_backdrops(screen_w, screen_h);
             if (tune.bezel != baked_bezel) bake_bar();
             redraw = 1;
-            if (closes(key)) { note("close: key %d", (int)key); running = 0; }
+            if (closes(e.key.keysym)) { note("close: key %d, scancode %d", (int)key, (int)e.key.keysym.scancode); running = 0; }
             else if (key == SDLK_LEFT && focus_col > 0) { move_begins("Left", now); focus_on(focus_row, focus_col - 1, now, 0); }
             else if (key == SDLK_RIGHT && focus_col < COLS - 1) { move_begins("Right", now); focus_on(focus_row, focus_col + 1, now, 0); }
             else if (key == SDLK_DOWN && focus_row < ROWS - 1) { move_begins("Down", now); focus_on(focus_row + 1, focus_col, now, 0); }
