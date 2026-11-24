@@ -88,6 +88,8 @@ Each is small, answers one question on the TV, and is written up in `docs/resear
 1 to 4 have answers.
 
 1. **Rust.** The test app's scene in Rust: same frame times, start time and memory, built in the container and in CI.
+   **Answered 2026-11-24: yes** (`docs/research/spikes.md`, Rust). Same frame times and memory as the C app on the TV, every
+   key works, built in a container. Still open: a build in CI, and the float flag Rust is retiring (the Rust version is pinned).
 2. **TV calls from the jail.** A native app has an entry in `/var/luna-service2-dev/client-permissions.d` but none in `roles.d`,
    and cannot run `luna-send`. Try, in order: the TV's `libluna-service2` or `libhelpers` from the app; a role file written by the
    TV scripts; a small root helper started by the TV scripts that takes fixed commands on a socket. The last always works, and
