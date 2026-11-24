@@ -35,6 +35,9 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Native screensaver in LG's place (2026-11-24, branch `native-saver`, mounted by hand on the TV until the next reboot;
+      `docs/plans/native-saver.md`). Check after each run that Hyperion still gets the live capture (the Hyperion item there).
+
 - [ ] TV restarts on its own (2026-11-19, branch `live-tv-preview`, on the TV). The TV rebooted several times on 2026-11-19 (watchdog
       reset: `cpuAbnormal`, `OFF_BY_NO_POLLING`), with system calls timing out before it. Memory is the suspect, not proven. Lumen
       Guide and Quick Settings are off (Settings > Side apps) to save memory, `deploy:home` now leaves an off side app off, and

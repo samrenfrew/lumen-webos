@@ -65,5 +65,11 @@ Spike A, 2026-11-24, over Live TV, five of Lumen's wallpaper pictures (1920x1080
 - With no photo, the clock drew over the last frame (two times on top of each other). The frame is now cleared every time.
 - `fs.protected_regular` stops one jail user appending to a `/tmp` file another created, so the log only works for the first
   user that writes it. Give each its own file in the real build.
-- The mount does not survive a reboot (no `saver-mount` flag, no guard), and `saver-app.web` is still there to go back to.
+- **(verify)** Hyperion. After the trials, Sam found the ambient lights on a solid colour. `hyperiond` (started at the 05:41 wake)
+  was alive but listened on no port and its loader did not answer; after a restart of both, Piccap was connected but its video
+  capture had stopped (`videoRunning: false`). A standby restart of the TV fixed both. Not known whether the screensaver caused it:
+  LG's own screensaver puts the TV in the same power state. Kept on as the TV's screensaver; after its next run, check
+  `luna://org.webosbrew.piccap.service/status` (`connected` and `videoRunning` true) and that `hyperiond` listens on 19400. If it
+  breaks again, unmount it.
+- The mount does not survive a reboot (no `saver-mount` flag, no guard), and the web copy is back in `saver-app`; the native copy is `saver-app.native` (the mount follows it there).
 - `/tmp/nsaver-tune` (`crossfade=<ms>`, `photo=<ms>`) is read before each photo, so timings can be tried live without a build.
