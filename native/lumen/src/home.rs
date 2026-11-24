@@ -912,6 +912,18 @@ impl Home {
         self.animate_to_state(d, was_lower, was_shift, now);
     }
 
+    pub fn go_to_grid(&mut self, d: &Draw, now: u32) {
+        if self.tiles.len() <= self.bar_count {
+            return;
+        }
+        let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
+        self.engaged = true;
+        self.zone = Zone::Rows;
+        self.moving = None;
+        self.focus = self.bar_count;
+        self.animate_to_state(d, was_lower, was_shift, now);
+    }
+
     pub fn go_home(&mut self, d: &Draw, now: u32) {
         let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
         self.zone = Zone::Rows;

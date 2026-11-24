@@ -641,10 +641,35 @@ impl App {
         #[cfg(not(feature = "webos"))]
         let came_forward = SHELL_FULL_SCREEN;
         note!("relaunch {}: asked for full screen, {}", parameters, came_forward);
-        if !self.hidden {
+        let view = parameters["view"].as_str().map(String::from);
+        if view.is_none() && !self.hidden {
             self.home.go_home(&self.draw, ticks());
         }
+        self.apply_view(view.as_deref());
         self.ask_for_weather();
+        self.redraw = true;
+    }
+
+    fn apply_view(&mut self, view: Option<&str>) {
+        match view {
+            None => {
+                self.screen = None;
+                self.panel = None;
+            }
+            Some("recent") => {
+                self.screen = None;
+                self.panel = None;
+                self.home.go_to_grid(&self.draw, ticks());
+            }
+            Some("controls") => {
+                self.screen = None;
+                if self.panel.take().is_none() {
+                    self.open_panel(control_center::Kind::Controls);
+                }
+            }
+            // ponytail: "guide" opens the Guide and "ambient" the screensaver once those screens are built
+            Some(other) => note!("view {}: not built yet", other),
+        }
         self.redraw = true;
     }
 
@@ -870,9 +895,7 @@ fn run() -> i32 {
     let args: Vec<String> = std::env::args().collect();
     let taking_a_shot = args.get(1).is_some_and(|a| a == "--shot");
     note!("start: {}", args.get(1).map_or("no launch argument", String::as_str));
-    if let Some(view) = args.get(1).and_then(|launch| launch_view(launch)) {
-        note!("start: asked for the {} view, which is not built yet", view);
-    }
+    let start_view = args.get(1).and_then(|launch| launch_view(launch));
 
     let (window, context, app_dir);
     let (mut screen_w, mut screen_h) = (0, 0);
@@ -972,6 +995,9 @@ fn run() -> i32 {
     app.mark("programs");
     app.load_kept();
     app.refresh_from_tv();
+    if start_view.is_some() {
+        app.apply_view(start_view.as_deref());
+    }
 
     if taking_a_shot {
         for job in INBOX.lock().map(|mut inbox| std::mem::take(&mut *inbox)).unwrap_or_default() {
