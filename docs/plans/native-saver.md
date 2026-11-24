@@ -160,6 +160,12 @@ Before the new TV scripts run, by hand on the TV: `umount /usr/palm/applications
   pool's worth (about 35 MB) too high.
 - The Print look is gone from the screensaver, in Lumen's own too (Sam, 2026-11-24: it is made for art, not photos). Art
   wallpapers on the home screen keep theirs. Night dimming is now a plain dim of each picture.
+- The next photo is now fetched 10 s before it is due (`FETCH_LEAD_MS`), not straight after the last one. Graphics memory is
+  ordinary memory on this TV, so holding it anywhere cost the same 8 MB. At rest: 19.6 MB of graphics memory and 8 MB of its own
+  (RSS); 27.7 MB for the 12 s around a change. The cost: a run that ends mid-wait leaves no kept picture (`ready.json`) for the
+  next start, which then waits on the download (first picture 3.3 s, of which 2 s is the pick and download).
+- A restage must keep the staged folder itself: the screensaver's jail holds it bound, so `rm -rf` of it fails with "busy".
+  `saver_stage` now replaces what is in it, and the jail sees the new files.
 - First picture 3.8 s after launch; building a pair with the Print look takes 300-550 ms of it.
 - Hyperion after the run: Piccap `connected` and `videoRunning` true, `hyperiond` on 19400.
 
