@@ -572,6 +572,8 @@ and the TV rebooted, since the memory manager reads the lists only at start:
 - **Coming forward took 0.19, 0.40 and 0.25 s** from the launch call to the window showing (`NL_APP_LAUNCH_BEGIN` to `NL_VSC`
   visible in `/var/log/messages`), over YouTube, the web Lumen and Plex. The test app looks at the bus only every 250 ms
   when idle; a thread of its own for the bus removes that wait. The budget is 0.3 s.
+- **The app must also close itself.** Once it holds the subscription, `closeByAppId` only sends `{"event":"close"}`: the
+  test app ignored it and stayed running until killed. It now exits on that event.
 - This also changes spike 2: with the name taken first, the same handle makes the TV calls, and the nameless one is not needed.
 - In the test app this path runs only when `/tmp/rtest-own-register` exists. The lists were put back afterwards (they take
   effect at the next reboot) and the test app closed.

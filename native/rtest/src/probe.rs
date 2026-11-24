@@ -32,6 +32,10 @@ extern "C" fn heard(reply: *const c_char, user: *mut c_void) {
     let uri = unsafe { CStr::from_ptr(user.cast::<c_char>()) }.to_string_lossy();
     let reply = unsafe { CStr::from_ptr(reply) }.to_string_lossy();
     note!("probe heard {}: {}", uri, shortened(&reply));
+    if reply.contains("\"event\":\"close\"") {
+        note!("close: the app manager asked");
+        std::process::exit(0);
+    }
     if reply.contains("\"event\":\"relaunch\"") {
         note!("relaunch: asked for full screen, {}", unsafe { lumen_shell_state(FULLSCREEN) });
     }
