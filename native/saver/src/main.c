@@ -11,16 +11,19 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "compose.h"
 #include "http.h"
 #include "picker.h"
+#include "settings.h"
+#include "status.h"
+#include "weather.h"
 #include "util.h"
 
 #define CLOCK_FONT "/usr/share/fonts/LG_Smart_UI-Light.ttf"
 #define TUNING_PATH "/tmp/nsaver-tune"
 
 enum {
-    FADE_IN_MS = 600, FADE_OUT_MS = 500, SHOW_ANYWAY_MS = 8000, SLOW_FRAME_MS = 20, IDLE_WAIT_MS = 250,
-    PAIR_WIDTH = 956
+    FADE_IN_MS = 600, FADE_OUT_MS = 500, SHOW_ANYWAY_MS = 8000, SLOW_FRAME_MS = 20, IDLE_WAIT_MS = 250
 };
 
 static Uint32 crossfade_ms = 2400;
@@ -221,6 +224,13 @@ int main(int argc, char **argv) {
     util_init();
     srand((unsigned)time(NULL) ^ (unsigned)getpid());
     if (argc > 2 && !strcmp(argv[1], "--pick")) return pick_only(argv[2], argc > 3 ? atoi(argv[3]) : 3);
+    if (argc > 1 && (!strcmp(argv[1], "--weather") || !strcmp(argv[1], "--status") || !strcmp(argv[1], "--compose"))) {
+        SDL_Init(0);
+        IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
+        TTF_Init();
+        http_init(&quitting);
+        return argv[1][2] == 'w' ? weather_check(argc - 2, argv + 2) : argv[1][2] == 's' ? status_check(argc - 2, argv + 2) : compose_check(argc - 2, argv + 2);
+    }
     int in_lg_place = argc > 1 && strstr(argv[1], "com.webos.app.screensaver") != NULL;
     const char *window_type = in_lg_place ? "_WEBOS_WINDOW_TYPE_SCREENSAVER" : "_WEBOS_WINDOW_TYPE_OVERLAY";
     note("open: %s", in_lg_place ? "in LG's screensaver's place" : "as an overlay");

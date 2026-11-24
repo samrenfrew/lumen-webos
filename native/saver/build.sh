@@ -10,5 +10,6 @@ rm -rf "$PKG" && mkdir -p "$PKG"
   -lSDL2 -lSDL2_image -lSDL2_ttf -lcurl -lwayland-webos-client -lwayland-client -lm
 "$SDK/bin/arm-webos-linux-gnueabi-strip" "$PKG/lumen-saver"
 cp "$HERE/appinfo.json" "$PKG/"
+cp -r "$HERE/assets" "$PKG/assets"
 cp "$HERE/../../app/public/icon.png" "$PKG/"
 echo "Built: $PKG"
