@@ -11,3 +11,4 @@ release/
 build/
 # personal assets (other people's logos and photos, the private SF font): see app/vite.config.ts
 app/private/
+.claude/worktrees/
