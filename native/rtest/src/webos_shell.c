@@ -31,3 +31,44 @@ int lumen_claim_window(SDL_Window *window) {
     wl_display_flush(info.info.wl.display);
     return CLAIMED;
 }
+
+#include <wayland-webos-foreign-client-protocol.h>
+
+static struct wl_webos_foreign *webos_foreign;
+static struct wl_compositor *compositor;
+static char video_window_id[64];
+
+static void foreign_global(void *data, struct wl_registry *reg, uint32_t name, const char *iface, uint32_t version) {
+    (void)data; (void)version;
+    if (!strcmp(iface, "wl_webos_foreign")) webos_foreign = wl_registry_bind(reg, name, &wl_webos_foreign_interface, 1);
+    if (!strcmp(iface, "wl_compositor")) compositor = wl_registry_bind(reg, name, &wl_compositor_interface, 1);
+}
+
+static void window_id_assigned(void *data, struct wl_webos_exported *exported, const char *window_id, uint32_t type) {
+    (void)data; (void)exported; (void)type;
+    strncpy(video_window_id, window_id, sizeof video_window_id - 1);
+}
+
+const char *lumen_export_video_window(SDL_Window *window, int w, int h) {
+    SDL_SysWMinfo info;
+    SDL_VERSION(&info.version);
+    if (!SDL_GetWindowWMInfo(window, &info) || info.subsystem != SDL_SYSWM_WAYLAND) return "no wayland info";
+    struct wl_display *display = info.info.wl.display;
+    struct wl_registry *registry = wl_display_get_registry(display);
+    static const struct wl_registry_listener listener = {foreign_global, shell_removed};
+    wl_registry_add_listener(registry, &listener, NULL);
+    wl_display_roundtrip(display);
+    wl_registry_destroy(registry);
+    if (!webos_foreign || !compositor) return "no wl_webos_foreign";
+    struct wl_webos_exported *exported = wl_webos_foreign_export_element(webos_foreign, info.info.wl.surface, WL_WEBOS_FOREIGN_WEBOS_EXPORTED_TYPE_VIDEO_OBJECT);
+    static const struct wl_webos_exported_listener exported_listener = {window_id_assigned};
+    wl_webos_exported_add_listener(exported, &exported_listener, NULL);
+    for (int i = 0; i < 5 && !video_window_id[0]; i++) wl_display_roundtrip(display);
+    if (!video_window_id[0]) return "no window id";
+    struct wl_region *whole = wl_compositor_create_region(compositor);
+    wl_region_add(whole, 0, 0, w, h);
+    wl_webos_exported_set_exported_window(exported, whole, whole);
+    wl_region_destroy(whole);
+    wl_display_flush(display);
+    return video_window_id;
+}

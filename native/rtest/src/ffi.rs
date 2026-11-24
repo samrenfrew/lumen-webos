@@ -273,6 +273,7 @@ extern "C" {
 
 #[cfg(feature = "webos")]
 extern "C" {
+    pub fn lumen_export_video_window(window: *mut SDL_Window, w: c_int, h: c_int) -> *const c_char;
     pub fn lumen_luna_open(name: *const c_char) -> *mut c_char;
     pub fn lumen_luna_call(uri: *const c_char, payload: *const c_char, timeout_ms: c_int) -> *mut c_char;
     pub fn lumen_luna_subscribe(uri: *const c_char, payload: *const c_char, call: extern "C" fn(*const c_char, *mut c_void), user: *mut c_void) -> *mut c_char;

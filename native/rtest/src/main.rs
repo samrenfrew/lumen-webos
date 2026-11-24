@@ -102,6 +102,7 @@ struct Tune {
     one_fbo: f32,
     no_depth: f32,
     text: f32,
+    see_through: f32,
     wallpaper: String,
 }
 
@@ -129,6 +130,7 @@ impl Tune {
             one_fbo: 0.0,
             no_depth: 0.0,
             text: 0.0,
+            see_through: 0.0,
             wallpaper: String::new(),
         }
     }
@@ -156,6 +158,7 @@ impl Tune {
             "one_fbo" => (&mut self.one_fbo, 0.0, 1.0),
             "no_depth" => (&mut self.no_depth, 0.0, 1.0),
             "text" => (&mut self.text, 0.0, 1.0),
+            "see_through" => (&mut self.see_through, 0.0, 1.0),
             _ => return None,
         })
     }
@@ -707,13 +710,15 @@ impl App {
         let grid_drop = self.drop.at(now) * GRID_DROP;
         let left_out = |part: u32| self.leave_out & part != 0;
 
+        let see_through = self.tune.see_through != 0.0;
         unsafe {
+            glClearColor(0.0, 0.0, 0.0, if see_through { 0.0 } else { 1.0 });
             if !left_out(NO_CLEAR) {
                 glClear(GL_COLOR_BUFFER_BIT);
             }
             glDisable(GL_BLEND);
         }
-        if left_out(NO_BACKDROP) {
+        if left_out(NO_BACKDROP) || see_through {
         } else if veiled <= 0.0 {
             self.copy(self.sharp.t, None, 1.0, 1.0, 0.0, 0.0);
         } else if veiled >= 1.0 {
@@ -1069,6 +1074,10 @@ fn run() -> i32 {
     let per_ms = ms_per_count();
     #[cfg(feature = "webos")]
     let mut probe = probe::Probe::open("com.samrenfrew.lumen.rtest");
+    #[cfg(feature = "webos")]
+    if app.tune.see_through != 0.0 {
+        note!("video window: {}", unsafe { CStr::from_ptr(lumen_export_video_window(window, screen_w, screen_h)) }.to_string_lossy());
+    }
 
     while running {
         let mut e = SDL_Event { padding: [0; 7] };
