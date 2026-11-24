@@ -49,6 +49,25 @@ const PERIOD: Style = Style { px: 32, weight: "400", spacing_em: -0.012, feature
 const LINE: Style = Style { px: 32, weight: "500", spacing_em: -0.012, feature: "", ink: INK, shadows: &STATUS_SHADOW };
 const CAST_TEMP: Style = Style { px: 26, weight: "600", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
 const CAST_TIME: Style = Style { px: 18, weight: "400", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
+const CAST_BIG: Style = Style { px: 56, weight: "600", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
+const CAST_NOTE: Style = Style { px: 22, weight: "500", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
+const RAIN_NOTE: Style = Style { ink: RAIN_TEXT, ..CAST_NOTE };
+const RAIN_PERCENT: Style = Style { ink: RAIN_TEXT, ..CAST_TIME };
+const RAIN_TEXT: [f32; 3] = [0.659, 0.847, 1.0];
+const LARGE_COL: f32 = 76.0;
+const LARGE_HOURS: usize = 7;
+const LARGE_HOURS_H: f32 = 18.0 * 1.2 + 2.0 + 3.0 + 32.0 + 3.0 + 26.0 * 1.2 + 8.0 + 46.0;
+const DATE_LINE: f32 = 32.0 * 1.2;
+const CLOCK_BELOW: f32 = BOTTOM - CLOCK_BASELINE;
+const CLOCK_H: f32 = 130.0;
+
+fn line_of(px: i32) -> f32 {
+    px as f32 * 1.2
+}
+
+fn baseline_in(px: i32, line_h: f32) -> f32 {
+    (line_h - 1.19 * px as f32) / 2.0 + 0.95 * px as f32
+}
 
 static OPENED: AtomicU64 = AtomicU64::new(0);
 static PICKER: Mutex<Option<Picker>> = Mutex::new(None);
@@ -321,6 +340,29 @@ impl Saver {
     fn draw_status(&mut self, d: &mut Draw, alpha: f32) {
         let (time, period, date) = self.clock.clone();
         let time_style = if d.fonts.is_sf("600-clock") { TIME } else { TIME_TNUM };
+        if self.forecast == Forecast::Large {
+            if let Some(w) = self.weather.clone() {
+                let hours = weather::hours_ahead(&w, self.unix_now, LARGE_HOURS);
+                let large = (!hours.is_empty()).then(|| Large::lay_out(d, &w, &hours, self.twenty_four_hour));
+                let row2 = 14.0 + DATE_LINE;
+                let need = large.as_ref().map_or(0.0, |l| l.height + 8.0);
+                let extra = ((need - CLOCK_H - row2) / 2.0).max(0.0);
+                let clock_baseline = BOTTOM - row2 - extra - CLOCK_BELOW;
+                if let Some(t) = d.text(&time, &time_style) {
+                    t.draw(d, CLOCK_LEFT, clock_baseline, alpha);
+                    if let Some(p) = d.text(&period, &PERIOD) {
+                        p.draw(d, CLOCK_LEFT + t.advance + PERIOD_GAP, clock_baseline - 3.0, alpha);
+                    }
+                }
+                if let Some(t) = d.text(&date, &LINE) {
+                    t.draw(d, LEFT + 2.0, BOTTOM - DATE_LINE + baseline_in(32, DATE_LINE), alpha);
+                }
+                if let Some(l) = large {
+                    l.draw(d, &w, &hours, self.twenty_four_hour, RIGHT, BOTTOM - 8.0, alpha);
+                }
+                return;
+            }
+        }
         let mut clock_w = 0.0;
         if let Some(t) = d.text(&time, &time_style) {
             t.draw(d, CLOCK_LEFT, CLOCK_BASELINE, alpha);
@@ -354,7 +396,6 @@ impl Saver {
             }
             row_w = row_w.max(width);
         }
-        // ponytail: the large forecast draws as the small one, between the clock and the date, as on home
         let Some(w) = self.weather.clone().filter(|_| self.forecast != Forecast::Off) else { return };
         let hours = weather::hours_ahead(&w, self.unix_now, CAST_HOURS);
         if hours.is_empty() {
@@ -384,12 +425,108 @@ impl Saver {
         }
     }
 
+    fn rect(d: &Draw, (x, y, w, h): (f32, f32, f32, f32), radius: f32, ink: [f32; 3], alpha: f32) {
+        d.p.fill.activate();
+        d.p.fill.set4(c"u_box", x, y, w, h);
+        d.p.fill.set1(c"u_radius", radius);
+        d.p.fill.set4(c"u_ink", ink[0], ink[1], ink[2], alpha);
+        d.gfx.quad(&d.p.fill, x, y, w, h);
+    }
+
     fn pill(d: &Draw, x: f32, y: f32, w: f32, ink: [f32; 3], alpha: f32) {
         d.p.fill.activate();
         d.p.fill.set4(c"u_box", x, y, w, 5.0);
         d.p.fill.set1(c"u_radius", 2.5);
         d.p.fill.set4(c"u_ink", ink[0], ink[1], ink[2], alpha);
         d.gfx.quad(&d.p.fill, x, y, w, 5.0);
+    }
+}
+
+struct Large {
+    big: String,
+    meta: Option<String>,
+    note: Option<String>,
+    now_w: f32,
+    now_h: f32,
+    height: f32,
+    width: f32,
+}
+
+pub fn rain_note(hours: &[weather::Hour], twenty_four_hour: bool) -> Option<String> {
+    hours.iter().find(|h| h.rain >= RAIN_LIKELY).map(|h| format!("Rain from {}", hour_text(&h.t, twenty_four_hour)))
+}
+
+pub fn high_low(w: &Weather) -> Option<String> {
+    Some(format!("High {}°\u{2002}Low {}°", w.high?, w.low?))
+}
+
+impl Large {
+    fn lay_out(d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool) -> Large {
+        let big = format!("{}°", w.temp);
+        let (meta, note) = (high_low(w), rain_note(hours, twenty_four_hour));
+        let width_of = |d: &mut Draw, text: &str, style: &Style| d.text(text, style).map_or(0.0, |t| t.advance);
+        let mut now_w = 60.0 + width_of(d, &big, &CAST_BIG);
+        let mut now_h = 56.0;
+        if !w.label.is_empty() {
+            now_w = now_w.max(width_of(d, &w.label, &CAST_TEMP));
+            now_h += 10.0 + line_of(26);
+        }
+        for text in [&meta, &note].into_iter().flatten() {
+            now_w = now_w.max(width_of(d, text, &CAST_NOTE));
+            now_h += 2.0 + line_of(22);
+        }
+        let height = now_h.max(LARGE_HOURS_H);
+        Large { big, meta, note, now_w, now_h, height, width: now_w + 57.0 + hours.len() as f32 * LARGE_COL }
+    }
+
+    fn draw(&self, d: &mut Draw, w: &Weather, hours: &[weather::Hour], twenty_four_hour: bool, right: f32, bottom: f32, alpha: f32) {
+        let (left, top) = (right - self.width, bottom - self.height);
+        let now_top = top + (self.height - self.now_h) / 2.0;
+        let hours_top = top + (self.height - LARGE_HOURS_H) / 2.0;
+        let cols = left + self.now_w + 57.0;
+        let icon = d.glyph(weather::icon(w.kind, w.day), 50, 1.8);
+        d.inked_picture(icon, left, now_top + 4.0, 50.0, 50.0, [0.0, 0.0, 0.0, 0.35 * alpha]);
+        d.inked_picture(icon, left, now_top + 3.0, 50.0, 50.0, [1.0, 1.0, 1.0, alpha]);
+        if let Some(t) = d.text(&self.big, &CAST_BIG) {
+            t.draw(d, left + 60.0, now_top + baseline_in(56, 56.0), alpha);
+        }
+        let mut y = now_top + 56.0;
+        if let Some(t) = d.text(&w.label, &CAST_TEMP) {
+            t.draw(d, left, y + 10.0 + baseline_in(26, line_of(26)), alpha);
+            y += 10.0 + line_of(26);
+        }
+        if let Some(t) = self.meta.as_deref().and_then(|m| d.text(m, &CAST_NOTE)) {
+            t.draw(d, left, y + 2.0 + baseline_in(22, line_of(22)), 0.82 * alpha);
+            y += 2.0 + line_of(22);
+        }
+        if let Some(t) = self.note.as_deref().and_then(|n| d.text(n, &RAIN_NOTE)) {
+            t.draw(d, left, y + 2.0 + baseline_in(22, line_of(22)), alpha);
+        }
+        Saver::rect(d, (left + self.now_w + 28.0, top, 1.0, self.height), 0.0, WHITE, 0.28 * alpha);
+        let bars_bottom = hours_top + LARGE_HOURS_H - 2.0;
+        for (i, hour) in hours.iter().enumerate() {
+            let x = cols + i as f32 * LARGE_COL;
+            if let Some(t) = d.text(&hour_text(&hour.t, twenty_four_hour), &CAST_TIME) {
+                t.draw(d, x + (LARGE_COL - t.advance) / 2.0, hours_top + baseline_in(18, line_of(18)), 0.6 * alpha);
+            }
+            let icon_top = hours_top + line_of(18) + 5.0;
+            let icon = d.glyph(weather::icon(hour.kind, hour.day), 32, 1.8);
+            d.inked_picture(icon, x + (LARGE_COL - 32.0) / 2.0, icon_top + 1.0, 32.0, 32.0, [0.0, 0.0, 0.0, 0.35 * alpha]);
+            d.inked_picture(icon, x + (LARGE_COL - 32.0) / 2.0, icon_top, 32.0, 32.0, [1.0, 1.0, 1.0, alpha]);
+            if let Some(t) = d.text(&format!("{}°", hour.temp), &CAST_TEMP) {
+                t.draw(d, x + (LARGE_COL - t.advance) / 2.0, icon_top + 35.0 + baseline_in(26, line_of(26)), alpha);
+            }
+            let bar_h = ((hour.rain.max(0) as f32) * 0.26).round().max(3.0);
+            let wet = hour.rain >= RAIN_LIKELY;
+            Saver::rect(d, (x + 4.0, bars_bottom - bar_h, LARGE_COL - 8.0, bar_h), 3.0, RAIN_BLUE, if wet { 0.9 } else { 0.5 } * alpha);
+            if hour.rain >= 20 {
+                if let Some(t) = d.text(&format!("{}%", hour.rain), &RAIN_PERCENT) {
+                    let span_bottom = bars_bottom - bar_h - 3.0;
+                    t.draw(d, x + (LARGE_COL - t.advance) / 2.0, span_bottom - 18.0 + baseline_in(18, 18.0), if hour.rain < 30 { 0.55 } else { 1.0 } * alpha);
+                }
+            }
+        }
+        Saver::rect(d, (cols, bars_bottom, hours.len() as f32 * LARGE_COL, 2.0), 0.0, WHITE, 0.3 * alpha);
     }
 }
 
@@ -410,6 +547,18 @@ pub fn fetch_immich_wallpaper(app_dir: &str, wants: Wants, as_next: bool, then: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_large_forecast_names_the_first_likely_rain_and_the_days_range() {
+        let hour = |t: &str, rain| weather::Hour { t: t.into(), temp: 10, kind: weather::Kind::Rain, day: true, rain };
+        let hours = [hour("2026-11-24T22:00", 30), hour("2026-11-24T23:00", 60), hour("2026-11-25T00:00", 90)];
+        assert_eq!(rain_note(&hours, true).as_deref(), Some("Rain from 23:00"));
+        assert_eq!(rain_note(&hours[..1], true), None);
+        let mut w = Weather { temp: 16, label: "Clear".into(), kind: weather::Kind::Clear, day: false, high: Some(16), low: Some(8), hours: vec![], offset: 0, taken: 0 };
+        assert_eq!(high_low(&w).as_deref(), Some("High 16°\u{2002}Low 8°"));
+        w.low = None;
+        assert_eq!(high_low(&w), None);
+    }
 
     #[test]
     fn the_shade_behind_the_clock_has_no_top_edge_and_darkens_towards_the_bottom() {

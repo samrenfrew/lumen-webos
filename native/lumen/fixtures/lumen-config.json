@@ -29,6 +29,6 @@
   "homeForecast": true,
   "homeForecastSize": "small",
   "saverForecast": true,
-  "saverForecastSize": "small"
+  "saverForecastSize": "large"
  }
 }
