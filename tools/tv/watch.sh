@@ -419,6 +419,29 @@ mem_log() {
   [ "$(wc -l < "$MEMLOG")" -gt 4000 ] && tail -n 3000 "$MEMLOG" > "$MEMLOG.tmp" && mv "$MEMLOG.tmp" "$MEMLOG"
 }
 
+# Hyperion: on 2026-11-25 hyperiond hung at boot without opening its ports, so the LEDs stayed dark until it was killed and its loader started
+# it again. Once a minute: the same hyperiond pid twice with nothing listening on 19400 is a hang, so kill it and let the loader restart it.
+HYP_PORT=4BC8
+hypstuck=""
+hyperion_check() {
+  hpid=""
+  for p in /proc/[0-9]*; do
+    read -r c < "$p/comm" 2>/dev/null || continue
+    [ "$c" = hyperiond ] && { hpid=${p#/proc/}; break; }
+  done
+  if [ -z "$hpid" ] || awk -v port=":$HYP_PORT" '$4 == "0A" && substr($2, length($2) - 4) == port { f = 1 } END { exit !f }' /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+    hypstuck=""
+    return
+  fi
+  if [ "$hypstuck" = "$hpid" ]; then
+    kill "$hpid" 2>/dev/null; sleep 2; kill -9 "$hpid" 2>/dev/null
+    echo "$(date '+%F %T') hyperion: hyperiond $hpid not listening for a minute, killed so its loader restarts it" | tee -a /tmp/homehook.log >> "$MEMLOG"
+    hypstuck=""
+  else
+    hypstuck=$hpid
+  fi
+}
+
 stop_preload
 while true; do
   # wake: the power state goes back to Active from standby or off (not from the screensaver), or the loop missed its ticks (suspended)
@@ -616,6 +639,7 @@ while true; do
   ticks=$((ticks + 1))
   [ $((ticks % 30)) -eq 0 ] && stop_preload
   [ $((ticks % 60)) -eq 5 ] && mem_log
+  [ $((ticks % 60)) -eq 35 ] && hyperion_check
   if [ $((ticks % 30)) -eq 1 ] && { [ -f "$EXTRA" ] || [ -f "$PRIVACY_HOSTS" ]; }; then
     # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in a file cannot point a name somewhere real
     # one pass: the lines not yet in the table (two greps, not one per line: the privacy list is about 180 lines)
