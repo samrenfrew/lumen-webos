@@ -1,8 +1,26 @@
-# Lumen
+# Lumen Native
 
-Lumen is a tvOS-style home screen for a rooted LG webOS TV.
+Lumen Native is a tvOS-style home screen for a rooted LG webOS TV. It is a native app, written in Rust and drawn with OpenGL. It replaces Lumen, the web app that came before it, and does what that app did, on far less of the TV's memory and graphics power.
 
-This repository is a personal fork of [ammar027/lumen-webos](https://github.com/ammar027/lumen-webos). That project is built on [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) (MIT). Changes in this fork are not sent back to either project.
+This repository is a personal fork of [ammar027/lumen-webos](https://github.com/ammar027/lumen-webos), which is built on [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) (MIT). Changes here are not sent back to either project.
+
+## Why it moved to native
+
+The web Lumen ran inside the TV's web engine, and that engine was the limit. A low-end TV has a weak graphics chip and little memory to spare, so the web Lumen dropped frames on most moves, and its screensaver used so much memory that the TV restarted on its own. Lumen Native draws each screen itself, so it keeps only what is on screen.
+
+Measured on the TV below:
+
+| | Web Lumen | Lumen Native |
+|---|---|---|
+| Graphics memory, home screen | about 86 MB | about 30 to 33 MB |
+| Graphics memory, screensaver | about 180 MB | about 30 MB |
+| Down and Up between the rows | about 40 frames a second, with dropped frames | every frame the screen shows, none late |
+| From launch to the first frame | the full home screen after about 3.5 s | 0.7 to 1.0 s |
+| Coming back from another app | | 0.2 to 0.4 s |
+
+The screen shows 50 or 60 frames a second, depending on the last video it played. The web engine always drew 60, so at 50 it also dropped one frame in six. Lumen Native follows the screen's own beat.
+
+The details are in [docs/plans/native-rewrite.md](docs/plans/native-rewrite.md) and [docs/plans/native-saver.md](docs/plans/native-saver.md).
 
 ## The target TV
 
@@ -10,237 +28,185 @@ This repository is a personal fork of [ammar027/lumen-webos](https://github.com/
 |---|---|
 | TV | LG 43UT91006LA |
 | Firmware | webOS 25 |
-| Web engine | Chromium 120 |
-| Set-up | Rooted, with the [Homebrew Channel](https://www.webosbrew.org/) and [LG Input Hook](https://github.com/Simon34545/lginputhook) |
+| Set-up | Rooted, with the [Homebrew Channel](https://www.webosbrew.org/) |
 
-Lumen is tested on this one TV only. Other webOS TVs may work, but nobody has checked them.
+Lumen Native is built for this one TV: its graphics chip, its SDL and its system libraries. It may not start on other webOS TVs, and nobody has tried it on one. If you have a different TV, see [The old web Lumen](#the-old-web-lumen) below.
 
-The original project was written for an LG 65UQ8040PSB on webOS 22 (Chromium 87). Some rules in the code were tuned for that TV. This fork treats each of those rules as an assumption until it works on the TV above. [docs/plans/PLAN.md](docs/plans/PLAN.md) lists what is still to verify.
+## What it does
 
-The build still targets `chrome79` and a classic script, not a module. The TV's graphics chip is weak, so only `transform` and `opacity` animate.
+- **Home screen.** A glass bar of your apps under the clock, date and weather, with the hourly forecast. More rows of apps below, a Recent row, folders, dots under apps that are still open, re-ordering, and a menu on a long OK press. The pointer works too.
+- **Liquid glass.** The app bar and glass buttons bend the wallpaper at their edges. Settings > Appearance turns it off.
+- **Live TV.** A row of aerial channels with what is on now and next, and a live picture of the channel in focus. The Guide and the Full guide, with typed channel numbers. Settings > Channels picks and orders the row.
+- **Lumen Guide.** A narrow channel guide over the Live TV picture. LIST opens it on Now, GUIDE opens the Full guide.
+- **Control Center and Inputs.** Sound, picture, backlight, Eye Comfort, a sleep timer, the screensaver and the TV's inputs.
+- **Lumen Quick Settings.** Control Center over any app, on the remote's gear button.
+- **Screensaver.** Your wallpaper pictures, or your own photos from an [Immich](https://immich.app/) server, with a large clock and the weather. Portrait photos show in pairs, and each photo slowly grows so nothing stays still. It can dim the backlight.
+- **Lumen Screensaver.** The same screensaver over the app you are watching, in LG's screensaver's place, so a key takes you back to where you left off.
+- **Settings.** Wallpapers (Landscapes and Art, each with its title and credit), Immich, the brightness schedule for each part of the day, the side apps, Home and Power, Privacy (withdraws LG's data agreements and blocks its ad servers), TV scripts and backup.
 
-## Requirements
+### Left out from the web Lumen
 
-- An LG webOS TV with root access. Lumen runs its TV commands as root through the Homebrew Channel. Without root, Control Center, app removal and the TV-side scripts do not work.
-- The [Homebrew Channel](https://www.webosbrew.org/), with root enabled.
-- [LG Input Hook](https://github.com/Simon34545/lginputhook), if you want the remote's Home button to open Lumen.
-- Optional: an [Immich](https://immich.app/) server for your own photos as the wallpaper and screensaver. See [docs/immich.md](docs/immich.md).
+These did not come over. Some may come back later.
 
-## What this fork adds
-
-These are the main changes since the fork. [docs/plans/PLAN.md](docs/plans/PLAN.md) has the full list and the status of each item.
-
-- **Live TV.** A row of aerial channels with what is on now, a Now and Next guide, and a full week's guide. A rail at the left edge of the Guide switches between Now, Next and the Full guide. Rows show grey placeholder shapes while the guide data loads. The Guide button on the remote can open it. See [docs/research/live-tv.md](docs/research/live-tv.md) and [docs/plans/live-tv-build.md](docs/plans/live-tv-build.md).
-- **Lumen Guide.** A second, small app that draws a channel guide over the Live TV picture. In Live TV, LIST opens it on Now and GUIDE opens the Full guide. OK on a channel changes to it. The TV picture keeps playing behind it. Install it from the Homebrew Channel beside Lumen, then update the TV scripts (Settings > System > TV scripts). It needs LG Input Hook. See [docs/plans/guide-overlay.md](docs/plans/guide-overlay.md).
-- **Lumen Quick Settings.** A side app that shows Lumen's Control Center (sound, picture, backlight) over any app, on the remote's gear button. See [docs/plans/quick-settings.md](docs/plans/quick-settings.md).
-- **Lumen Screensaver.** A side app that shows the screensaver photos over the app you are watching, so after a key the app is where you left it. Without it, the screensaver opens Lumen. See [docs/plans/side-apps.md](docs/plans/side-apps.md).
-- **Side apps in Settings.** Settings > Side apps turns Lumen Guide, Quick Settings and the screensaver on or off, and updates them. Each side app has its own version, which goes up only when it changes.
-- **Live preview (dev builds only).** The channel in focus plays as a small picture in the Guide and on the Live TV row, without a change to Live TV's last channel. Settings > Live TV turns it on. See [docs/research/live-tv.md](docs/research/live-tv.md).
-- **Brightness schedule.** Settings > Brightness sets the backlight and Eye Comfort for each part of the day, with an optional slow change between them. Each input (apps, Live TV, HDMI) gets the level.
-- **Home and Power, and Privacy.** Settings pages that make LG's own Home routes open Lumen, choose what the TV opens when it turns on, and withdraw LG's data agreements and block its ad servers. See [docs/home-and-power-on.md](docs/home-and-power-on.md) and [docs/privacy.md](docs/privacy.md).
-- **Immich photos.** Your own photos from an Immich server as the wallpaper and as a screensaver. Portrait photos show in pairs. See [docs/immich.md](docs/immich.md).
-- **Photo screensaver.** It starts after a set time on the home screen, or from Art mode in the Control Center. It can dim the backlight. When it comes up over an app, a key press goes back to that app.
-- **Control Center.** One grid of tvOS-sized glass controls. Sound, Picture, Theme and Clock open a list of choices, as on tvOS 26.
-- **Settings.** A stack of pages in the Apple TV layout, not tabs. See [docs/plans/settings-redesign.md](docs/plans/settings-redesign.md).
-- **Glass.** A light live blur on the dock and the top buttons, a colour fringe on the dock rim, and a highlight that follows focus. Settings > Appearance > Dock blur turns the dock blur on or off.
-- **Open apps.** A dot above each app that is still open in the background. Lumen opens with no launch screen and comes back from other apps faster. See [docs/keep-alive.md](docs/keep-alive.md).
-- **Wallpapers.** An Art category of 110 paintings, 300 more landscapes, and a title and credit for each picture.
-- **Speed.** A quicker cold start. In live tests on the TV, Down and Up between the rows run at about 40 fps. See [Research](#research).
-- **TV tools.** Install over SSH, DevTools access from a Mac, frame-rate scripts, and a watcher that re-pairs a Stadia controller in Moonlight.
-
-The features from the original project are still here. These include the glass dock, the second row and Recent row, folders, video wallpapers, nine languages and the weather.
+- The video wallpaper.
+- The light look. Lumen Native is dark only.
+- Focus strength and hide the dock as settings.
+- The cloud wallpaper library. The built-in Landscapes and Art stay.
+- Languages other than English.
 
 ## Screenshots
 
 These screenshots come from the TV. The wallpaper is "Amanhecer no Hercules" by Carlos Perez Couto (CC BY-SA 3.0).
 
-![Home screen: a glass dock of apps, the clock, weather and hourly forecast top left, Control Center, Settings and Inputs top right](docs/screenshots/home.jpg)
-![Moving down: the second row of apps and the Live TV row over a blurred wallpaper](docs/screenshots/more-apps.jpg)
+![Home screen: a glass bar of apps, the clock, weather and hourly forecast top left, Control Center, Settings and Inputs top right](docs/screenshots/home.jpg)
+![Moving down: more rows of apps and the Live TV row over a blurred wallpaper](docs/screenshots/more-apps.jpg)
 ![Live TV row: a channel tile in focus shows what is on now, the time left and what is next](docs/screenshots/live-tv.jpg)
-![Control Center: sound, picture, theme, clock, quick actions and backlight](docs/screenshots/control-center.jpg)
+![Control Center: sound, picture, quick actions and backlight](docs/screenshots/control-center.jpg)
 ![Screensaver: a large clock and date bottom left, with the weather and hourly forecast bottom right](docs/screenshots/screensaver.jpg)
-![Settings: one page for each part of the launcher](docs/screenshots/settings.jpg)
+![Settings: one page for each part of the home screen](docs/screenshots/settings.jpg)
 
-## Install from the Homebrew Channel
+## Install
 
-Each push to `main` publishes a stable build. The GitHub workflow ([.github/workflows/release.yml](.github/workflows/release.yml)) does this.
+You need a rooted LG TV with the [Homebrew Channel](https://www.webosbrew.org/), with root turned on. Lumen Native runs its TV commands as root, so it does not work without it.
 
-To get the builds on the TV:
+1. Open the Homebrew Channel on the TV, then its settings.
+2. Add this repository URL: `https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json`
+3. Install **Lumen Native** from the Channel's app list. On the TV it is called "Home".
+4. Open it, then go to Settings > System > TV scripts and press OK. This puts the scripts Lumen Native needs on the TV and starts them. They start again at each boot.
+5. Optional: in Settings > Side apps, turn on Lumen Guide, Lumen Quick Settings and Lumen Screensaver. They do not show in the TV's app list. The remote's buttons and the screensaver open them.
 
-1. Open the Homebrew Channel on the TV.
-2. Open the Channel's settings.
-3. Add this repository URL: `https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json`
-4. Install Lumen from the Channel's app list.
-5. Optional: turn on the side apps in Lumen, Settings > Side apps, or install them from the same list: Lumen Guide (the channel guide over Live TV), Lumen Quick Settings (the gear button) and Lumen Screensaver (the photos over the app you are in). They do not show in the TV's app list; the remote's buttons and the screensaver open them once the TV scripts are installed (below).
+The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
 
-The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`, for Lumen and its side apps. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
+The public build has no third-party app logos and no SF font. Apps without an icon get a plain tile, and the text uses LG's own font.
 
-The public build does not include third-party app logos, private wallpapers or the SF font. Apps without an icon get a plain tile.
+### What the TV scripts do
 
-### After you install: the TV-side scripts
+Without the TV scripts, these do not work: the Recent row, the screensaver in LG's place, the brightness schedule, Home and Power, Privacy, and the LIST, GUIDE and gear buttons for the side apps.
 
-The Channel installs only the app. Some features also need the scripts in [tools/tv/](tools/tv/) on the TV. Without them, these do not work:
+The scripts live in `/var/lib/homehook/` on the TV, and the Homebrew Channel starts them at boot through `/var/lib/webosbrew/init.d/60-homehook`. To remove them, delete that file on the TV and restart it.
 
-- Lumen opens again after the TV wakes.
-- The Recent row.
-- Settings > Screensaver > Enabled replaces LG's screensaver with this app's. It shows your wallpaper pictures, or your Immich photos when Immich is connected.
+### Open Lumen Native with the Home button
 
-To install the scripts, run these commands from a copy of this repository. Replace `<tv-ip>` with your TV's address.
+Settings > Home and Power > Home button opens makes the Home button, Exit and Back out of an app open Lumen Native. The same page can make the TV start on Lumen Native when it is switched on.
 
-```sh
-ssh root@<tv-ip> 'mkdir -p /var/lib/homehook /var/lib/webosbrew/init.d'
-scp tools/tv/watch.sh tools/tv/stadia.sh tools/tv/home-setup.sh tools/tv/gear.sh root@<tv-ip>:/var/lib/homehook/
-scp tools/tv/60-homehook root@<tv-ip>:/var/lib/webosbrew/init.d/
-ssh root@<tv-ip> 'chmod +x /var/lib/homehook/*.sh /var/lib/webosbrew/init.d/60-homehook && /var/lib/webosbrew/init.d/60-homehook'
-```
+If you use [LG Input Hook](https://github.com/Simon34545/lginputhook), you can map the Home button to `com.samrenfrew.lumen.native` there instead.
 
-The last command starts the scripts now. After that, the Homebrew Channel starts them at each boot. `stadia.sh` is only for a Stadia controller in Moonlight. It does nothing if you do not have one.
+### Moving from the web Lumen
 
-To remove the scripts, run `rm /var/lib/webosbrew/init.d/60-homehook` on the TV, then restart the TV.
+Lumen Native has a new app id, `com.samrenfrew.lumen.native`, so it installs beside the web Lumen and never replaces it through a Channel update.
 
-### Open Lumen with the Home button
+- **Your settings come with you.** Both apps read the same settings file, so your apps, wallpaper, Immich server and brightness schedule are there on the first launch.
+- **Remove the old one when you are happy.** Settings > Home and Power shows an "Old Lumen" row while the web Lumen or its side apps are installed. Remove points the Home button and power-on at Lumen Native first, then uninstalls the old apps. If the TV still opens the old one at power-on, they go at the next restart.
 
-Use LG Input Hook to map the Home button to the app `com.samrenfrew.lumen`.
+## The old web Lumen
 
-Settings > Home and Power can make LG's own Home routes (Exit, Back out of an app) open Lumen too, and the TV start on Lumen when it is switched on. See [docs/home-and-power-on.md](docs/home-and-power-on.md). Settings > Privacy withdraws LG's data agreements and blocks its ad servers and tracking services; see [docs/privacy.md](docs/privacy.md). Both need the TV scripts, which Settings > System > TV scripts installs from the app. Neither is tested on the TV above yet.
+The web Lumen is frozen at version 2.2.1. It stays downloadable, but it gets no more fixes. Use it if Lumen Native does not start on your TV, or if you need something it left out.
 
-If you do not use Input Hook, `watch.sh` can do this instead. Create the file `/var/lib/homehook/home-takeover` on the TV. When LG Home opens, the script then opens Lumen. This is slower than Input Hook, because LG Home shows for a moment first.
+1. Download `com.samrenfrew.lumen_2.2.1_all.ipk` from the [v2.2.1 release](https://github.com/samrenfrew/lumen-webos/releases/tag/v2.2.1), and the Guide and Quick Settings `.ipk` files if you want them. Leave out the screensaver one: its memory use made the TV restart.
+2. Install them with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
+
+The web Lumen runs in the TV's web engine, so it should work on more webOS TVs than Lumen Native. It was written for webOS 22 and later moved to webOS 25. Its source is in [app/](app/), and its README is in the [v2.2.1 tag](https://github.com/samrenfrew/lumen-webos/tree/v2.2.1#readme).
+
+## Found a bug?
+
+Please [open an issue](https://github.com/samrenfrew/lumen-webos/issues). Say:
+
+- your TV model and webOS version,
+- which Lumen and which version (the Homebrew Channel's app list shows it),
+- what you did, what you expected and what happened.
+
+The app's log helps most. It is at `/tmp/lumen-native-<uid>/log` on the TV until it restarts, and each launch also writes a line to `/var/lib/homehook/lumen.log`. Attach either one.
 
 ## Set up for development
 
-You need Node 22 or later, Python 3, and SSH access to the rooted TV. The DevTools scripts in `tools/tv/` need Node 22.
+Lumen Native lives in [native/lumen/](native/lumen/). It is one program, packaged four times: the home screen, Lumen Screensaver, Lumen Guide and Lumen Quick Settings.
 
-1. Install the app's packages: `npm --prefix app install`.
-2. Copy `.env.example` to `.env`. The `.env` file is gitignored.
-3. Set `LUMEN_TV_HOST` in `.env` to an SSH alias or `root@<tv-ip>`.
-4. Put your SSH public key on the TV, so that `ssh root@<tv-ip>` works with no password.
-5. Optional: put private icons, wallpapers and the font in `app/private/`. The top of [app/vite.config.ts](app/vite.config.ts) gives the layout. The app works without this folder.
+You need:
 
-### Check work on the Mac
+- Docker, for the build container (`native/lumen/Dockerfile`, with the Rust version in `rust-toolchain.toml`).
+- The webOS SDK from [openlgtv/buildroot-nc4](https://github.com/openlgtv/buildroot-nc4) (`arm-webos-linux-gnueabi_sdk-buildroot`), unpacked in `~/toolchains/` with `relocate-sdk.sh` run, or set `WEBOS_SDK`.
+- Node 22 or later, for packaging and the TV tools.
+- SSH access to the rooted TV.
 
-- Type check and build: `npm --prefix app run build`.
-- Preview: build, then serve `app/dist` on port 5198 (the `app-dist` entry in [.claude/launch.json](.claude/launch.json)).
+Then:
 
-There is no test suite. The preview and the TV are the checks.
+1. Install the packages: `npm --prefix app install`.
+2. Copy `.env.example` to `.env` and set `LUMEN_TV_HOST` to an SSH alias or `root@<tv-ip>`.
+3. Put your SSH public key on the TV, so `ssh root@<tv-ip>` works with no password.
+4. Optional: put the private icons, wallpapers and font in `app/private/`. The app works without them.
 
-### Try a change on the TV over DevTools
-
-The TV serves Chrome DevTools for the running page. Try each change there first. Install a build only when the change is right. This saves one install for each try.
-
-1. Open a tunnel to the TV's DevTools port:
-
-   ```sh
-   ssh -f -N -L 19998:127.0.0.1:9998 root@<tv-ip>
-   ```
-
-2. Use [tools/tv/cdp.mjs](tools/tv/cdp.mjs) to work on the live page:
-   - `node tools/tv/cdp.mjs css '<css>'` adds CSS to the page. `css ''` removes it.
-   - `node tools/tv/cdp.mjs eval '<expr>'` runs JavaScript in the page.
-   - `node tools/tv/cdp.mjs shot out.png` saves a screenshot.
-   - `node tools/tv/cdp.mjs key down enter back` presses remote keys.
-3. Write each change into the source when it is right. A relaunch removes the live changes.
-
-A screenshot shows black where a video wallpaper plays. The video is on a hardware layer under the page.
-
-### Install a dev build over SSH
-
-```sh
-npm run deploy:home
-```
-
-This command type checks, builds Lumen as `com.samrenfrew.lumen` with the dev tools on, copies the `.ipk` to the TV, installs it and starts it. It replaces the installed Lumen, so the Home button opens the new build.
-
-`npm run deploy` installs a second copy, `com.samrenfrew.lumen.dev` ("Home Dev"), next to the main one. The Home button does not open this copy.
-
-After each start, a dev build writes a "boot" line to `/var/lib/homehook/lumen.log` on the TV. [docs/research/startup-perf.md](docs/research/startup-perf.md) tells you how to read it.
-
-### Other build commands
+### Check work on your computer
 
 | Command | What it does |
 |---|---|
-| `npm run build:ipk` | Builds an `.ipk` into `build/`. |
-| `npm run release` | Builds the public `.ipk` into `release/`, with no `app/private/`. |
-| `npm --prefix app run build:guide` | Builds Lumen Guide (the overlay) into `app/dist-guide/`. |
-| `npm run deploy:guide` | Installs Lumen Guide on the TV over SSH. `npm run deploy:home` also does this, after Lumen. |
-| `npm --prefix app run build:quick` | Build Lumen Quick Settings into `app/dist-quick/`. |
-| `npm run deploy:quick` | Installs it on the TV over SSH. `npm run deploy:home` installs both side apps after Lumen. Lumen Screensaver is now part of Lumen Native (`npm run deploy:native` with `LUMEN_SAVER=1`). |
-| `npm run push-font` | Copies the SF font to `/var/lib/homehook/fonts/` on the TV. Lumen copies it into its own folder after each update. |
-| `python3 tools/build_catalog.py` | Turns `tools/catalog.json` into the cloud wallpaper list. |
-| `python3 tools/harvest_open.py [met\|cleveland\|commons]` | Adds paintings and landscapes, with credits, to the catalogue. |
+| `sh native/lumen/test.sh` | Runs the tests in the build container. |
+| `sh native/lumen/host-shot.sh out.png [keys...]` | Draws a screen to a picture with software graphics, after pressing the keys given. |
+| `sh native/lumen/shots.sh` | Draws every screen in `native/lumen/shots/list` and compares it with its kept picture. `--keep` takes them again. |
+
+### Install on the TV
+
+```sh
+npm run deploy:native
+```
+
+This builds Lumen Native and installs it on the TV over SSH. Add `LUMEN_LAUNCH=1` to open it, `LUMEN_SAVER=1` to install Lumen Screensaver too, and `LUMEN_SIDE=1` to install Lumen Guide and Lumen Quick Settings. `sh tools/build_native.sh` builds the four `.ipk` files without installing them.
+
+### Work on the live app
+
+A dev build listens for commands on the TV. Open a tunnel, then use [tools/tv/nctl.mjs](tools/tv/nctl.mjs):
+
+```sh
+ssh -f -N -L 19997:127.0.0.1:9997 root@<tv-ip>
+node tools/tv/nctl.mjs where            # what is in focus
+node tools/tv/nctl.mjs key down ok      # press remote keys
+node tools/tv/nctl.mjs set <name> <v>   # change a timing, size or glass value live
+node tools/tv/nctl.mjs shot out.png     # save a picture of the screen
+```
+
+Values set live are kept until `nctl.mjs reset`. On dev builds, Settings > Appearance > Glass lab has sliders for every glass value.
 
 ## Contributing
 
-Lumen is built for one TV and one person's taste. This sets what is accepted:
+Lumen Native is built for one TV and one person's taste.
 
-- Bug reports are welcome. Reports from other TV models are the most useful. Give the model, the webOS version and what you saw.
+- Bug reports are welcome, from any TV. Reports from other models are the most useful.
 - Pull requests are accepted for bug fixes only.
 - New features and design changes are not accepted. If you want something different, fork the project. The MIT licence lets you do this.
 
-### Commit and push
-
-Write a commit subject that names the area, then says what changed for the user. Use plain words.
-
-```
-Live TV: channel logos fill the tile, clear of the progress bar
-```
-
-Start a commit that changes only docs with `docs/<file>:`.
-
-Do the work on a branch named `<area>/<topic>`, for example `home/dock-names`. Know what each push does:
-
-- A push to a branch other than `main` makes a dev build (`1.1.0xxx`). The workflow keeps it as a run artifact for 14 days. It does not publish it.
-- A push to `main` publishes a stable release and tags it `v<version>`. The version comes from `app/public/appinfo.json`. If that tag exists, the workflow uses the next free patch number. To start a new minor or major version, change `appinfo.json`.
-- A Channel update replaces a build that you installed over SSH.
-
-Do not push only to get a build onto the TV. Use `npm run deploy:home` for that.
-
-## TV-side scripts
-
-The scripts in [tools/tv/](tools/tv/) run on the TV. They go in `/var/lib/homehook/`, and [tools/tv/60-homehook](tools/tv/60-homehook) in `/var/lib/webosbrew/init.d/` starts them at boot.
-
-- [watch.sh](tools/tv/watch.sh) keeps the Recent list, opens Lumen after the TV wakes (when Settings > Home and Power > When the TV turns on is Lumen), starts Lumen hidden after a boot, starts the photo screensaver (over the app you are in, when Lumen Screensaver is installed), and runs the Settings > Brightness schedule. When Lumen Guide is installed, it binds LIST and GUIDE to the guide while Live TV is in front, and starts the guide hidden so that it opens at once. In other apps, GUIDE opens Lumen's Guide and LIST is left to the app.
-- [stadia.sh](tools/tv/stadia.sh) asks to pair a Stadia controller each time Moonlight opens. Press OK, then hold Stadia + Y.
-
-LG Input Hook owns the Home button on this TV. `watch.sh` takes over LG Home only when `/var/lib/homehook/home-takeover` exists.
+Commit subjects name the area, then say what changed for the user, in plain words: `Live TV: channel logos fill the tile, clear of the progress bar`. A push to `main` publishes a release to GitHub and the Homebrew Channel, so do not push only to get a build onto the TV.
 
 ## Research
 
-The TV's graphics chip is the main limit on this project. These documents record what was measured on the TV and what was decided.
+The TV's graphics chip and memory shaped every choice in this project.
 
 | Document | What it covers |
 |---|---|
-| [docs/research/RESEARCH.md](docs/research/RESEARCH.md) | tvOS design rules, Liquid Glass, TV browser performance, and the cost of each glass effect on this TV. |
-| [docs/research/frame-rate.md](docs/research/frame-rate.md) | What limits the frame rate (the GPU draw of each frame), and the scripts that measure it. |
-| [docs/research/down-up-lag-review.md](docs/research/down-up-lag-review.md) | A review of the lag on Down and Up, and the test results that got it to about 40 fps. |
-| [docs/research/startup-perf.md](docs/research/startup-perf.md) | The cold-start freeze, its fix, and how to read the boot timeline. |
-| [docs/keep-alive.md](docs/keep-alive.md) | How to keep apps and Lumen open when you change apps. |
-| [docs/research/spikes.md](docs/research/spikes.md) | Short tests on the TV, one for each open question in the plan. |
-| [docs/research/live-tv.md](docs/research/live-tv.md) | How to read the channel list, the logos and the guide, how to tune a channel, and the live preview. |
+| [docs/plans/native-rewrite.md](docs/plans/native-rewrite.md) | The native rewrite: what it set out to do, its budgets, and where each part stands. |
+| [docs/research/spikes.md](docs/research/spikes.md) | Short tests on the TV, one for each open question, including the ones that decided on Rust and native. |
+| [docs/plans/native-saver.md](docs/plans/native-saver.md) | The native screensaver, and its measurements against the web one. |
+| [docs/research/RESEARCH.md](docs/research/RESEARCH.md) | tvOS design rules, Liquid Glass, and the cost of each glass effect on this TV. |
+| [docs/research/frame-rate.md](docs/research/frame-rate.md) | What limited the web Lumen's frame rate. |
+| [docs/keep-alive.md](docs/keep-alive.md) | How apps and Lumen stay open when you change apps. |
+| [docs/research/live-tv.md](docs/research/live-tv.md) | How to read the channel list, the logos and the guide, tune a channel, and show the live preview. |
 | [docs/research/prior-art.md](docs/research/prior-art.md) | Other custom TV home screens and forks of Lumen, and what this project took from them. |
-
-The main findings:
-
-- Any backdrop filter, such as a live blur, cuts the frame rate about in half while something moves over it.
-- The cost is in the GPU draw, not in the app's script or layout.
-- A blurred backdrop drawn once into a small canvas costs much less than a live blur over the full screen.
-- Refraction (Liquid Glass) works only on the dock. On the panels it drops to 7 fps.
 
 ## Credits
 
 Lumen was first made by [ammar027](https://github.com/ammar027/lumen-webos), on top of [partridgeworks/webos-launcher](https://github.com/partridgeworks/webos-launcher) (MIT).
 
-Other projects gave ideas or code to this fork. Thank you to their authors.
+Other projects gave ideas or code. Thank you to their authors.
 
 | Project | What it gave Lumen |
 |---|---|
 | [codefarm-eu/lumen-webos](https://github.com/codefarm-eu/lumen-webos) (MIT) | Its "Lumen bar", a dock drawn over other apps, showed that an overlay app works. Lumen Guide grew from it. Also the idea that the screensaver goes back to the app it came up over. |
-| [quangtdev/lumen-webos](https://github.com/quangtdev/lumen-webos) (MIT) | The wallpaper fade without the stall (night dimming as a black sheet, and a short head start before each fade), and the idea of a night backlight. |
+| [quangtdev/lumen-webos](https://github.com/quangtdev/lumen-webos) (MIT) | The wallpaper fade without the stall, and the idea of a night backlight. |
 | [juanrusch/lumen-webos](https://github.com/juanrusch/lumen-webos) (MIT) | App names without the store tagline. |
 | [rorygallagher2024/glasshouse](https://github.com/rorygallagher2024/glasshouse) (MIT) | The Home takeover in `tools/tv/home-setup.sh`, the Privacy agreement and host lists in `tools/tv/privacy.sh`, the live channel preview, and how to read Live TV's last channel. |
 | [lasharor/cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) | More LG ad and tracking hosts for Settings > Privacy. |
 | [rudra-avatar/Hearth](https://github.com/rudra-avatar/Hearth) | The first approach to Home and Power: LG's default Home app setting and the switch-on app. |
 | [ecklf/lg-luma](https://github.com/ecklf/lg-luma) (MIT) | A second working example of the Home takeover on webOS 25. |
-| [webOS Homebrew](https://www.webosbrew.org/) and [LG Input Hook](https://github.com/Simon34545/lginputhook) | Root access, app installs, and the remote button binds that Lumen and Lumen Guide depend on. |
+| [openlgtv/buildroot-nc4](https://github.com/openlgtv/buildroot-nc4) | The webOS SDK that builds Lumen Native. |
+| [webOS Homebrew](https://www.webosbrew.org/) and [LG Input Hook](https://github.com/Simon34545/lginputhook) | Root access, app installs, and remote button binds. |
 
 [docs/research/prior-art.md](docs/research/prior-art.md) has the full review of these projects. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for licences. This project is not affiliated with LG, Apple or any app vendor.
 
