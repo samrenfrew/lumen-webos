@@ -1,24 +1,27 @@
-# Builds the public .ipk files, Lumen and its side apps: Lumen Guide and Lumen Quick Settings (no app/private/).
-#  Lumen Screensaver is part of Lumen Native now (native/lumen/), which this workflow does not build yet: phase 7 of docs/plans/native-rewrite.md.
-#  - a push to main: a stable release. The version comes from appinfo.json; if that tag exists, the patch number goes up to the next free one.
-#    It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository. The side apps are built and
-#    published beside Lumen, each with its own version, which goes up only when that app changed (tools/build_release.py,
-#    docs/plans/side-apps.md). The last release's side-app hashes are kept in stable/side-apps.json on the hbc-repo branch.
-#  - a push to any other branch runs nothing: dev builds go to the TV over SSH (npm run deploy:home). GitHub paused this fork's
-#    workflows on 2026-11-08 for its Actions usage, most of it branch builds nobody downloaded.
+# Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md) and publishes it on each push to main: the home screen and the same
+# program packaged as Lumen Screensaver, Lumen Guide and Lumen Quick Settings (com.samrenfrew.lumen.native, .saver, .guide, .quick).
+#  - The version comes from native/lumen/appinfo.json; if that tag exists, the patch number goes up to the next free one. All four apps
+#    share it, since they are one program.
+#  - It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository on the hbc-repo branch.
+#  - The web Lumen is frozen at 2.2.1 (app/). Its Lumen, Guide and Quick Settings stay listed in the Channel, pointing at the v2.2.1
+#    release. Its screensaver side app (com.samrenfrew.lumen.saver) is retired and drops out of the listing.
+#  - Branch pushes run nothing: dev builds go to the TV over SSH (npm run deploy:native). GitHub paused this fork's workflows on
+#    2026-11-08 for its Actions usage, most of it branch builds nobody downloaded.
 name: release
 on:
   push:
     branches: [main]
 permissions:
   contents: write
-# one run at a time: two pushes to main close together must not race on the tag or the hbc-repo branch
 concurrency:
-  group: release-${{ github.ref_name == 'main' && 'main' || github.run_id }}
+  group: release-main
   cancel-in-progress: false
+env:
+  SDK_RELEASE: 2026.08-webos
+  WEBOS_SDK: /home/runner/toolchains/arm-webos-linux-gnueabi_sdk-buildroot
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,59 +32,68 @@ jobs:
           cache: npm
           cache-dependency-path: app/package-lock.json
       - name: Version
-        # main: the appinfo.json version, or the next free patch above it; a branch: 1.1.0 -> 1.1.0xxx from the run number, so it sorts above the release
-        env:
-          MAIN: ${{ github.ref_name == 'main' && '1' || '' }}
         run: |
           python3 - <<'PY'
-          import json, os, subprocess
-          p = 'app/public/appinfo.json'; d = json.load(open(p))
-          a, b, c = (int(x) for x in d['version'].split('.'))
-          if os.environ['MAIN']:
-              tags = set(subprocess.check_output(['git', 'tag', '-l', 'v*'], text=True).split())
-              while f'v{a}.{b}.{c}' in tags: c += 1
-          else:
-              c = c * 1000 + int(os.environ['GITHUB_RUN_NUMBER'])
-          d['version'] = f'{a}.{b}.{c}'
-          json.dump(d, open(p, 'w'), indent=2)
-          open(os.environ['GITHUB_ENV'], 'a').write(f"VERSION={d['version']}\n")
-          print(d['version'])
+          import glob, json, os, subprocess
+          a, b, c = (int(x) for x in json.load(open('native/lumen/appinfo.json'))['version'].split('.'))
+          tags = set(subprocess.check_output(['git', 'tag', '-l', 'v*'], text=True).split())
+          while f'v{a}.{b}.{c}' in tags: c += 1
+          version = f'{a}.{b}.{c}'
+          for p in glob.glob('native/lumen/appinfo*.json'):
+              d = json.load(open(p)); d['version'] = version
+              json.dump(d, open(p, 'w'), indent=2)
+          open(os.environ['GITHUB_ENV'], 'a').write(f"VERSION={version}\n")
+          print(version)
           PY
-      - name: Build the .ipk files
-        # the side apps' versions follow the last release's hashes (an empty file on the first release)
-        env:
-          LUMEN_DEV: ${{ github.ref_name == 'main' && '0' || '1' }}
-          LUMEN_SIDE_STATE: side-state.json
+      - name: webOS SDK
+        id: sdk
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WEBOS_SDK }}
+          key: webos-sdk-${{ env.SDK_RELEASE }}
+      - name: Download the webOS SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
         run: |
-          git show origin/hbc-repo:stable/side-apps.json > side-state.json 2>/dev/null || : > side-state.json
-          python3 tools/build_release.py
+          mkdir -p "$(dirname "$WEBOS_SDK")"
+          curl -fsSL "https://github.com/openlgtv/buildroot-nc4/releases/download/$SDK_RELEASE/arm-webos-linux-gnueabi_sdk-buildroot-x86_64.tar.gz" | tar -xz -C "$(dirname "$WEBOS_SDK")"
+          "$WEBOS_SDK/relocate-sdk.sh"
+      - name: Rust build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            native/lumen/build/target
+          key: cargo-${{ hashFiles('native/lumen/Cargo.lock', 'native/lumen/rust-toolchain.toml') }}
+      - name: Build the .ipk files
+        env:
+          LUMEN_PRIVATE: '0'
+          LUMEN_DEV: '0'
+          LUMEN_BUILD_DIR: ${{ github.workspace }}/release
+        run: sh tools/build_native.sh
       - name: Publish
-        if: github.ref_name == 'main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
-          GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
-          QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
+          IPKS=$(ls release/com.samrenfrew.lumen.native*_"$VERSION"_arm.ipk)
           {
-            printf 'Built from %s.\n\nInstall: drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen, Settings > Side apps.\n\n' "$GITHUB_SHA"
-            for f in "$LUMEN" "$GUIDE" "$QUICK"; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
+            printf 'Built from %s.\n\nInstall: from the Homebrew Channel (see the README), or drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen Native, Settings > Side apps.\n\n' "$GITHUB_SHA"
+            for f in $IPKS; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
           } > notes.md
-          gh release create "v$VERSION" "$LUMEN" "$GUIDE" "$QUICK" --target "$GITHUB_SHA" --title "Lumen $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
+          gh release create "v$VERSION" $IPKS --target "$GITHUB_SHA" --title "Lumen Native $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
       - name: Homebrew Channel repository
         # The Channel reads the index with XHR, so it is served from raw.githubusercontent.com (CORS allowed) on the hbc-repo branch:
         #   https://raw.githubusercontent.com/<repo>/hbc-repo/stable/apps.json
-        if: github.ref_name == 'main'
         run: |
-          LUMEN=$(ls release/com.samrenfrew.lumen_*.ipk)
-          GUIDE=$(ls release/com.samrenfrew.lumen.guide_*.ipk)
-          QUICK=$(ls release/com.samrenfrew.lumen.quick_*.ipk)
           BASE="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/hbc-repo/stable"
           DL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION"
+          PKG=native/lumen/build
+          set --
+          for P in pkg:native pkg-saver:native.saver pkg-guide:native.guide pkg-quick:native.quick; do
+            IPK="release/com.samrenfrew.lumen.${P#*:}_${VERSION}_arm.ipk"
+            set -- "$@" "$IPK" "$DL/$(basename "$IPK")" "$PKG/${P%%:*}"
+          done
           git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
-          git fetch origin hbc-repo && git worktree add hbc origin/hbc-repo || { git worktree add --detach hbc && git -C hbc checkout --orphan hbc-repo && git -C hbc rm -rfq .; }
-          rm -rf hbc/stable
-          python3 tools/gen_hbc_repo.py "$BASE" hbc/stable "$LUMEN" "$DL/$(basename "$LUMEN")" app/dist "$GUIDE" "$DL/$(basename "$GUIDE")" app/dist-guide \
-            "$QUICK" "$DL/$(basename "$QUICK")" app/dist-quick
-          cp release/side-apps.json hbc/stable/side-apps.json
+          git fetch origin hbc-repo && git worktree add hbc origin/hbc-repo
+          cp -r hbc/stable old-stable && rm -rf hbc/stable
+          python3 tools/gen_hbc_repo.py --keep old-stable com.samrenfrew.lumen,com.samrenfrew.lumen.guide,com.samrenfrew.lumen.quick "$BASE" hbc/stable "$@"
           cd hbc && git add -A && git commit -qm "stable: v$VERSION ${GITHUB_SHA:0:7}" && git push origin HEAD:hbc-repo

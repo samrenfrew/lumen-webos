@@ -102,6 +102,8 @@ Lumen Native has a new app id, `com.samrenfrew.lumen.native`, so it installs bes
 
 The web Lumen is frozen at version 2.2.1. It stays downloadable, but it gets no more fixes. Use it if Lumen Native does not start on your TV, or if you need something it left out.
 
+The Homebrew Channel still lists it as "Lumen (old web version)", with its Guide and Quick Settings. Or:
+
 1. Download `com.samrenfrew.lumen_2.2.1_all.ipk` from the [v2.2.1 release](https://github.com/samrenfrew/lumen-webos/releases/tag/v2.2.1), and the Guide and Quick Settings `.ipk` files if you want them. Leave out the screensaver one: its memory use made the TV restart.
 2. Install them with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
 

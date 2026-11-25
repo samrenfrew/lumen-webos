@@ -1,6 +1,6 @@
 {
   "id": "com.samrenfrew.lumen.native.quick",
-  "version": "0.1.0",
+  "version": "3.0.0",
   "vendor": "samrenfrew",
   "type": "native",
   "main": "lumen-quick",

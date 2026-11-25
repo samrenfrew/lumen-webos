@@ -13,6 +13,6 @@
     "deploy:native": "sh tools/deploy_native.sh",
     "push-font": "sh tools/push_sf_font.sh",
     "dev": "npm --prefix app run dev",
-    "release": "python3 tools/build_release.py"
+    "release": "LUMEN_PRIVATE=0 LUMEN_DEV=0 LUMEN_BUILD_DIR=release sh tools/build_native.sh"
   }
 }

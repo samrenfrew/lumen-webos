@@ -259,6 +259,11 @@ reach the native one, so Settings can be ported late.
    TV; their source stays in `native/home/` and `native/rtest/` as the record of the spikes.
 7. **Ship.** The new ids in the release workflow and the Channel, release notes, the README, `CLAUDE.md` and the `tv` skill
    rewritten for native, the web app tagged and frozen, `app/` kept in the repo as the record.
+   **Release workflow and README done 2026-11-25, (verify) on the first run:** `.github/workflows/release.yml` downloads the
+   webOS SDK (openlgtv/buildroot-nc4 `2026.08-webos`, cached), builds the four apps with `LUMEN_PRIVATE=0 LUMEN_DEV=0`, all at the
+   version in `native/lumen/appinfo.json` (3.0.0), and lists them in the Channel beside the web Lumen, Guide and Quick Settings 2.2.1,
+   renamed "(old web version)" there. The web screensaver drops out of the listing. Settings > Side apps now manages the native
+   Guide and Quick Settings, not the web ones. Left: `CLAUDE.md` and the `tv` skill rewritten for native.
 
 ## What carries over, by part
 
