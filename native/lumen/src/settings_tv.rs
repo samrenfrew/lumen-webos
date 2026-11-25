@@ -103,8 +103,8 @@ pub struct SideApps {
 
 pub fn side_title(id: &str) -> &'static str {
     match id {
-        "com.samrenfrew.lumen.guide" => "Lumen Guide",
-        "com.samrenfrew.lumen.quick" => "Lumen Quick Settings",
+        "com.samrenfrew.lumen.native.guide" => "Lumen Guide",
+        "com.samrenfrew.lumen.native.quick" => "Lumen Quick Settings",
         _ => "Lumen Screensaver",
     }
 }
@@ -386,12 +386,12 @@ mod tests {
     #[test]
     fn a_side_app_is_behind_only_when_a_newer_release_is_listed() {
         let listing = json!({"packages": [
-            {"id": "com.samrenfrew.lumen.guide", "manifest": {"version": "1.10.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
-            {"id": "com.samrenfrew.lumen.quick", "manifest": {"version": "1.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
+            {"id": "com.samrenfrew.lumen.native.guide", "manifest": {"version": "1.10.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
+            {"id": "com.samrenfrew.lumen.native.quick", "manifest": {"version": "1.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
             {"id": "someone.else", "manifest": {"version": "9.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}}
         ]});
-        let side = SideApps { installed: vec![("com.samrenfrew.lumen.guide".into(), "1.9.3".into()), ("com.samrenfrew.lumen.quick".into(), "1.0.0".into())], latest: Some(releases_in(&listing)), offline: false };
-        assert_eq!(side.behind(), ["com.samrenfrew.lumen.guide"]);
+        let side = SideApps { installed: vec![("com.samrenfrew.lumen.native.guide".into(), "1.9.3".into()), ("com.samrenfrew.lumen.native.quick".into(), "1.0.0".into())], latest: Some(releases_in(&listing)), offline: false };
+        assert_eq!(side.behind(), ["com.samrenfrew.lumen.native.guide"]);
     }
 
     #[test]
