@@ -1,0 +1,15 @@
+{
+  "id": "com.samrenfrew.lumen.native.saver",
+  "version": "3.0.0",
+  "type": "native",
+  "title": "Lumen Screensaver",
+  "appDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it.",
+  "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.png",
+  "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+  "rootRequired": true,
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.saver_3.0.0_arm.ipk",
+  "ipkHash": {
+    "sha256": "88c6af248d5ea69c46d26bb55f2db58bdd3e7786c6fedd1148ebdfc81a2bde4c"
+  },
+  "ipkSize": 1175858
+}

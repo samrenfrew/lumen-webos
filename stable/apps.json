@@ -1,23 +1,115 @@
 {
   "paging": {
     "page": 1,
-    "count": 4,
+    "count": 7,
     "maxPage": 1,
-    "itemsTotal": 4,
+    "itemsTotal": 7,
     "prevUrl": null,
     "nextUrl": null
   },
   "packages": [
     {
+      "id": "com.samrenfrew.lumen.native",
+      "title": "Lumen Native",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.native",
+        "version": "3.0.0",
+        "type": "native",
+        "title": "Lumen Native",
+        "appDescription": "Lumen, rewritten as a native app. The home screen so far.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native_3.0.0_arm.ipk",
+        "ipkHash": {
+          "sha256": "13cb457b33ca95714240c01dd7b57eaac8a56f4e4b447073f4c30b3749af4d85"
+        },
+        "ipkSize": 1393712
+      },
+      "pool": "main",
+      "shortDescription": "Lumen, rewritten as a native app. The home screen so far."
+    },
+    {
+      "id": "com.samrenfrew.lumen.native.saver",
+      "title": "Lumen Screensaver",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.native.saver",
+        "version": "3.0.0",
+        "type": "native",
+        "title": "Lumen Screensaver",
+        "appDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.saver_3.0.0_arm.ipk",
+        "ipkHash": {
+          "sha256": "88c6af248d5ea69c46d26bb55f2db58bdd3e7786c6fedd1148ebdfc81a2bde4c"
+        },
+        "ipkSize": 1175858
+      },
+      "pool": "main",
+      "shortDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it."
+    },
+    {
+      "id": "com.samrenfrew.lumen.native.guide",
+      "title": "Lumen Guide",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.native.guide",
+        "version": "3.0.0",
+        "type": "native",
+        "title": "Lumen Guide",
+        "appDescription": "A narrow channel guide over Live TV, from Lumen Native. LIST opens it, GUIDE opens the Full guide.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.guide_3.0.0_arm.ipk",
+        "ipkHash": {
+          "sha256": "744e522bfc71d7fb0d787207461a0f0d283836ce9636b84530ae8d11b3831bc9"
+        },
+        "ipkSize": 827788
+      },
+      "pool": "main",
+      "shortDescription": "A narrow channel guide over Live TV, from Lumen Native. LIST opens it, GUIDE opens the Full guide."
+    },
+    {
+      "id": "com.samrenfrew.lumen.native.quick",
+      "title": "Lumen Quick Settings",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.manifest.json",
+      "manifest": {
+        "id": "com.samrenfrew.lumen.native.quick",
+        "version": "3.0.0",
+        "type": "native",
+        "title": "Lumen Quick Settings",
+        "appDescription": "Sound, picture and backlight over any app, from Lumen Native. The gear button opens it.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.png",
+        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+        "rootRequired": true,
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.quick_3.0.0_arm.ipk",
+        "ipkHash": {
+          "sha256": "a25102b19d5a2ae081f753c2b0be75571519e528db4a9a4e1f43aff2bd2b379d"
+        },
+        "ipkSize": 827794
+      },
+      "pool": "main",
+      "shortDescription": "Sound, picture and backlight over any app, from Lumen Native. The gear button opens it."
+    },
+    {
       "id": "com.samrenfrew.lumen",
-      "title": "Home",
+      "title": "Lumen (old web version)",
       "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.png",
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen",
         "version": "2.2.1",
         "type": "web",
-        "title": "Home",
+        "title": "Lumen (old web version)",
         "appDescription": "Minimalist home screen: apps, inputs and a way back to LG's home.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
@@ -33,14 +125,14 @@
     },
     {
       "id": "com.samrenfrew.lumen.guide",
-      "title": "Lumen Guide",
+      "title": "Lumen Guide (old web version)",
       "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.png",
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen.guide",
         "version": "2.2.1",
         "type": "web",
-        "title": "Lumen Guide",
+        "title": "Lumen Guide (old web version)",
         "appDescription": "A narrow channel guide over Live TV, opened with LIST.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
@@ -56,14 +148,14 @@
     },
     {
       "id": "com.samrenfrew.lumen.quick",
-      "title": "Lumen Quick Settings",
+      "title": "Lumen Quick Settings (old web version)",
       "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen.quick",
         "version": "1.0.0",
         "type": "web",
-        "title": "Lumen Quick Settings",
+        "title": "Lumen Quick Settings (old web version)",
         "appDescription": "Sound, picture and backlight over any app, opened with the gear button.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
@@ -76,29 +168,6 @@
       },
       "pool": "main",
       "shortDescription": "Sound, picture and backlight over any app, opened with the gear button."
-    },
-    {
-      "id": "com.samrenfrew.lumen.saver",
-      "title": "Lumen Screensaver",
-      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.png",
-      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.manifest.json",
-      "manifest": {
-        "id": "com.samrenfrew.lumen.saver",
-        "version": "1.0.0",
-        "type": "web",
-        "title": "Lumen Screensaver",
-        "appDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after.",
-        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.saver.png",
-        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v2.2.1/com.samrenfrew.lumen.saver_1.0.0_all.ipk",
-        "ipkHash": {
-          "sha256": "38776fb56bc28826999f9f5770e4ff98c26f1accdbd6c0e14ea8ecb20ccd6c68"
-        },
-        "ipkSize": 2603250
-      },
-      "pool": "main",
-      "shortDescription": "Your photos over the app you are watching when the TV's screensaver starts, so the app is where you left it after."
     }
   ]
 }

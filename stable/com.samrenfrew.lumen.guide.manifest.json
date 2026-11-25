@@ -2,7 +2,7 @@
   "id": "com.samrenfrew.lumen.guide",
   "version": "2.2.1",
   "type": "web",
-  "title": "Lumen Guide",
+  "title": "Lumen Guide (old web version)",
   "appDescription": "A narrow channel guide over Live TV, opened with LIST.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.guide.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",

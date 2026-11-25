@@ -1,0 +1,15 @@
+{
+  "id": "com.samrenfrew.lumen.native.guide",
+  "version": "3.0.0",
+  "type": "native",
+  "title": "Lumen Guide",
+  "appDescription": "A narrow channel guide over Live TV, from Lumen Native. LIST opens it, GUIDE opens the Full guide.",
+  "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.png",
+  "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
+  "rootRequired": true,
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.guide_3.0.0_arm.ipk",
+  "ipkHash": {
+    "sha256": "744e522bfc71d7fb0d787207461a0f0d283836ce9636b84530ae8d11b3831bc9"
+  },
+  "ipkSize": 827788
+}

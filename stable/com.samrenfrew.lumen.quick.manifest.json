@@ -2,7 +2,7 @@
   "id": "com.samrenfrew.lumen.quick",
   "version": "1.0.0",
   "type": "web",
-  "title": "Lumen Quick Settings",
+  "title": "Lumen Quick Settings (old web version)",
   "appDescription": "Sound, picture and backlight over any app, opened with the gear button.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.quick.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",

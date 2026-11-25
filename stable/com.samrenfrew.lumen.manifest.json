@@ -2,7 +2,7 @@
   "id": "com.samrenfrew.lumen",
   "version": "2.2.1",
   "type": "web",
-  "title": "Home",
+  "title": "Lumen (old web version)",
   "appDescription": "Minimalist home screen: apps, inputs and a way back to LG's home.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
