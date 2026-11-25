@@ -1,0 +1,161 @@
+{
+ "returnValue": true,
+ "launchPoints": [
+  {
+   "id": "com.webos.app.discovery",
+   "title": "Apps",
+   "largeIcon": "/mnt/otncabi/usr/palm/applications/com.webos.app.discovery/asset/hd1080/lgstore_130x130.png",
+   "icon": "/mnt/otncabi/usr/palm/applications/com.webos.app.discovery/asset/hd1080/lgstore.png"
+  },
+  {
+   "id": "com.samrenfrew.lumen",
+   "title": "Home",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen/icon.png"
+  },
+  {
+   "id": "com.webos.app.livetv",
+   "title": "Live TV",
+   "largeIcon": "/usr/palm/applications/com.webos.app.livetv/assets/icon_livetv_130.png",
+   "icon": "/usr/palm/applications/com.webos.app.livetv/assets/icon_livetv_80.png"
+  },
+  {
+   "id": "bbc.iplayer.3.0",
+   "title": "BBC iPlayer",
+   "largeIcon": "/media/cryptofs/apps/usr/palm/applications/bbc.iplayer.3.0/bbc_130x130.png",
+   "icon": "/media/cryptofs/apps/usr/palm/applications/bbc.iplayer.3.0/bbc_80x80.png"
+  },
+  {
+   "id": "youtube.leanback.v4",
+   "title": "YouTube AdFree",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/youtube.leanback.v4/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/youtube.leanback.v4/icon.png"
+  },
+  {
+   "id": "com.beb.plxnative",
+   "title": "PlxNative",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/com.beb.plxnative/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/com.beb.plxnative/icon.png"
+  },
+  {
+   "id": "com.limelight.webos",
+   "title": "Moonlight",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/com.limelight.webos/icon_large.png",
+   "icon": "/media/developer/apps/usr/palm/applications/com.limelight.webos/icon.png"
+  },
+  {
+   "id": "com.fvp.ch4",
+   "title": "Channel 4",
+   "largeIcon": "/media/cryptofs/apps/usr/palm/applications/com.fvp.ch4/largeIcon.png",
+   "icon": "/media/cryptofs/apps/usr/palm/applications/com.fvp.ch4/icon.png"
+  },
+  {
+   "id": "demand5",
+   "title": "5",
+   "largeIcon": "/media/cryptofs/apps/usr/palm/applications/demand5/largeIcon.png",
+   "icon": "/media/cryptofs/apps/usr/palm/applications/demand5/icon.png"
+  },
+  {
+   "id": "org.webosbrew.hbchannel",
+   "title": "Homebrew Channel",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/org.webosbrew.hbchannel/assets/icon130.png",
+   "icon": "/media/developer/apps/usr/palm/applications/org.webosbrew.hbchannel/assets/icon80.png"
+  },
+  {
+   "id": "com.webos.app.browser",
+   "title": "Web Browser",
+   "largeIcon": "/mnt/otncabi/usr/palm/applications/com.webos.app.browser/assets/hd1080/webbrowser_large_icon.png",
+   "icon": "/mnt/otncabi/usr/palm/applications/com.webos.app.browser/assets/hd1080/webbrowser_icon.png"
+  },
+  {
+   "id": "com.webos.app.homeconnect",
+   "title": "Home Hub",
+   "largeIcon": "/usr/palm/applications/com.webos.app.homeconnect/icon.png",
+   "icon": "/usr/palm/applications/com.webos.app.homeconnect/icon.png"
+  },
+  {
+   "id": "com.webos.app.mediadiscovery",
+   "title": "Media Player",
+   "largeIcon": "/usr/palm/applications/com.webos.app.mediadiscovery/icon.png",
+   "icon": "/usr/palm/applications/com.webos.app.mediadiscovery/icon.png"
+  },
+  {
+   "id": "com.webos.app.camera",
+   "title": "Camera",
+   "largeIcon": "/usr/palm/applications/com.webos.app.camera/camera.png",
+   "icon": "/usr/palm/applications/com.webos.app.camera/camera.png"
+  },
+  {
+   "id": "com.webos.app.sportsteamsettings",
+   "title": "Sports",
+   "largeIcon": "/usr/palm/applications/com.webos.app.sportsteamsettings/sys-assets/ic_app_sportalarm_2k.png",
+   "icon": "/usr/palm/applications/com.webos.app.sportsteamsettings/sys-assets/ic_app_sportalarm_2k.png"
+  },
+  {
+   "id": "amazon.alexa.view",
+   "title": "Amazon Alexa",
+   "largeIcon": "/usr/palm/applications/amazon.alexa.view/largeIcon.png",
+   "icon": "/usr/palm/applications/amazon.alexa.view/icon.png"
+  },
+  {
+   "id": "com.webos.app.lgchannels",
+   "title": "LG Channels",
+   "largeIcon": "/media/system/apps/usr/palm/applications/com.webos.app.lgchannels/icon_130x130.png",
+   "icon": "/media/system/apps/usr/palm/applications/com.webos.app.lgchannels/icon.png"
+  },
+  {
+   "id": "com.webos.app.lifeonscreen",
+   "title": "LG Gallery+",
+   "largeIcon": "/usr/palm/applications/com.webos.app.lifeonscreen/icon-large.png",
+   "icon": "/usr/palm/applications/com.webos.app.lifeonscreen/icon.png"
+  },
+  {
+   "id": "org.webosbrew.inputhook",
+   "title": "LG Input Hook",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/org.webosbrew.inputhook/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/org.webosbrew.inputhook/icon.png"
+  },
+  {
+   "id": "com.fvp.itv",
+   "title": "ITVX",
+   "largeIcon": "/media/cryptofs/apps/usr/palm/applications/com.fvp.itv/largeIcon.png",
+   "icon": "/media/cryptofs/apps/usr/palm/applications/com.fvp.itv/icon.png"
+  },
+  {
+   "id": "io.unom.punktfunk.client-webos",
+   "title": "Punktfunk",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/io.unom.punktfunk.client-webos/icon_large.png",
+   "icon": "/media/developer/apps/usr/palm/applications/io.unom.punktfunk.client-webos/icon.png"
+  },
+  {
+   "id": "org.webosbrew.hyperion.ng.loader",
+   "title": "Hyperion.NG",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/org.webosbrew.hyperion.ng.loader/assets/logo_big.png",
+   "icon": "/media/developer/apps/usr/palm/applications/org.webosbrew.hyperion.ng.loader/assets/logo_small.png"
+  },
+  {
+   "id": "org.webosbrew.piccap",
+   "title": "PicCap",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/org.webosbrew.piccap/assets/logo_big.png",
+   "icon": "/media/developer/apps/usr/palm/applications/org.webosbrew.piccap/assets/logo_small.png"
+  },
+  {
+   "id": "com.webos.app.hdmi1",
+   "title": "Chromecast",
+   "largeIcon": "/usr/palm/plugins/inputapps/assets/home/largeIcon/HDMI_1.png",
+   "icon": "/usr/palm/plugins/inputapps/assets/home/miniicon/HDMI_1.png"
+  },
+  {
+   "id": "com.samrenfrew.lumen.ntest",
+   "title": "Lumen Native Test",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.ntest/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.ntest/icon.png"
+  },
+  {
+   "id": "com.samrenfrew.lumen.rtest",
+   "title": "Lumen Rust Test",
+   "largeIcon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.rtest/largeIcon.png",
+   "icon": "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.rtest/icon.png"
+  }
+ ]
+}

@@ -10,7 +10,7 @@
 export PATH="/bin:/sbin:/usr/bin:/usr/sbin:$PATH"
 NOWAKE_FLAG=/var/lib/homehook/no-wake-launch
 POWERON_SUM=/var/lib/homehook/bootd-override.md5   # written by home-setup.sh power-on on, removed by power-on off
-ME="com.samrenfrew.lumen com.samrenfrew.lumen.dev"
+ME="com.samrenfrew.lumen.native com.samrenfrew.lumen com.samrenfrew.lumen.dev"
 APPS=/media/developer/apps/usr/palm/applications
 LOG=/tmp/homehook.log
 

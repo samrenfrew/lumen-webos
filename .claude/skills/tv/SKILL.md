@@ -24,6 +24,8 @@ A push to `main` publishes a Channel release, and a Channel update replaces the 
 
 `/var/lib/homehook/lumen.log` is on the TV, and only ssh can read it. The app cannot read it. Use `grep ' boot ' … | tail -3`, `grep guide … | tail`, or `grep ' nav ' …`. `docs/research/startup-perf.md` explains the boot line.
 
+`/var/lib/homehook/mem.log` gets one line a minute from watch.sh: the memory manager's level and usable MB, free memory, swap, load, and each running app as id=RSS+swap MB. The first line after a boot also gives why the TV last powered off and on (`cpuAbnormal` with `OFF_BY_NO_POLLING` is the watchdog reset of a hung TV). It survives a reboot; the TV's own logs in `/var/log` do not. Read it first when the TV restarts on its own.
+
 ## DevTools: eval, CSS, screenshots, keys
 
 WebAppMgr serves Chrome DevTools on the TV's `127.0.0.1:9998`. Open the tunnel once a session:
@@ -48,6 +50,7 @@ Quirks:
 - The page id changes at every relaunch. `cdp.mjs` looks it up each time.
 - Anything set over DevTools is gone after a relaunch or an install. Interacting with the page can also undo an injected effect.
 - The TV is wired only (192.168.0.20 on eth0). Sam switched its Wi-Fi off on 2026-10-31 after a day when both were up on the same subnet and the TV's TLS connections to the PC hung. If `ip -4 addr` shows wlan0 again, that is the first suspect for odd network results.
+- `luna-send` prints nothing without a terminal, so run TV scripts that read its replies (`home-setup.sh`, `getAppInfo` checks) with `ssh -tt`. Without it, `home-setup.sh saver-mount on` reads an empty app type, decides the mount failed and gives LG's screensaver back.
 - Keep file searches on the TV narrow (`-maxdepth`, a few directories). A `find /` on 2026-10-31 ran for minutes and the TV rebooted during it.
 
 ## Live development with Sam

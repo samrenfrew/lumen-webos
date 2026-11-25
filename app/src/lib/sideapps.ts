@@ -15,7 +15,7 @@ const LISTING_MS = 10000;
 export const SIDE_APP_TITLE: Record<SideAppId, string> = {
 	'com.samrenfrew.lumen.guide': 'Lumen Guide',
 	'com.samrenfrew.lumen.quick': 'Lumen Quick Settings',
-	'com.samrenfrew.lumen.saver': 'Lumen Screensaver'
+	'com.samrenfrew.lumen.native.saver': 'Lumen Screensaver'
 };
 
 export interface Release { version: string; url: string; sha256: string }

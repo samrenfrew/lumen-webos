@@ -1,0 +1,9 @@
+void hb_buffer_create(void) {}
+void hb_buffer_destroy(void) {}
+void hb_buffer_add_utf8(void) {}
+void hb_buffer_guess_segment_properties(void) {}
+void hb_shape(void) {}
+void hb_buffer_get_glyph_infos(void) {}
+void hb_buffer_get_glyph_positions(void) {}
+void hb_ft_font_create_referenced(void) {}
+void hb_version_string(void) {}

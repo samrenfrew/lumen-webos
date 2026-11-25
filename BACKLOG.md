@@ -19,3 +19,24 @@
 **Origin:** 2026-11-02. The preload manager kept opening LG Home (the stand-in) over iPlayer, so `watch.sh` now stops the preload manager outright.
 **Idea:** Find what keeps setting `com.webos.app.home` back to `true` in `/var/preferences/webos-preload-manager-conf.json` (it was off at 08:21 and back on before 11:03), and stop that, so YouTube and Live TV can preload again.
 **Context for next agent:** `setPreloadPolicy` answers true but changes nothing live. `/etc/palm/webos-preload-manager-conf.json` has Home `true` built in, and the binary also reads `/var/preferences/webos-preload-manager-debug-conf.json`, which might win. Notes: `docs/keep-alive.md` (preload paragraph). Check with `grep preloadmanager /var/log/messages` on the TV.
+
+## Stadia drop: release held buttons and pause the game
+**Logged:** 2026-11-13
+**Origin:** Stadia drops on 2026-11-13. A drop while a direction was held left Moonlight moving the character, and the drop cost a fight.
+**Idea:** When `stadia.sh` sees the controller drop, send Moonlight a "nothing pressed" report so held buttons let go, then a Start press so the game pauses until the controller works again.
+**Context for next agent:** Moonlight reads the controller from hidraw inside its jail (`/var/palm/jail/com.limelight.webos/dev`), and the dead device belongs to LG's HID host, so the reports must come from a gamepad of our own made through `/dev/uhid`. `tools/tv/stadia-bridge.py` already makes one (same IDs and report map, added to the jail); report ID 3, 10 bytes, rest is `[8,0,0,128,128,128,128,0,0,0]` (docs/research/spikes.md, "Bridge test"). Decide whether Moonlight treats it as the same player or a second controller, and which bit is Start.
+
+## Native screensaver (from the 2026-11-24 review)
+
+- The dark or light look (darkMode auto) is decided when the screensaver starts, so one that runs across 19:00 or 06:00 keeps the old look. Decide it per draw in `status_draw`.
+- Lumen Native: in the Full guide, the subtitles mark is drawn over the first letters of the programme name ("This is BBC Three").
+- Lumen Native: the first Down into the Live TV row drops frames (23 of 30, one of 159 ms) while the guide loads.
+- Lumen Native: now the frame rate allows it, try tiles that squash together a little as they slide off screen on Up and Down.
+- TV scripts: the web Quick Settings, `com.samrenfrew.lumen.quick`, is still installed and running beside Lumen Native's, holding memory. Uninstall it.
+- Lumen Native: more animations now the frame rate allows them. Settings fades in but vanishes on Back; the Guide opens and closes at once; the Guide over Live TV could slide in from the left; a launched app could grow out of its tile.
+- Lumen Native: a Liquid glass test screen, the look's values (`bend`, `fringe`, `bezel`, `liquid_blur`) on sliders over the home screen, so Sam can tune them with the remote. `nctl.mjs set` already changes them live from here.
+
+## Lumen Native's Settings retires the web Lumen
+**Origin:** 2026-11-25. Switching on opened LG's Apps store on "This page is not available. A2.46.SA" because the web Lumen was uninstalled while bootd still named it until the next restart.
+**Idea:** When Lumen Native ships in the Channel, people coming from the web Lumen need the same clean switch `npm run deploy:native` now does with `home-setup.sh retire-web`. Settings could offer it once the TV scripts are installed.
+**Context for next agent:** `retire-web` and its guard step are in `tools/tv/home-setup.sh`. The native app runs home-setup actions through `HOME_ACTIONS` in `native/lumen/src/root.rs`; add a `retireWeb` entry there.

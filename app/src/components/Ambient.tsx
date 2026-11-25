@@ -77,7 +77,7 @@ function toHomeClock (clock: HTMLElement | null): string {
  *  slides from its place top left to bottom left, and the first new photo comes only after that, so nothing heavy runs while the screen changes. The home screen
  *  makes that photo ready beforehand (prepareAmbient), and each next one is made ready while the one before it shows.
  *  `onShown` is told once, when the first photo is on screen and decoded (Lumen Screensaver fades in then, docs/plans/side-apps.md). */
-export function Ambient ({show, source, pictures, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, print, opening, onExit, onShown}: {show: string; source: string; pictures: string[]; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; print?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void; onShown?: () => void}) {
+export function Ambient ({show, source, pictures, seconds = 30, backlight, weather, weatherLine, forecast, showPeriod, opening, onExit, onShown}: {show: string; source: string; pictures: string[]; seconds?: number; backlight?: number; weather?: Weather | null; weatherLine?: boolean; forecast?: 'small' | 'large'; showPeriod?: boolean; opening?: {urls: string[]; id: string} | null; onExit: () => void; onShown?: () => void}) {
 	// each layer holds one photo's URL, or two for a portrait pair shown side by side, and where they sit (placed on their faces)
 	const [last] = useState(() => (opening ? null : readCache<{id: string; urls: string[]}>(LAST_KEY)));
 	const first = opening || last;
@@ -187,7 +187,6 @@ export function Ambient ({show, source, pictures, seconds = 30, backlight, weath
 			{layers.map(({urls, pos}, i) => (
 				<div key={i + urls.join(' ')} class={`ambient__photo${i === front ? ' ambient__photo--on' : ''}${urls.length > 1 ? ' ambient__photo--pair' : ''}`} style={urls.length > 0 ? {backgroundImage: urls.map((u) => `url("${u}")`).join(', '), backgroundPosition: pos || undefined} : undefined} />
 			))}
-			{print && <div class="ambient__print" />}
 			<div class="ambient__night" />
 			<div class="ambient__blur" />
 			<div class="ambient__shade" />

@@ -1,0 +1,17 @@
+{
+  "id": "com.samrenfrew.lumen.rtest",
+  "version": "0.1.0",
+  "vendor": "samrenfrew",
+  "type": "native",
+  "main": "lumen-rtest",
+  "title": "Lumen Rust Test",
+  "appDescription": "The Lumen Native Test scene, written in Rust: the wallpaper, the glass bar, and Down and Up.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
+  "visible": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 60
+}

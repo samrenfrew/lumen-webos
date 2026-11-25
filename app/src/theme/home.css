@@ -74,6 +74,7 @@
 /* ---------- the rows: the glass bar, then the app grid and the Live TV row under it ---------- */
 
 /* the glass bar sits low, so the first grid row's tops peek in under it; Down slides the stack up by --lower-shift (Home.tsx) with transform only */
+@property --lower-shift { syntax: '<length>'; inherits: false; initial-value: 300px; }
 .rows {
 	position: absolute; left: var(--layout-rows-edge); right: var(--layout-rows-edge); top: var(--layout-rows-top);
 	transition: transform var(--dur-up) var(--ease-up), opacity var(--dur-fade) ease;

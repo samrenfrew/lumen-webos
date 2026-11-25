@@ -106,8 +106,6 @@ export interface UserConfig {
 	blRamp: number;
 	/** Eye Comfort through the day: keep (as the TV is set) | off | evening (evening and night) | night */
 	blEye: string;
-	/** screensaver photos look like a print on the wall: lifted blacks, paper whites, light falling off from the top left */
-	ambientPrint: boolean;
 	/** how far back the Immich Recent sources reach, in days: 30 | 90 | 180 | 365 */
 	immichRecentDays: number;
 	/** how strongly the focused tile stands out: subtle | normal | strong */
@@ -179,7 +177,6 @@ export const DEFAULT_CONFIG: UserConfig = {
 	saverShow: 'wallpaper',
 	ambientSeconds: 30,
 	ambientBrightness: 'dim',
-	ambientPrint: false,
 	brightnessOn: false,
 	blDayAt: '07:00',
 	blDay: 80,
@@ -261,7 +258,6 @@ export function parseConfig (raw: string): UserConfig {
 		liquidDock: __LUMEN_DEV__ && parsed.liquidDock === true,      // too slow for this TV, so only dev builds offer it
 		ambientSeconds: [10, 20, 30, 60, 120, 300].indexOf(Number(parsed.ambientSeconds)) !== -1 ? Number(parsed.ambientSeconds) : 30,
 		ambientBrightness: parsed.ambientBrightness === 'tv' || parsed.ambientBrightness === 'low' ? parsed.ambientBrightness : 'dim',
-		ambientPrint: parsed.ambientPrint === true,
 		brightnessOn: parsed.brightnessOn === true,
 		blDayAt: hhmm(parsed.blDayAt, DEFAULT_CONFIG.blDayAt),
 		blDay: level(parsed.blDay, DEFAULT_CONFIG.blDay),

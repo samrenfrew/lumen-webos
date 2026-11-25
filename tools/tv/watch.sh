@@ -28,18 +28,22 @@
 #    Over another app, "from" names it, so a key that ends the screensaver goes back to that app rather than to Lumen's home screen.
 #    With Lumen Screensaver installed (the third overlay, docs/plans/side-apps.md), over another app it launches that instead: the photos come
 #    up over the app, which is left as it was. Lumen in front still gets Lumen's own.
+#  - Lumen Screensaver is native (docs/plans/native-saver.md) and its jail can neither call luna nor read /var/lib/homehook, so this does
+#    it for it: copies Lumen's settings and Immich server into config/ in each of its folders when they change (and tv.json, the TV's
+#    language and clock), lowers the backlight while its /tmp/lumen-saver-<uid>/showing flag is up, ends the TV's screensaver state if it
+#    stays after the flag goes, and in LG's place ends it over Lumen's own screensaver.
 #  - When the TV's power state becomes "Screen Saver" (LG's screensaver is not a foreground app, so the power state is what shows it) and
 #    /var/lib/homehook/frame-screensaver exists: opens Frame in screensaver mode, then ends LG's screensaver (turnOnScreen) so Frame is what shows.
 #  - Settings > Brightness: with /var/lib/homehook/backlight-schedule holding "HH:MM <backlight> on|off|keep" lines (Lumen writes it), sets the
 #    backlight and Eye Comfort when each part of the day starts, then leaves them, so a change by hand stays until the next one. Checked once a
 #    minute with the screen on, so a TV switched on later catches up. With a "ramp <minutes>" line, each part of the day starts at the last
-#    one's backlight and moves to its own a little each minute over that time. While Lumen's screensaver is up the backlight waits: the
-#    screensaver puts back the level for now when it ends, and this sets it again a minute later if not. The TV keeps a backlight per input
+#    one's backlight and moves to its own a little each minute over that time. While Lumen's screensaver (or Lumen Screensaver) is up the
+#    backlight waits: the level for now is put back when it ends, and this sets it again a minute later if not. The TV keeps a backlight per input
 #    (apps, Live TV, each HDMI), so the level is set again on the first switch to each input since it last changed.
 # Never spins: reacts only when the app changes, and at most once every 3 s. Does nothing if the app is not installed.
 # ME lists every Lumen build (stable, dev). Home opens the one that was last in front, or the first installed one in this list. The flag files in
 # /var/lib/homehook/ are shared by all of them, which is fine while only one is in front at a time.
-ME="com.samrenfrew.lumen com.samrenfrew.lumen.dev com.ammar027.lumen com.ammar027.lumen.dev"
+ME="com.samrenfrew.lumen.native com.samrenfrew.lumen com.samrenfrew.lumen.dev com.ammar027.lumen com.ammar027.lumen.dev"
 FRAME=com.ammar027.lumen.gallery
 LGHOME=com.webos.app.home
 FLAG=/tmp/allow_lg_home
@@ -63,9 +67,15 @@ BL_SCHEDULE=/var/lib/homehook/backlight-schedule
 PRELOADMGR=preload-manager.service
 GUIDE=com.samrenfrew.lumen.guide
 QUICK=com.samrenfrew.lumen.quick
-SAVER=com.samrenfrew.lumen.saver
-LGSAVER_DIR=/usr/palm/applications/com.webos.app.screensaver   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
+NATIVE_GUIDE=com.samrenfrew.lumen.native.guide
+NATIVE_QUICK=com.samrenfrew.lumen.native.quick
+SAVER=com.samrenfrew.lumen.native.saver
+LGSAVER=com.webos.app.screensaver
+LGSAVER_DIR=/usr/palm/applications/$LGSAVER   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
 SAVER_COPY=/var/lib/homehook/saver-app
+SAVER_BL=/tmp/lumen-saver-backlight   # the backlight before Lumen Screensaver lowered it, kept until it is put back
+LUMEN_CONFIG=/var/lib/homehook/lumen-config.json
+IMMICH_CONFIG=/var/lib/homehook/immich.json
 GEAR=/var/lib/homehook/gear.sh
 LIVETV=com.webos.app.livetv
 KEYBINDS=/home/root/.config/lginputhook/keybinds.json
@@ -98,12 +108,23 @@ eyeinputs=""               # the inputs that have had it
 blsoon=0                   # when to check the schedule again after a switch of app, so a new input gets the level
 QUICK_WAKE_SECS=8
 quickat=0                  # when to start Quick Settings hidden after a wake (standby closes it); 0 when done
+nshow=""                   # 1 while Lumen Screensaver's showing flag is up, 0 when not, empty before the first look
+nsover=0                   # 1 when the side app was already up as the TV started its screensaver
+nsgone=0                   # when its flag went, while the TV may still be in its screensaver state; 0 when not waiting
+tvdue=1                    # tv.json still to be written into Lumen Screensaver's folders
 # prints the Lumen build in front, if any
 me_in_front() {
   for id in $ME; do case "$1" in *'"appId":"'$id'"'*) echo "$id"; return 0 ;; esac; done
   return 1
 }
 # prints the Lumen build Home should open: the last one in front if still installed, else the first installed one
+# Lumen Guide and Quick Settings: the native ones (Lumen Native's side apps) when installed, else the web ones. The native ones start in
+# well under the web ones' cold open and close when put away, so they are never started hidden.
+pick_side_apps() {
+  GUIDE=com.samrenfrew.lumen.guide; [ -d "$APPS/$NATIVE_GUIDE" ] && GUIDE=$NATIVE_GUIDE
+  QUICK=com.samrenfrew.lumen.quick; [ -d "$APPS/$NATIVE_QUICK" ] && QUICK=$NATIVE_QUICK
+}
+
 me_target() {
   if [ -n "$lastme" ] && [ -d "$APPS/$lastme" ]; then echo "$lastme"; return 0; fi
   for id in $ME; do [ -d "$APPS/$id" ] && { echo "$id"; return 0; }; done
@@ -162,9 +183,11 @@ PY
 }
 # the app in front changed from $2 to $1: into Live TV, the binds for it and the guide started hidden; out of it, the other binds and the guide closed
 guide_follow() {
+  pick_side_apps
   [ -d "$APPS/$GUIDE" ] || return
   if [ "$1" = "$LIVETV" ]; then
     guide_binds live
+    [ "$GUIDE" = "$NATIVE_GUIDE" ] && return
     ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$GUIDE\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
       echo "$(date +%T) guide: start hidden: $r" >> /tmp/homehook.log ) &
   elif [ "$2" = "$LIVETV" ] || [ -z "$2" ]; then
@@ -176,12 +199,14 @@ guide_follow() {
 
 # the gear button (139): bound to gear.sh while Lumen Quick Settings is installed, and left to the TV when it is not. gear.sh asks which
 # app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
-# Lumen over the app.) Every other bind is kept; the file is written only when it changes.
+# Lumen over the app.) Home (773) opens the installed Lumen build, and is left to the TV when none is: a bind naming an uninstalled
+# Lumen made Home do nothing. Every other bind is kept; the file is written only when it changes.
 gear_bind() {
+  pick_side_apps
   quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
-  python3 - "$KEYBINDS" "$quick" <<'PY' 2>>/tmp/homehook.log
+  python3 - "$KEYBINDS" "$quick" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
 import json, os, sys
-path, gear = sys.argv[1:3]
+path, gear, lumen = sys.argv[1:4]
 try:
     with open(path) as f: binds = json.load(f)
 except Exception:
@@ -191,6 +216,10 @@ if gear:
     want['139'] = {'action': 'exec', 'command': 'sh ' + gear}
 else:
     want.pop('139', None)
+if lumen:
+    want['773'] = {'action': 'launch', 'id': lumen}
+else:
+    want.pop('773', None)
 if want != binds:
     with open(path + '.tmp', 'w') as f: json.dump(want, f)
     os.rename(path + '.tmp', path)
@@ -207,9 +236,74 @@ saver_running() {
   case "$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)" in *'"id":"'$SAVER'"'*) return 0 ;; esac
   return 1
 }
+# true while Lumen Screensaver is on screen: a /tmp/lumen-saver-<uid>/showing file holding the pid of a live process (no fork)
+ns_showing() {
+  for f in /tmp/lumen-saver-*/showing; do
+    [ -f "$f" ] || continue
+    nspid=""; read -r nspid 2>/dev/null < "$f"
+    case "$nspid" in ''|*[!0-9]*) continue ;; esac
+    [ -d "/proc/$nspid" ] && return 0
+  done
+  return 1
+}
+# Lumen's settings and Immich server into config/ of each native Lumen Screensaver folder (the copy in LG's place, the side app) when
+# either changed; the copy takes the source's mtime, so no fork while nothing changed. tv.json is written again after a copy.
+ns_config() {
+  copied=0
+  for d in "$SAVER_COPY" "$APPS/$SAVER"; do
+    [ -f "$d/lumen-saver" ] || continue
+    for f in "$LUMEN_CONFIG" "$IMMICH_CONFIG"; do
+      c="$d/config/${f##*/}"
+      [ -f "$f" ] || continue
+      if [ ! -f "$c" ] || [ "$f" -nt "$c" ] || [ "$f" -ot "$c" ]; then
+        mkdir -p "$d/config" && cp "$f" "$c.tmp" && chmod 644 "$c.tmp" && touch -r "$f" "$c.tmp" && mv -f "$c.tmp" "$c"
+        copied=1
+        echo "$(date +%T) screensaver: ${f##*/} copied to $d" >> /tmp/homehook.log
+      fi
+    done
+  done
+  [ "$copied" = 1 ] && tvdue=1 && ns_tvjson && tvdue=0
+}
+# tv.json in each native Lumen Screensaver folder: the TV's menu language and its 12/24-hour clock; false when none was written
+ns_tvjson() {
+  dirs=""
+  for d in "$SAVER_COPY" "$APPS/$SAVER"; do [ -f "$d/lumen-saver" ] && dirs="$dirs $d"; done
+  [ -n "$dirs" ] || return 1
+  loc=$(luna-send -n 1 luna://com.webos.settingsservice/getSystemSettings '{"keys":["localeInfo"]}' </dev/null 2>/dev/null | sed -n 's/.*"UI": *"\([A-Za-z0-9-]*\)".*/\1/p')
+  hh=$(luna-send -n 1 luna://com.webos.service.systemservice/getPreferences '{"keys":["timeFormat"]}' </dev/null 2>/dev/null | sed -n 's/.*"timeFormat": *"HH\([0-9]*\)".*/\1/p')
+  case "$hh" in 12|24) ;; *) return 1 ;; esac
+  [ -n "$loc" ] || return 1
+  for d in $dirs; do
+    mkdir -p "$d/config" && printf '{"locale":"%s","clock":"%sh"}\n' "$loc" "$hh" > "$d/config/tv.json.tmp" && chmod 644 "$d/config/tv.json.tmp" && mv -f "$d/config/tv.json.tmp" "$d/config/tv.json"
+  done
+  echo "$(date +%T) screensaver: tv.json $loc ${hh}h" >> /tmp/homehook.log
+}
+# Settings > Screensaver > Brightness for Lumen Screensaver, as dimForScreensaver in Lumen: lowers the backlight (never raises it) and
+# keeps the level it had in SAVER_BL, which outlives a restart of this script, until it is put back
+ns_dim() {
+  case "$(sed -n 's/.*"ambientBrightness": *"\([a-z]*\)".*/\1/p' "$LUMEN_CONFIG" 2>/dev/null)" in tv) return ;; low) want=10 ;; *) want=30 ;; esac
+  r=$(luna-send -n 1 luna://com.webos.settingsservice/getSystemSettings '{"category":"picture","keys":["backlight"]}' </dev/null 2>/dev/null)
+  before=$(printf '%s' "$r" | sed -n 's/.*"backlight": *"\([0-9]\{1,3\}\)".*/\1/p')
+  [ -n "$before" ] && [ "$before" -gt "$want" ] || return
+  [ -f "$SAVER_BL" ] || echo "$before" > "$SAVER_BL"
+  luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$want\"}}" </dev/null >/dev/null 2>&1
+  echo "$(date +%T) screensaver: backlight $before -> $want" >> /tmp/homehook.log
+}
+# puts back the backlight Lumen Screensaver lowered, as restoreBacklight: the schedule's level for now, else the one it had
+ns_restore() {
+  saved=""; read -r saved 2>/dev/null < "$SAVER_BL"
+  lv=$saved
+  blnow=$(bl_step) && set -- $blnow && [ "$4" -le 100 ] && lv=$4
+  rm -f "$SAVER_BL"
+  case "$lv" in ''|*[!0-9]*) return ;; esac
+  luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$lv\"}}" </dev/null >/dev/null 2>&1
+  echo "$(date +%T) screensaver: backlight back to $lv (had $saved)" >> /tmp/homehook.log
+}
 
 quick_start() {
+  pick_side_apps
   [ -d "$APPS/$QUICK" ] || return
+  [ "$QUICK" = "$NATIVE_QUICK" ] && return
   run=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)
   case "$run" in *'"id":"'$QUICK'"'*) return ;; esac
   ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$QUICK\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
@@ -288,7 +382,7 @@ bl_apply() {
   inp=$(bl_input)
   case " $blinputs " in
     *" $inp "*) ;;
-    *) if [ ! -f "$AMBIENT_ON" ]; then
+    *) if [ ! -f "$AMBIENT_ON" ] && [ "$nshow" != 1 ]; then
          luna-send -n 1 luna://com.webos.settingsservice/setSystemSettings "{\"category\":\"picture\",\"settings\":{\"backlight\":\"$4\"}}" </dev/null >/dev/null 2>&1
          blinputs="$blinputs $inp"
          echo "$(date +%T) brightness: backlight $4 on $inp (from $1)" >> /tmp/homehook.log
@@ -302,6 +396,50 @@ bl_apply() {
          echo "$(date +%T) brightness: Eye Comfort $3 on $inp (from $1)" >> /tmp/homehook.log
        fi ;;
   esac
+}
+
+MEMLOG=/var/lib/homehook/mem.log
+memboot=0
+mem_log() {
+  st=$(luna-send -n 1 luna://com.webos.memorymanager/getCurrentMemState '{}' </dev/null 2>/dev/null)
+  lvl=$(printf '%s' "$st" | sed -n 's/.*"currentLevel":"\([^"]*\)".*/\1/p')
+  use=$(printf '%s' "$st" | sed -n 's/.*"usable":\([0-9]*\).*/\1/p')
+  mem=$(awk '/^MemAvailable/{a=$2} /^SwapTotal/{t=$2} /^SwapFree/{f=$2} END{printf "avail=%d swap=%d", a/1024, (t-f)/1024}' /proc/meminfo)
+  apps=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null | tr '{' '\n' | sed -n 's/.*"id":"\([^"]*\)".*"processid":"\([0-9]*\)".*/\1 \2/p' |
+    while read -r id pid; do
+      awk -v id="$id" '/^VmRSS/{r=$2} /^VmSwap/{s=$2} END{printf " %s=%d+%d", id, r/1024, s/1024}' /proc/$pid/status 2>/dev/null
+    done)
+  why=""
+  if [ "$memboot" -eq 0 ]; then
+    memboot=1
+    memup=$(cut -d. -f1 /proc/uptime 2>/dev/null)
+    [ "${memup:-0}" -lt 900 ] && why=" boot: $(grep -oE '"PowerOnReason":"[^"]*"|"power_off_history":"[^"]*"' /var/log/messages 2>/dev/null | head -2 | tr '\n' ' ')"
+  fi
+  echo "$(date '+%F %T') level=$lvl usable=$use $mem load=$(cut -d' ' -f1 /proc/loadavg) |$apps$why" >> "$MEMLOG"
+  [ "$(wc -l < "$MEMLOG")" -gt 4000 ] && tail -n 3000 "$MEMLOG" > "$MEMLOG.tmp" && mv "$MEMLOG.tmp" "$MEMLOG"
+}
+
+# Hyperion: on 2026-11-25 hyperiond hung at boot without opening its ports, so the LEDs stayed dark until it was killed and its loader started
+# it again. Once a minute: the same hyperiond pid twice with nothing listening on 19400 is a hang, so kill it and let the loader restart it.
+HYP_PORT=4BC8
+hypstuck=""
+hyperion_check() {
+  hpid=""
+  for p in /proc/[0-9]*; do
+    read -r c < "$p/comm" 2>/dev/null || continue
+    [ "$c" = hyperiond ] && { hpid=${p#/proc/}; break; }
+  done
+  if [ -z "$hpid" ] || awk -v port=":$HYP_PORT" '$4 == "0A" && substr($2, length($2) - 4) == port { f = 1 } END { exit !f }' /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+    hypstuck=""
+    return
+  fi
+  if [ "$hypstuck" = "$hpid" ]; then
+    kill "$hpid" 2>/dev/null; sleep 2; kill -9 "$hpid" 2>/dev/null
+    echo "$(date '+%F %T') hyperion: hyperiond $hpid not listening for a minute, killed so its loader restarts it" | tee -a /tmp/homehook.log >> "$MEMLOG"
+    hypstuck=""
+  else
+    hypstuck=$hpid
+  fi
 }
 
 stop_preload
@@ -365,6 +503,26 @@ while true; do
       ;;
     *) prev="other" ;;
   esac
+  # Lumen Screensaver (native): its settings follow Lumen's; the backlight is lowered while it shows and put back after; a TV left in its
+  # screensaver state after it went is ended (the app cannot call luna)
+  ns_config
+  [ "$tvdue" = 1 ] && [ $((ticks % 30)) -eq 2 ] && ns_tvjson && tvdue=0
+  if ns_showing; then
+    if [ "$nshow" != 1 ]; then nsgone=0; echo "$(date +%T) screensaver: Lumen Screensaver up over ${app:-nothing}" >> /tmp/homehook.log; ns_dim; fi
+    nshow=1
+  else
+    if [ "$nshow" = 1 ]; then nsgone=$now; echo "$(date +%T) screensaver: Lumen Screensaver gone" >> /tmp/homehook.log; fi
+    nshow=0
+    if [ -f "$SAVER_BL" ]; then case "$pwstate" in Active|"Screen Saver") ns_restore ;; esac; fi
+  fi
+  if [ "$nsgone" -gt 0 ]; then
+    if [ "$pwstate" != "Screen Saver" ]; then nsgone=0
+    elif [ $((now - nsgone)) -ge 2 ]; then
+      nsgone=0
+      luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
+      echo "$(date +%T) screensaver: ended, the TV stayed in its screensaver state after Lumen Screensaver went" >> /tmp/homehook.log
+    fi
+  fi
   # video wallpaper on and the launcher in front: no screensaver, LG's is ended as soon as it starts
   vid=0
   if [ -f "$VIDEO_FLAG" ] && [ -n "$front" ]; then vid=1; fi
@@ -377,11 +535,25 @@ while true; do
       *'"Screen Saver"'*) luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1; echo "$(date +%T) ended screensaver (video wallpaper)" >> /tmp/homehook.log ;;
     esac
   elif [ -f "$AMBIENT_FLAG" ] && saver_mounted; then
-    # Lumen Screensaver is LG's screensaver: the TV opens it on its own timer, and it ends itself over Lumen's own (docs/plans/side-apps.md
-    # section 4). Only a guard: if the app it came up over leaves the front while it is up (the 2026-11-13 hang), it is ended.
+    # Lumen Screensaver is LG's screensaver: the TV opens it on its own timer (docs/plans/side-apps.md section 4). Over Lumen's own, or
+    # over the side app that Lumen or Quick Settings opened, it waits without drawing, and this ends it. A guard too: if the app it came up over leaves the front while it is up (the 2026-11-13
+    # hang), it is ended.
     case "$pw" in
       *'"Screen Saver"'*)
-        if [ "$pwprev" != "saver" ]; then
+        if [ "$pwprev" != "saver" ]; then nsover=0; saver_running && nsover=1; fi
+        if [ "$nsover" = 1 ] || { [ -f "$AMBIENT_ON" ] && [ -n "$front" ]; }; then
+          pwprev="saver"
+          if [ $((now - saverlast)) -ge 3 ]; then
+            saverlast=$now
+            luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
+            sleep 1
+            how="the TV closed it"
+            case "$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)" in
+              *'"id":"'$LGSAVER'"'*) how="closed: $(luna-send -n 1 luna://com.webos.applicationManager/closeByAppId "{\"id\":\"$LGSAVER\"}" </dev/null 2>&1)" ;;
+            esac
+            echo "$(date +%T) screensaver: Lumen Screensaver (in LG's place) ended over the one already up, $how" >> /tmp/homehook.log
+          fi
+        elif [ "$pwprev" != "saver" ]; then
           saverapp=$app
           echo "$(date +%T) screensaver: Lumen Screensaver (in LG's place) over ${app:-nothing}" >> /tmp/homehook.log
         elif [ -n "$saverapp" ] && [ "$app" != "$saverapp" ]; then
@@ -398,16 +570,18 @@ while true; do
     # is pressed), so it is only ended, not answered by opening Lumen again.
     case "$pw" in
       *'"Screen Saver"'*)
-        if [ -f "$AMBIENT_ON" ] && { [ -n "$front" ] || saver_running; }; then
+        if [ "$nshow" = 1 ] || { [ -f "$AMBIENT_ON" ] && { [ -n "$front" ] || saver_running; }; }; then
           luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
         elif [ "$pwprev" != "saver" ] && [ $((now - saverlast)) -ge 5 ]; then
           saverlast=$now
           # the app it came up over, so a key that ends the screensaver goes back to it (plain app ids only; not Lumen, LG Home or Frame)
           from=""
           case "$app" in ''|$LGHOME|$FRAME) ;; *) [ -z "$front" ] && printf '%s' "$app" | grep -qE '^[A-Za-z0-9._-]+$' && from=",\"from\":\"$app\"" ;; esac
-          if [ -n "$from" ] && [ -d "$APPS/$SAVER" ]; then
-            # over the app, as an overlay: the app stays the card in front, so it is where you left it after a key
+          if [ -d "$APPS/$SAVER" ] && { [ -n "$from" ] || [ -n "$front" ]; }; then
+            # over the app (or Lumen), as an overlay: the app stays the card in front, so it is where you left it after a key. The TV
+            # leaves its screensaver state first, as Hyperion stops while the TV is in it
             who=$SAVER
+            luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
             r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$SAVER\",\"params\":{${from#,}}}" </dev/null 2>&1)
           else
             who=$target
@@ -464,6 +638,8 @@ while true; do
   # keep the extra blocked names (hosts-extra, and Settings > Privacy's list) in /etc/hosts (about every 30 s; the dashboard rewrites the table at boot)
   ticks=$((ticks + 1))
   [ $((ticks % 30)) -eq 0 ] && stop_preload
+  [ $((ticks % 60)) -eq 5 ] && mem_log
+  [ $((ticks % 60)) -eq 35 ] && hyperion_check
   if [ $((ticks % 30)) -eq 1 ] && { [ -f "$EXTRA" ] || [ -f "$PRIVACY_HOSTS" ]; }; then
     # only "0.0.0.0 <name>" or ":: <name>" lines are ever copied, so a stray line in a file cannot point a name somewhere real
     # one pass: the lines not yet in the table (two greps, not one per line: the privacy list is about 180 lines)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Builds the .ipk files that are published as a release, without app/private/:
   - Lumen, the stable app id (no third-party icon tiles or logos, no private font, the bundled public-domain paintings as default wallpapers).
-  - The side apps (docs/plans/side-apps.md): Lumen Guide, Lumen Quick Settings and Lumen Screensaver.
+  - The side apps (docs/plans/side-apps.md): Lumen Guide and Lumen Quick Settings. Lumen Screensaver is part of Lumen Native (native/lumen/).
 
 Each side app has its own version, which goes up only when the app changes (docs/plans/side-apps.md, "Versions of their own"). Its built
 files are hashed (every path and its bytes, with the version taken out of appinfo.json) and compared with the last release's, read from
@@ -16,7 +16,7 @@ import glob, hashlib, json, os, shutil, subprocess
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = f'{ROOT}/release'
 APP = f'{ROOT}/app'
-SIDE_APPS = [('guide', 'com.samrenfrew.lumen.guide'), ('quick', 'com.samrenfrew.lumen.quick'), ('saver', 'com.samrenfrew.lumen.saver')]
+SIDE_APPS = [('guide', 'com.samrenfrew.lumen.guide'), ('quick', 'com.samrenfrew.lumen.quick')]
 env = dict(os.environ, LUMEN_PRIVATE='0', LUMEN_APP_ID='com.samrenfrew.lumen', LUMEN_APP_TITLE='Home', LUMEN_BUILD_DIR=OUT)
 
 

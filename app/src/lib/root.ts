@@ -201,19 +201,6 @@ export function startScreensaver (): Promise<void> {
 	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreenSaver', {})).then(() => undefined);
 }
 
-/** Ends the TV's screensaver state, as watch.sh does. With no screensaver up, tvpower answers with an error and nothing changes. */
-export function endScreensaver (): Promise<void> {
-	return run(luna('luna://com.webos.service.tvpower/power/turnOnScreen', {}), 4000).then(() => undefined);
-}
-
-/** True while Lumen's own screensaver shows: its flag is set and a Lumen build is in front (so a flag left by a crash is not believed). */
-export function lumenOwnSaverUp (): Promise<boolean> {
-	return run(`[ -f /tmp/lumen-ambient-on ] && echo flag; ${luna('luna://com.webos.applicationManager/getForegroundAppInfo', {})}`, 4000).then((out) => {
-		const m = /"appId"\s*:\s*"([^"]+)"/.exec(out);
-		return /^flag/.test(out) && !!m && LUMEN_IDS.indexOf(m[1]) !== -1;
-	});
-}
-
 /** Tells watch.sh the video wallpaper is on, so LG's screensaver is ended while Lumen is in front. */
 export function setVideoFlag (on: boolean): Promise<void> {
 	return run(on ? `mkdir -p ${HOMEHOOK} && touch ${HOMEHOOK}/video-wallpaper` : `rm -f ${HOMEHOOK}/video-wallpaper`).then(() => undefined);
@@ -360,14 +347,14 @@ export function installTvScripts (appDir: string): Promise<boolean> {
 // ---------- Side apps (docs/plans/side-apps.md): Settings > Side apps installs, updates and removes them ----------
 
 /** The side apps, the only ids the commands below take. */
-export const SIDE_APPS = ['com.samrenfrew.lumen.guide', 'com.samrenfrew.lumen.quick', 'com.samrenfrew.lumen.saver'] as const;
+export const SIDE_APPS = ['com.samrenfrew.lumen.guide', 'com.samrenfrew.lumen.quick', 'com.samrenfrew.lumen.native.saver'] as const;
 export type SideAppId = typeof SIDE_APPS[number];
 const isSideApp = (id: string): id is SideAppId => (SIDE_APPS as readonly string[]).indexOf(id) !== -1;
 const DEV_APPS = '/media/developer/apps/usr/palm/applications';
 const VERSION = /^\d{1,4}\.\d{1,4}\.\d{1,7}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
-/** a release download from this repo, for that one app: https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/<id>_<version>_all.ipk */
-const releaseUrl = (id: string) => new RegExp(`^https://github\\.com/samrenfrew/lumen-webos/releases/download/v\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}/${id.replace(/\./g, '\\.')}_\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}_all\\.ipk$`);
+/** a release download from this repo, for that one app: https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/<id>_<version>_all.ipk (_arm.ipk for the native screensaver) */
+const releaseUrl = (id: string) => new RegExp(`^https://github\\.com/samrenfrew/lumen-webos/releases/download/v\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}/${id.replace(/\./g, '\\.')}_\\d{1,4}\\.\\d{1,4}\\.\\d{1,7}_(?:all|arm)\\.ipk$`);
 
 /** The version of each side app that is installed, read from its appinfo.json; a missing app is left out. */
 export function sideAppVersions (): Promise<Partial<Record<SideAppId, string>>> {
@@ -412,11 +399,14 @@ export function installSideApp (id: string, url: string, sha256: string): Promis
 export function uninstallSideApp (id: string): Promise<boolean> {
 	if (!isSideApp(id)) return Promise.reject(new Error(`refused: uninstall ${id}`));
 	const present = `${luna('luna://com.webos.applicationManager/getAppInfo', {id})} 2>/dev/null | grep -q '"returnValue":true'`;
+	const dir = `${DEV_APPS}/${id}`;
 	return run([
-		`if ${present}; then ${luna('luna://com.webos.appInstallService/dev/remove', {id, subscribe: false})} >/dev/null 2>&1; sleep 2; fi`,
+		`if ${present} || [ -d ${dir} ]; then ${luna('luna://com.webos.appInstallService/dev/remove', {id, subscribe: false})} >/dev/null 2>&1; fi`,
+		// hazard: sideAppVersions reads this folder, so returning before it is deleted leaves the Settings row saying On
+		`n=0; while [ $n -lt 30 ] && [ -d ${dir} ]; do sleep 1; n=$((n+1)); done`,
 		`[ -f ${BOOT_HOOK} ] && ${BOOT_HOOK} restart >/dev/null 2>&1`,
-		`if ${present}; then echo kept; else echo gone; fi`
-	].join('; '), 30000).then((text) => text.indexOf('gone') !== -1);
+		`if ${present} || [ -d ${dir} ]; then echo kept; else echo gone; fi`
+	].join('; '), 45000).then((text) => text.indexOf('gone') !== -1);
 }
 
 /** home-setup.sh's changes, by name. */

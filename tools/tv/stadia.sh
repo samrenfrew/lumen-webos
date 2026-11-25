@@ -1,6 +1,7 @@
 #!/bin/sh
 # Stadia controller pairing, for Moonlight. A reconnect never sends input on this TV (docs/research/spikes.md), so the fix is a fresh pairing.
-# Each time Moonlight comes to the front, a popup asks to pair. OK on the remote starts it, Back (or 60 s with no answer) skips it.
+# Each time Moonlight comes to the front, and each time the controller reconnects on its own while Moonlight is in front, a popup asks to pair.
+# OK on the remote starts it, Back (or 60 s with no answer) skips it.
 # After OK it forgets the controller and tries to pair again and again, for up to PAIR_SECS, so Stadia + Y can be held at any time.
 # A pairing counts only once the controller sends a report, so a pair made before Stadia + Y is undone and tried again.
 # After RESTART_AFTER failed tries in a row it restarts the TV's Bluetooth service, which unsticks a pairing the stack has hung on.
@@ -55,6 +56,8 @@ start_keys() {
 stop_keys() { [ -n "$keypid" ] && kill "$keypid" 2>/dev/null; keypid=""; }
 
 present() { grep -q '^N: Name="Stadia' /proc/bus/input/devices; }
+# the input device's instance (9400.0004); it changes at every reconnect, so a drop that comes back within one poll still shows
+inst() { grep -A3 '^N: Name="Stadia' /proc/bus/input/devices | sed -n 's/^S: Sysfs=.*\(9400\.[0-9A-Fa-f]*\).*/\1/p' | head -1; }
 hidraw() {
   for x in /sys/class/hidraw/hidraw*; do
     readlink "$x" 2>/dev/null | grep -qi '18d1:9400' && grep -q '^HID_NAME=Stadia' "$x/device/uevent" 2>/dev/null \
@@ -145,23 +148,35 @@ pair() {
 trap 'stop_keys; close_alert; exit' TERM INT
 [ -f "$LOG" ] && tail -n 300 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 log "started"
-was=0; asking=0
+was=0; asking=0; seen=""
+ask() {
+  asking=1; asked=$(date +%s)
+  start_keys
+  alert "$1" "Press OK to pair the Stadia controller. Press Back to skip."
+}
 while true; do
   sleep 1
   if ! front; then
     [ "$was" -eq 1 ] && { log "Moonlight left the front"; stop_keys; close_alert; asking=0; }
-    was=0; continue
+    was=0; seen=""; continue
   fi
   jail_node
+  cur=$(inst)
   if [ "$was" -eq 0 ]; then
-    was=1; asking=1; asked=$(date +%s)
+    was=1
     log "Moonlight in front: asking"
-    start_keys
-    alert "Pair the controller?" "Press OK to pair the Stadia controller. Press Back to skip."
+    ask "Pair the controller?"
+  elif [ -n "$cur" ] && [ -n "$seen" ] && [ "$cur" != "$seen" ]; then
+    # 2026-11-13: a drop that came back at once left the controller dead and nothing was shown; one during the popup restarts its clock
+    log "controller reconnected on its own ($seen to $cur): asking"
+    ask "Controller reconnected"
   fi
+  [ -n "$cur" ] && seen=$cur
   [ "$asking" -eq 1 ] || continue
   if grep -q ok "$KEYS" 2>/dev/null; then
     asking=0; stop_keys; pair
+    # the pairing makes a new instance itself, which is not a drop
+    s=$(inst); [ -n "$s" ] && seen=$s
   elif grep -q back "$KEYS" 2>/dev/null || [ $(( $(date +%s) - asked )) -ge "$ASK_SECS" ]; then
     asking=0; stop_keys; close_alert; log "skipped"
   fi

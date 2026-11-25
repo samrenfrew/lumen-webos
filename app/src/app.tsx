@@ -10,7 +10,7 @@ import {BUILTIN, BUILTIN_APPS, withBuiltins} from './config/builtinApps';
 import {cachedApps, listApps, sameApps, saveAppsCache, seedAppIds, type AppEntry} from './lib/apps';
 import {afterFirstFrame, readCache, writeCache} from './lib/boot';
 import {listInputs, MOCK_INPUTS, type InputSource} from './lib/inputs';
-import {launchApp, launchLgHome} from './lib/launch';
+import {appExists, launchApp, launchLgHome} from './lib/launch';
 import {isWebOS} from './lib/luna';
 import {hidePointerOnForeground} from './lib/pointer';
 import {DEFAULT_CONFIG, IDLE_SECONDS, hasSavedConfig, loadConfig, saveConfig, toggleId, withWallpaper, type UserConfig} from './lib/storage';
@@ -56,7 +56,9 @@ const LIVE_INFO_W = 660;
 /** how much higher the Live TV row sits when focused, so its now/next block fits on screen */
 const LIVE_BELOW = 150;
 const MISC = {lgHome: 'lg-home', settings: 'settings'} as const;
-const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', ambientPrint: 'ambient-print', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye', sideGuide: 'side-guide', sideQuick: 'side-quick', sideSaver: 'side-saver', sideUpdate: 'side-update'} as const;
+/** Lumen Screensaver, the native side app: when it is installed it shows in place of the screensaver built into this page */
+const SIDE_SAVER = 'com.samrenfrew.lumen.native.saver';
+const OPTION = {liveTv: 'live-tv-row', ambient: 'ambient', ambientOn: 'ambient-on', saverShow: 'saver-show', ambientSeconds: 'ambient-seconds', ambientBrightness: 'ambient-brightness', fps: 'fps-counter', guidePreview: 'guide-preview', guideSound: 'guide-sound', homePreview: 'home-preview', restore: 'restore-backup', focus: 'focus-strength', firstRow: 'first-row', videoHours: 'video-hours', dockBlur: 'dock-blur', liquidDock: 'liquid-dock', reduceMotion: 'reduce-motion', hideNames: 'hide-names', showRecents: 'show-recents', dockHide: 'dock-hide', showAmPm: 'show-ampm', showAll: 'show-all-apps', weather: 'show-weather', homeCast: 'home-forecast', saverCast: 'saver-forecast', immichUrl: 'immich-url', immichKey: 'immich-key', immichTest: 'immich-test', city: 'weather-city', country: 'weather-country', idle: 'idle-screensaver', wpAuto: 'wp-auto', immichDays: 'immich-recent-days', wpType: 'wp-type', wpNew: 'wp-new', nightDim: 'night-dim', dockDim: 'dock-dim', captions: 'wallpaper-captions', darkMode: 'dark-mode', language: 'language', clock: 'clock-format', tvScripts: 'tv-scripts', tvHome: 'tv-home', tvPowerOn: 'tv-power-on', tvRestart: 'tv-restart', pvAgreements: 'privacy-agreements', pvLmt: 'privacy-lmt', pvLivePlus: 'privacy-liveplus', pvHosts: 'privacy-hosts', pvServices: 'privacy-services', pvUpdates: 'privacy-updates', blOn: 'brightness-on', blDayAt: 'brightness-day-at', blDay: 'brightness-day', blEveningAt: 'brightness-evening-at', blEvening: 'brightness-evening', blNightAt: 'brightness-night-at', blNight: 'brightness-night', blRamp: 'brightness-ramp', blEye: 'brightness-eye', sideGuide: 'side-guide', sideQuick: 'side-quick', sideSaver: 'side-saver', sideUpdate: 'side-update'} as const;
 const WP_AUTO_CHOICES = [0, 0.5, 1, 5, 15, 30, 60];   // minutes
 /** when the video wallpaper plays (Settings > Wallpaper > Video wallpaper hours): [first hour, hour it stops]; always = no limit */
 const VIDEO_HOURS: Record<string, [number, number]> = {day: [7, 19], evening: [17, 23], night: [19, 7]};
@@ -164,7 +166,7 @@ function tvOptions (tv: TvState | null, busy: string): OptionItem[] {
 const SIDE_ROWS: {option: string; id: SideAppId; description: string}[] = [
 	{option: OPTION.sideGuide, id: 'com.samrenfrew.lumen.guide', description: 'A channel guide over Live TV: LIST opens Now and Next, GUIDE the full guide. Off removes it from the TV.'},
 	{option: OPTION.sideQuick, id: 'com.samrenfrew.lumen.quick', description: 'Sound, picture and backlight over any app, on the gear button. In Lumen the gear opens Control Center. Off removes it, and the gear is LG\'s again.'},
-	{option: OPTION.sideSaver, id: 'com.samrenfrew.lumen.saver', description: 'Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.'}
+	{option: OPTION.sideSaver, id: 'com.samrenfrew.lumen.native.saver', description: 'Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.'}
 ];
 
 /** Settings > Side apps: a row per side app (on when installed), then Update while any is on. */
@@ -432,8 +434,8 @@ export function App () {
 	const saverFrom = useRef('');
 	useEffect(() => setVideoWallpaper(videoOn), [videoOn]);
 	useEffect(() => { setAmbientFlag(config.ambientOn); }, [config.ambientOn]);
-	// out of the launch's way; it also picks up a screensaver side app installed since the last launch
-	useEffect(() => { const t = window.setTimeout(() => setSaverMount(config.ambientOn), SAVER_MOUNT_DELAY_MS); return () => window.clearTimeout(t); }, [config.ambientOn]);
+	// out of the launch's way: a mount left by an older build is taken out, as the TV's own screensaver state stops Hyperion
+	useEffect(() => { const t = window.setTimeout(() => setSaverMount(false), SAVER_MOUNT_DELAY_MS); return () => window.clearTimeout(t); }, []);
 	useEffect(() => { clearSaverOffFlag(); }, []);
 	useEffect(() => { setVideoPaused(screen !== 'home'); document.documentElement.classList.toggle('in-settings', screen === 'settings' || screen === 'guide'); }, [screen]);
 	const lastScreen = useRef(screen);
@@ -452,9 +454,13 @@ export function App () {
 	}, [apps, restoring]);
 	const allApps = useMemo(() => withBuiltins(apps), [apps]);
 
-	/** Lumen's screensaver straight away, without LG's showing first; LG's own when Lumen's is not chosen (unless forced, from Control Center). */
+	/** Lumen's screensaver straight away, without LG's showing first (the side app when it is installed, else the one built in); LG's own when Lumen's is not chosen (unless forced, from Control Center). */
 	const showScreensaver = (lumen = configRef.current.ambientOn) => {
-		if (lumen) { ambientOpening.current = videoOnRef.current ? null : shownWallpaper(); saverFrom.current = ''; setScreen('ambient'); return; }
+		if (lumen) {
+			const own = () => { ambientOpening.current = videoOnRef.current ? null : shownWallpaper(); saverFrom.current = ''; setScreen('ambient'); };
+			appExists(SIDE_SAVER).then((side) => (side ? launchApp(SIDE_SAVER).catch(own) : own()));
+			return;
+		}
 		startScreensaver().catch(() => showToast("Couldn't start the screensaver (it needs the Homebrew Channel)", 'error'));
 	};
 	/** A key ended the screensaver: back to the app it came up over, else the home screen. The Home button is a plain relaunch and always goes home. */
@@ -481,7 +487,7 @@ export function App () {
 	// the screensaver's first photo is loaded while the home screen is up, so the idle timer and Control Center's Art mode both open on it at once
 	useEffect(() => {
 		if (screen !== 'home') return;
-		const timer = window.setTimeout(() => { if (!document.hidden) prepareAmbient(config.saverShow, config.ambient, config.wallpaperPicks); }, PREPARE_SAVER_MS);
+		const timer = window.setTimeout(() => { if (!document.hidden) appExists(SIDE_SAVER).then((side) => { if (!side) prepareAmbient(config.saverShow, config.ambient, config.wallpaperPicks); }); }, PREPARE_SAVER_MS);
 		return () => window.clearTimeout(timer);
 	}, [screen, config.saverShow, config.ambient, config.wallpaperPicks]);
 	useEffect(() => { setVideoFlag(videoOn); }, [videoOn]);
@@ -822,12 +828,6 @@ export function App () {
 					description: 'Turns the TV\'s backlight down while the screensaver shows, and back up when you press a key.',
 					value: config.ambientBrightness !== 'tv',
 					...listed(OPTION.ambientBrightness)
-				}, {
-					id: OPTION.ambientPrint,
-					group: 'screensaver' as const,
-					label: 'Print look',
-					description: 'Makes the pictures look like prints on a wall rather than a glowing screen: softer blacks, paper-white whites and a gentle fall of light.',
-					value: config.ambientPrint
 				}, {
 					id: OPTION.saverCast,
 					group: 'screensaver' as const,
@@ -1181,8 +1181,9 @@ export function App () {
 		if (sideRow || optionId === OPTION.sideUpdate) {
 			if (!side) { showToast('Still checking the side apps'); return; }
 			const then = (line: string) => { readSide(); return line; };
-			if (!sideRow) runTv(optionId, () => updateSides(side).then(then));
-			else runTv(optionId, () => (side.installed[sideRow.id] ? removeSide(sideRow.id) : installSide(side, sideRow.id)).then(then));
+			const failed = (e: unknown) => { readSide(); throw e; };
+			if (!sideRow) runTv(optionId, () => updateSides(side).then(then, failed));
+			else runTv(optionId, () => (side.installed[sideRow.id] ? removeSide(sideRow.id) : installSide(side, sideRow.id)).then(then, failed));
 			return;
 		}
 		if (optionId === OPTION.restore) {
@@ -1206,7 +1207,6 @@ export function App () {
 		else if (optionId === OPTION.liquidDock) updateConfig({...config, liquidDock: !config.liquidDock});
 		else if (optionId === OPTION.dockDim) updateConfig({...config, dockDim: !config.dockDim});
 		else if (optionId === OPTION.captions) updateConfig({...config, wallpaperCaptions: !config.wallpaperCaptions});
-		else if (optionId === OPTION.ambientPrint) updateConfig({...config, ambientPrint: !config.ambientPrint});
 		else if (optionId === OPTION.wpNew) updateConfig({...config, wpNewOnLaunch: !config.wpNewOnLaunch});
 	}, [config, immich.ready, testImmich, tv, runTv, showToast, side, readSide]);
 
@@ -1275,7 +1275,7 @@ export function App () {
 		<>
 			{/* Home stays mounted under Settings so it keeps its focus position. */}
 			<Home rows={rows} tiles={TILES_FOR[firstRow] || TILES_FOR[6]} perRow={firstRow} topItems={TOP_ITEMS} inputs={shownInputs.map(inputTile)} active={screen === 'home' && !controls} onActivate={onActivate} showPeriod={config.showAmPm} onEdit={onEdit} folders={folderMap} weather={weather} weatherLine={config.showWeather && !(config.homeForecast && config.homeForecastSize === 'large')} forecast={config.homeForecast ? config.homeForecastSize as 'small' | 'large' : undefined} dockHide={config.dockHide} dockDim={config.dockDim} captions={config.wallpaperCaptions} focusRow={focusRow} />
-			{screen === 'ambient' && <Ambient show={config.saverShow} source={config.ambient} pictures={config.wallpaperPicks} seconds={config.ambientSeconds} backlight={AMBIENT_BACKLIGHT[config.ambientBrightness]} weather={weather} weatherLine={config.showWeather && !(config.saverForecast && config.saverForecastSize === 'large')} forecast={config.saverForecast ? config.saverForecastSize as 'small' | 'large' : undefined} showPeriod={config.showAmPm} print={config.ambientPrint} opening={ambientOpening.current} onExit={leaveAmbient} />}
+			{screen === 'ambient' && <Ambient show={config.saverShow} source={config.ambient} pictures={config.wallpaperPicks} seconds={config.ambientSeconds} backlight={AMBIENT_BACKLIGHT[config.ambientBrightness]} weather={weather} weatherLine={config.showWeather && !(config.saverForecast && config.saverForecastSize === 'large')} forecast={config.saverForecast ? config.saverForecastSize as 'small' | 'large' : undefined} showPeriod={config.showAmPm} opening={ambientOpening.current} onExit={leaveAmbient} />}
 			{screen === 'guide' && <Guide key={guideOpens} channels={live.channels} listings={live.listings} logos={live.logos} now={live.now} schedule={live.schedule} pending={live.pending} full={config.guideFull} preview={__LUMEN_DEV__ && config.guidePreview} sound={config.guideSound} onMode={(full) => { if (configRef.current.guideFull !== full) updateConfig({...configRef.current, guideFull: full}); }} active={!controls} onOpen={watchChannel} onClose={() => setScreen('home')} />}
 			{screen === 'settings' && <Settings tabs={tabs} wallpaper={wallpaper} options={options} active onToggle={onToggle} onReorder={onReorder} onOption={onOption} onChoose={onChoose} onText={onText} onClose={() => setScreen('home')} />}
 			{controls && <ControlCenter
@@ -1286,7 +1286,7 @@ export function App () {
 				onClose={() => setControls(false)}
 				onCloseDown={() => { setControls(false); setFocusRow({id: ROW.apps, seq: Date.now()}); }}
 				onError={(text) => showToast(text, 'error')}
-				onAction={(a: CenterAction) => { setControls(false); if (a === 'art') showScreensaver(true); else onActivate('menu', {key: MISC.lgHome, label: 'LG Home'}); }}
+				onAction={(a: CenterAction) => { setControls(false); if (a === 'art') showScreensaver(true); else if (a === 'settings') launchApp('com.palm.app.settings').catch(() => showToast("Couldn't open the TV's settings", 'error')); else onActivate('menu', {key: MISC.lgHome, label: 'LG Home'}); }}
 			/>}
 			<Toast message={toast} />
 		</>

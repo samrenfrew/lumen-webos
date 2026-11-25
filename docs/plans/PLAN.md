@@ -35,10 +35,24 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Native screensaver in LG's place (2026-11-24, branch `native-saver`, mounted by hand on the TV until the next reboot;
+      `docs/plans/native-saver.md`). Check after each run that Hyperion still gets the live capture (the Hyperion item there).
+
+- [ ] TV restarts on its own (2026-11-19, branch `live-tv-preview`, on the TV). The TV rebooted several times on 2026-11-19 (watchdog
+      reset: `cpuAbnormal`, `OFF_BY_NO_POLLING`), with system calls timing out before it. Memory is the suspect, not proven. Lumen
+      Guide and Quick Settings are off (Settings > Side apps) to save memory, `deploy:home` now leaves an off side app off, and
+      watch.sh writes `/var/lib/homehook/mem.log`. Check: at the next restart, read mem.log for the minutes before it. Turning a side
+      app off now waits until its folder is gone, so the row says Off; not yet seen on the TV.
+      Graphics memory in use (`GPUTotal - GPUCached` in /proc/meminfo), 2026-11-19: Lumen's screensaver about 180 MB, home about
+      86 MB once settled (150 for the first seconds), Settings about 106 MB. Before the saver fix the same day, LG's timer put a
+      second screensaver over Lumen's own every 20 minutes, which would have added more on top.
+      2026-11-20: Sam turned Lumen Screensaver off, as he saw it causing the restarts, and uses the screensaver inside Lumen again.
+      Check: no restarts in the days after. Dropping Home's page while hidden saves no memory (`docs/keep-alive.md`, Lumen's memory).
+
 - [ ] Lumen Screensaver in place of LG's (2026-11-13, branch `live-tv-preview`, dev build on the TV; `docs/plans/side-apps.md`
       section 4). All four steps built; Sam treats it as working and will feed back. Check: over a paused app the photos come up
       with no LG screensaver first and a key goes back to the app; after a reboot it is still Lumen's; Screensaver Disabled gives
-      LG's back. Over Lumen's own screensaver it was seen ending itself unseen.
+      LG's back. Over Lumen's own screensaver it was seen ending itself unseen. Off since 2026-11-20 (see the restarts item above).
 
 - [ ] Side apps (2026-11-11, branch `live-tv-preview`, not on the TV yet): the (verify) items in `docs/plans/side-apps.md` (Status).
       Install with `npm run deploy:home`, which now installs Lumen Screensaver too, and update the TV scripts (Settings > System >
@@ -76,7 +90,9 @@ Add new items here, with the branch and what to check. Delete an item once Sam h
       service after 3 failed tries. "Controller paired." shows once a button press arrives. To try again: Home, then Moonlight. First run
       paired on try 7, right after a Bluetooth restart. The bridge and its files are gone from the TV. The script also copies the
       controller's hidraw node into Moonlight's jail. Sam saw it work on 2026-11-08 (paired on try 1). Still to see: the Bluetooth
-      restart after 3 failed tries, and Back on the popup.
+      restart after 3 failed tries, and Back on the popup. Added 2026-11-13, on the TV: the popup also shows when the controller drops
+      and reconnects on its own while Moonlight is in front (the input device's instance number changes). Seen working the same night.
+      Then parked: the controller now pairs to the PC instead (docs/research/spikes.md, "Way round it"), and the script is off.
 
 - main, 2.1.3: switch-on follows Settings > Home and Power > When the TV turns on. With Lumen, a switch-on from standby still opens
   Lumen. With Last input, it leaves Live TV (or the last app) in front. Update the TV scripts from Settings first (issue 6).
@@ -210,7 +226,8 @@ In rough order of value:
 ## Parked
 
 - Native (GPU) version of Lumen. Reference: PlxNative (Rust, SDL2, OpenGL ES, webosbrew native NDK; GPL-3.0-or-later, so read for approach
-  only). If picked up again, start with a native Immich screensaver as a pilot rather than the whole launcher.
+  only). The pilot, a native screensaver, started 2026-11-24: `docs/plans/native-saver.md`.
+  The home screen's test app: `docs/plans/native-home.md`. The spec for the full rewrite: `docs/plans/native-rewrite.md`.
 - `content-visibility: auto` on off-screen rows: the lower rows are kept painted at opacity 0 on purpose, so showing them is a fade, not a
   first paint. Revisit only with a trace.
 

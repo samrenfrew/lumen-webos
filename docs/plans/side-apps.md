@@ -56,7 +56,7 @@ The file is `{"version": 1, "config": {...}}`. A side app reads it with `parseCo
 drops what it does not know, so a newer Lumen with an older side app, or the reverse, still works. If Lumen ever changes what a
 field means, `version` goes up and the side apps check it.
 
-From the file it uses: the photo source (wallpaper pictures or Immich, and which), time on each photo, brightness, Print look,
+From the file it uses: the photo source (wallpaper pictures or Immich, and which), time on each photo, brightness,
 night dimming, reduce motion, the clock's AM/PM, language, clock format, the weather city and the weather widget. Weather is fetched
 by the screensaver itself, from the same service as Lumen.
 
@@ -65,10 +65,10 @@ wallpapers and Immich photos load from the network, as in Lumen.
 
 ### How it is built
 
-- `app/saver.html` and `app/src/saver/main.tsx`, which mount `components/Ambient.tsx` unchanged apart from an `onShown` callback.
-  Styles: `theme/home.css` (the clock), `forecast.css`, `ambient.css`, and `theme/lsaver.css` for the clear page and the fade in.
-- Appinfo in `app/public-saver/`. `npm --prefix app run build:saver` builds it into `app/dist-saver/` (`LUMEN_TARGET=saver`).
-  `npm run deploy:saver` installs it over SSH, and `npm run deploy:home` installs it after the other two.
+- It is Lumen Native packaged a second time (`native/lumen/appinfo-saver.json`, `com.samrenfrew.lumen.native.saver`), as a mode
+  of the one program (`src/saver_mode.rs`). The C app in `native/saver/` that came before it was removed on 2026-11-24.
+  `npm run deploy:native` with `LUMEN_SAVER=1` installs it. The release workflow does not build it until phase 7 of
+  `docs/plans/native-rewrite.md`.
 - watch.sh: `SAVER=com.samrenfrew.lumen.saver`. In the photo-screensaver branch, with no Lumen build in front and the app installed, it
   launches the screensaver with `{"from":"<app>"}` (for the log only). While `/tmp/lumen-ambient-on` exists and the screensaver is
   running, LG's screensaver is only ended, as it is while Lumen's own shows.

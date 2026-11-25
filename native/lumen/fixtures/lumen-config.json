@@ -1,0 +1,34 @@
+{
+ "version": 1,
+ "config": {
+  "guidePreview": true,
+  "homePreview": true,
+  "appIds": [
+   "com.webos.app.livetv",
+   "bbc.iplayer.3.0",
+   "youtube.leanback.v4",
+   "com.beb.plxnative",
+   "com.fvp.ch4",
+   "com.limelight.webos",
+   "com.fvp.itv",
+   "demand5",
+   "org.webosbrew.hbchannel",
+   "com.webos.app.discovery",
+   "com.webos.app.hdmi1",
+   "org.webosbrew.inputhook",
+   "org.webosbrew.hyperion.ng.loader",
+   "org.webosbrew.piccap"
+  ],
+  "firstRow": 6,
+  "clockFormat": "24h",
+  "wallpaperType": "pictures",
+  "wallpaperPicks": [],
+  "wpNewOnLaunch": false,
+  "weatherCity": "Leeds",
+  "showWeather": true,
+  "homeForecast": true,
+  "homeForecastSize": "small",
+  "saverForecast": true,
+  "saverForecastSize": "large"
+ }
+}

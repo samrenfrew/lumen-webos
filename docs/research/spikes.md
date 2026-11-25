@@ -286,6 +286,22 @@ Stadia controller in Bluetooth mode, as `StadiaXR77-xxxx` (vid 18d1, pid 9400). 
 - Same day, 16:17: a pairing worked (input on `hidraw2`) but Moonlight saw nothing. Each reconnect or pairing can take a new hidraw
   number while `bthidmanager` still holds the old ones, and Moonlight's jail has only a fixed `hidraw0`. `stadia.sh` now copies the
   controller's node into `/var/palm/jail/com.limelight.webos/dev` each second; Moonlight opened `hidraw2` as soon as it was there.
+- Drop popup back (2026-11-13): the 2026-11-08 rewrite only asked when Moonlight came to the front, so a mid-game drop showed nothing.
+  `stadia.sh` again reads the input device's instance each second and asks when it changes; a change while the popup is up restarts
+  its 60 s clock. Caught the drops at 21:37, 21:59 and 22:01; re-pairs took 12 to 23 s.
+- Cached report line removed (2026-11-13 21:51): with the Bluetooth service stopped, the controller's `HidReport` line was taken out of
+  `bt_config.conf`, then the service started. The HID host ran its own discovery, registered for report ID 3 last, and input worked
+  with no re-pair (4950 bytes in 15 s). But it saved the line again at once, so the next power-cycle was dead as usual. Before this, a
+  service restart alone did not fix a dead link (2026-10-21). So "stop, remove the line, start" recovers a drop without Stadia + Y, at
+  the cost of about 30 s with no controller or Magic Remote, and must run at every drop. Not built.
+- Debug logs off (2026-11-13 22:05): the snoop and stack logs from 2026-11-06 were still on (3.4 MB of stack log in 9 minutes, load
+  about 29), and drops came every one to two minutes that evening. `bt_stack.conf` is back to `.orig` (the debug copy is at
+  `/tmp/bt_stack.conf.debug` until a reboot). Guess, not proven: the logging slowed the stack enough to drop links. Watch the drop rate.
+- A drop while a direction is held leaves Moonlight holding it, since no release report arrives (BACKLOG.md, "release held buttons").
+- Drops went on with the logs off. Way round it (2026-11-13 22:20): the controller is paired to the gaming PC (the room above), not the
+  TV, so the game reads it on the PC and LG's Bluetooth is out of the path. Sam: "works a treat". On the TV the controller is unpaired
+  and `stadia.sh` is off (`/var/lib/homehook/no-stadia`). To go back: remove that file and pair from the popup. Moonlight's stream
+  menu (quit and the rest), which the controller shortcut used to open, opens from the remote: hold Back, or press red.
 
 ## Keeping apps alive (2026-10-22)
 The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 minutes, then `switchtest.sh` (13 opens) with `memwatch.sh 2`.
@@ -331,3 +347,243 @@ The plan and the measure are in `docs/keep-alive.md`. Each run: reboot, wait 2 m
 - Wake-on-LAN resumes the TV from Suspend straight into Live TV. LG Home never opens, so a wake rule that only replaced LG Home did nothing. `watch.sh` now opens Lumen over whatever is in front after any wake.
 - Remote power-on with LG's "Home on power-on" (`general` / `homeAutoLaunch`) `"on"`: LG Home holds the screen for about 7 s, whatever is launched over it (about 9 s to Lumen). With it `"off"` (set 2026-10-24), nothing opens first and Lumen is in front about 5 s after the wake.
 - `luna-send` over SSH prints nothing without `ssh -tt`, unless its stdin is redirected (`</dev/null`). It looks like a dead bus but is not.
+
+## Rust (2026-11-24)
+Spike 1 of `docs/plans/native-rewrite.md`: the home screen test app's scene (`native/home/`, C) written again in Rust, as an app of
+its own, `native/rtest/` (`com.samrenfrew.lumen.rtest`, "Lumen Rust Test"). Same shaders, same keys, same readout, and it reads the
+same `/tmp/ntest-tune` and `/tmp/ntest-bench`, so the two can be compared move for move. Its log is `/tmp/lumen-rtest-<uid>/log`.
+
+On the NUC (done):
+- **It builds in a container.** `sh tools/build_rust_test.sh` makes the package, `npm run deploy:rtest` installs it. Rust 1.100.0
+  (pinned in `native/rtest/rust-toolchain.toml`), target `armv7-unknown-linux-gnueabi`, linked with the webOS SDK's gcc against
+  the SDK's libraries. The image (`native/rtest/Dockerfile`) is Debian bookworm with rustup, built once.
+- **It draws the same picture.** `sh native/rtest/host-shot.sh` and `sh native/home/host-shot.sh` drew five scenes each with
+  software graphics (bar, bar with another tile and Blur only, both grid rows, No blur, and mid slide). All five pairs match in
+  every pixel.
+- **No Rust libraries.** SDL, SDL_image, SDL_ttf and OpenGL ES are called through declarations written by hand in `src/ffi.rs`
+  (82 functions). The one build-time library is `cc`, which compiles the C that is linked in.
+- **C links in.** `src/webos_shell.c` (the Back key claim, which needs Wayland header macros) is the C test app's code unchanged,
+  compiled by `build.rs` and called from Rust. That is the route for `picker.c`, `weather.c` and `compose.c`.
+- **LG's SDL is not stock SDL.** Its key event has an extra field (`inputSource`) before the key, so a key event declared from
+  SDL's public headers reads the wrong bytes on the TV. `src/abi_check.c` is compiled with the real headers on every build and
+  fails the build if a size, offset or constant in `ffi.rs` differs. It caught this one. Any Rust SDL library from crates.io
+  would need the same care, which is a reason to keep our own declarations.
+- **The SDK's C library is older than Rust needs.** The SDK links against glibc 2.12 so apps run on every webOS; Rust's standard
+  library needs 2.17. Only one function was missing, `getauxval`, and `src/getauxval_missing_from_sdk_libc.c` supplies it.
+- **Float maths needs a flag that Rust is retiring.** The TV's calling convention passes floats in ordinary registers (softfp).
+  Rust's matching target also does all float maths in software. `build.sh` turns the chip's float unit on with
+  `-C target-feature=+vfp3,+neon,-soft-float`, which works on 1.100.0 but prints "will become a hard error in a future
+  release" (rust-lang/rust issue 162235). `LUMEN_RUSTFLAGS=` builds without it. If the flag goes, the choices are a pinned
+  Rust, a nightly Rust with its own target file, or software float maths (the heavy maths is on the graphics chip anyway).
+- **Size.** The program is 413 kB against the C one's 40 kB. Most of it is Rust's standard library.
+- **Tests.** `cargo test` runs four on the NUC (the easing curves, an animation turned round mid way, the tuning file, log dates).
+
+On the TV (2026-11-24, installed with `npm run deploy:rtest`, both apps with the same `/tmp/ntest-tune`):
+- **It starts and draws.** The shaders compile and the scene is on screen (`NL_VSC` visible, `rtest` in front).
+- **Frame times are the same.** The timing test (`/tmp/ntest-bench`), draw time per frame, Rust against the C app's run of 11:13
+  the same day: all at rest 10.1 ms against 10.2, mid slide 11.8 against 12.3, down in the grid 9.7 against 9.5, wallpaper only
+  6.2 against 6.2, at rest held to the screen's beat 12.2 against 12.2, and 20.0 ms a frame in both.
+- **Memory is the same.** Its own memory 13.6 to 13.8 MB against 13.7 (peak 33.2 against 33.1). Graphics memory 63.1 to 66.1 MB
+  against 63.1 to 63.4 (`MemoryUsageAllocGPUMemUMA` in the driver's `process_stats`), three launches each.
+- **Start time is the same to within what three launches can show.** The window opened 136 to 202 ms after start against 130 to
+  164. The first frame was ready at 1253, 1263 and 1442 ms against 1145, 1150 and 1330 (both now include about 0.4 s spent
+  measuring the screen's refresh). Rust was about 0.1 s later each time; not looked into.
+- A C run started 4 s after the Rust app closed was slow and odd (blur 1145 ms, a frame every 40.8 ms) and is left out. With 6 s
+  between runs both behaved.
+- **Keys work, and every frame shows.** Sam pressed Left, Right, Down, Up and OK (12:29): 30 moves logged, none with a late
+  frame, slowest frame 25 ms, draw 10.5 to 13.2 ms a frame. OK changed the glass. So the key event fix is right on the TV.
+- **Back closes it.** The TV sends Back as scancode 482 with key code 0, which neither test app took as Back, so the C app never
+  closed on Back either. Both now close on scancode 482. Seen by Sam on the Rust app (12:33); the C app is fixed in source but
+  not reinstalled.
+
+In CI (not run yet): this fork's workflows only run on `main`, so the Rust build has not run on a GitHub runner.
+
+## TV calls from a native app (2026-11-24)
+Spike 2 of `native-rewrite.md`. Answer: **the first route works. The app calls the TV itself, with the TV's own `libluna-service2`,
+and needs no role file and no helper.** Tried from inside Lumen Rust Test with a probe (`native/rtest/src/probe.rs`): it reads
+`/tmp/rtest-probe` whenever that file changes and runs each line (`open <name>`, `call <uri> <json>`, `sub <uri> <json>`, `ls`,
+`read`, `write`, `id`), logging each answer as a `probe` line. So calls can be tried live, with no rebuild.
+
+- A native app does get a role file at install, `/var/palm/ls2-dev/roles/prv/<id>.json`, which allows its own id as a bus name
+  and the empty name, with every outbound call. The spec was wrong that it has none.
+- **LG's SDL takes the app's own id on the bus** as soon as the window opens (it listens for the app manager's events). So
+  `LSRegister("<id>")` fails with "already exists". **`LSRegister(NULL)`, a nameless handle, works**, and so do the
+  `com.webos.vt.*` and `com.webos.chromium.media.*` names the role file allows. Use the nameless one.
+- The glue is C (`native/rtest/src/luna.c`, 70 lines: open, call with a time limit, subscribe, pump), built against the SDK's
+  headers and called from Rust. It runs the bus on its own GLib context, so it can live on a thread away from drawing.
+- Proved, each from the jail, with the time the call took: the app list (`listLaunchPoints` 9 ms for 20 kB, `listApps` 23 ms
+  for 174 kB), `getAppInfo` 1 ms, `running` 4 ms, the foreground app 1 ms, reading picture settings 14 ms and **writing one**
+  (`setSystemSettings` backlight, 15 ms), volume 5 ms, inputs 4 ms, network 15 ms, the last channel 35 ms, the channel list
+  12 ms, mute status, the sleep timer, the config service, **launching an app** (`applicationManager/launch` opened the C test
+  app), and **a root command**: `org.webosbrew.hbchannel.service/exec` ran `id -u` as `0` in 43 to 59 ms.
+- Subscriptions work: `getForegroundAppInfo` and `audio/getVolume` with `"subscribe":true` both sent their first answer.
+- Its permissions are the web app's ("public" plus the Homebrew Channel's exec), so anything the web Lumen calls, this can.
+- Not needed: a role file written by the TV scripts, or a root helper on a socket. A helper would still save the 45 ms a root
+  command costs, if a screen ever needs many at once.
+
+## A place to keep things (2026-11-24)
+Spike 3. The jail's view, from the same probe (the app runs as its own user, uid 5725 here, group 5000):
+
+- **Lasting and writable: `/media/developer`** (mode 777, the developer partition) and the app's own folder under
+  `/media/developer/apps/usr/palm/applications/<id>/`. An install replaces the app's own folder, so settings and caches go in
+  a folder of Lumen's own under `/media/developer`. (verify) that the app's uid is the same after a reinstall; if it is not,
+  the folder must be made writable to all, or made by a root command.
+- **`/tmp` is the TV's real `/tmp`**, shared with root: the log and the tuning files already use it. Lost at power off.
+- **Not there at all: `/var/lib/homehook`, `/home`, `/var/preferences`, `/usr/palm/applications`, `/media/cryptofs`.**
+  `/media/internal` is read-only. So the TV scripts' files (`lumen.log`, the settings they share) are reached with a root
+  command, or the scripts move what the app needs into `/media/developer`.
+- **Other apps' icons.** Sideloaded apps' folders can be read directly (`com.samrenfrew.lumen/appinfo.json`, its icons).
+  LG's and store apps' folders cannot be seen, so their icons come through a root command once, as the web app does now,
+  and are kept in the cache folder.
+- The app can also write into other sideloaded apps' folders, the web Lumen's among them. Nothing should.
+- Launch parameters arrive as the program's second argument, as JSON:
+  `{"event":"launch","appId":"…","parameters":{"view":"ambient"},"interfaceVersion":2,…}`.
+
+## 50 or 60 a second (2026-11-24)
+Spike 8. Answer: **the panel runs at the rate of the last video source it showed, and stays there.** `vbe_outputFrameRate` in
+`/proc/lgtv-driver/vbe/vbe-status` is the panel's real rate.
+
+- After Live TV (UK broadcast, 50 a second) it is 50, and it stayed 50 in Lumen, in YouTube's browse screen and in the native
+  test app (a frame every 18.5 to 20 ms).
+- After HDMI 1 (the Chromecast, 59.9 a second) it is 60, and it stayed 60 when the native test app opened over it (a frame every
+  15.6 ms measured over 20 swaps) and in Lumen afterwards.
+- So a native app is given the panel's true beat by `SDL_GL_SwapWindow` and must fit both. The 12 ms drawing budget does.
+- **The web page always draws 60 a second**, whatever the panel does: `requestAnimationFrame` came every 16.67 ms (median of
+  120, min 16.6, max 16.8) while the panel was at 50. So with the panel at 50, which is its usual state on this TV, the web
+  Lumen makes six frames for every five the panel shows, and one in six is dropped. `frame-rate.md` assumed 60 throughout.
+  A native Lumen draws one frame per panel frame at either rate.
+- Animations must be timed by the clock, not by counting frames, as the test apps already do.
+
+## The test app's memory (2026-11-24)
+Spike 7. Answer: **of the 62 MB of graphics memory, about 21 MB is pictures. 16 MB is a depth buffer nobody asked for, and
+12 MB is the cost of giving each tile its own drawing target. Without those two it is 33 MB**, inside the 40 MB budget.
+
+Measured with `touch /tmp/rtest-steps`: Lumen Rust Test then stops for 2.5 s after each start-up step (a `step` line in its
+log), while `MemoryUsageAllocGPUMemUMA` for its pid is read from the driver's `process_stats` three times a second.
+
+| After | Graphics memory | Added | The pixels alone |
+|---|---|---|---|
+| The window and context | 1.6 MB | | |
+| Eleven shader programs | 1.6 MB | 0 | |
+| The wallpaper at screen size, and its two blurred copies | 19.0 MB | 17.4 | 10.5 MB |
+| 18 icons, 130x130 | 20.5 MB | 1.5 | 1.2 MB |
+| 18 resting tiles, 296x200, each its own target | 38.3 MB | 17.8 | 4.3 MB |
+| The bar's two pictures, 1890x364 | 44.7 MB | 6.4 | 5.5 MB |
+| 24 empty frames swapped | 45.1 MB | 0.4 | |
+| The scene drawn once to the screen | 61.5 MB | 16.4 | |
+
+The window's own three buffers are counted apart (`MemoryUsageDmaBufImport`): 6.3 MB each, 19 MB once three are in use.
+The program's own memory is 13 MB.
+
+- **The 16.4 MB on the first real frame is a depth and stencil buffer** (`ZSBufferRequestsByApp` goes to 1). SDL asks for a
+  16-bit depth buffer unless told not to. With `SDL_GL_DEPTH_SIZE` and `SDL_GL_STENCIL_SIZE` set to 0 (`no_depth=1` in
+  `/tmp/ntest-tune`) it never appears: 44.9 MB. Lumen draws flat pictures back to front and needs neither.
+- **A drawing target costs about 0.7 MB on top of its pixels.** 18 tile targets cost 13 MB more than their pixels. With one
+  target shared by all 18, each tile's picture attached to it in turn (`one_fbo=1`), the tiles cost 5.8 MB: 49.8 MB in all.
+  (verify) by eye that the tiles look the same drawn this way; the code path is the same but nobody looked.
+- Both together: **33.1 MB**.
+- The wallpaper step is 7 MB over its pixels, not explained. It makes five targets and frees two.
+- Rules for the picture cache: ask for no depth or stencil buffer; pictures are plain textures; one drawing target (or a few)
+  is reused to draw into them; never one target per picture.
+
+## Text with FreeType and HarfBuzz (2026-11-24)
+Spike 6. Answer: **yes. The TV's own FreeType (2.11) and HarfBuzz (4.0.1) shape and draw all nine languages, with kerning,
+letter-spacing and joined-up Hindi, and the result sits within 2% of the web page's line widths.**
+
+`text=1` in `/tmp/ntest-tune` (or `LUMEN_TEXT=1 sh native/rtest/host-shot.sh out.png` on the NUC) makes Lumen Rust Test show a
+sheet of eleven lines: a sentence in each language at 34 px, a line of awkward pairs and digits at 64 px, and a line with
+-0.02em letter-spacing. `native/rtest/src/text.c` (120 lines of C, called from Rust) splits a line into runs by script, shapes
+each with HarfBuzz, and draws the glyphs with FreeType into one picture per line. The same lines were put into the live web
+page over DevTools, in the page's own font stack at weight 500, measured and captured.
+
+- **Line widths, native then web, in px:** English 1055 and 1076, German 1158 and 1184, Spanish 1108 and 1134, French 1117 and
+  1140, Italian 1024 and 1049, Portuguese 1074 and 1096, Dutch 1094 and 1114, Turkish 1063 and 1084, Hindi 1003 and 977, the
+  64 px line 819 and 823, the letter-spaced line 909 and 922.
+- At 34 px the web's lines are 2% wider; at 64 px they match. The web page loads SF from `sf.woff2` and the native app from
+  `sf-500.ttf`, so the likely cause is the font file, not the shaping. Not chased. If the port must match the web to the
+  pixel, it loads the same file.
+- **Hindi is right in both**: the conjuncts and the marks above the line join as they should. The native sheet uses
+  `LG_Smart_UI_Devanagari.ttf` for the Hindi run, punctuation included, which is why its commas are heavier and its line wider.
+- Kerning shows in "AV", "To", "Wa", "Ty" and "P."; digits are proportional (the 1s in "11°" sit close), as `CLAUDE.md` asks.
+- **Time on the TV: 88 ms for the eleven lines, fonts loaded included** (17 ms on the NUC). So a line is drawn once into a
+  cached picture, as the spec says, and a screen of new text is a frame or two of work on a worker thread.
+- **The SDK has FreeType's headers but no HarfBuzz at all.** The build declares the nine HarfBuzz functions it uses by hand
+  and links against a stand-in library with the TV's library name (`src/harfbuzz_missing_from_sdk.c`); the TV's real one
+  loads at run time. The NUC build uses Debian's HarfBuzz.
+- Not done: right-to-left text (no language needs it), line breaking, an ellipsis for text that is too long, and font
+  fallback glyph by glyph (the splitter knows Latin and Devanagari only).
+
+## Video under a native window (2026-11-24)
+Spike 5. **A video wallpaper works. Glass that shows the video through it, and the live TV preview, are not proven.**
+
+- **A video plays under the native app.** In see-through mode (`see_through=1` in `/tmp/ntest-tune`: the frame is cleared to
+  alpha 0 and the wallpaper is not drawn) Lumen Rust Test showed the bar and tiles over a playing clip. Seen by Sam: the
+  mountain video moves behind the bar. Steps, all from inside the jail:
+  1. Export the window for video with the `wl_webos_foreign` Wayland protocol (`lumen_export_video_window` in
+     `native/rtest/src/webos_shell.c`): the TV answers with an id such as `_Window_Id_66`.
+  2. On a bus handle named `com.webos.media.client.<anything>` (the role file allows it), call `com.webos.media/load` with
+     `{"uri":…,"type":"media","payload":{"option":{"appId":"<id>","windowId":"_Window_Id_66"}}}`. It answers with a `mediaId`.
+  3. `com.webos.media/play` with that id. `subscribe` sends the time every 200 ms and `endOfStream`; `seek` to 0 replays it.
+  The media service connects the decoder to the screen itself (`videooutput/getStatus`: MAIN connected, 1280x720 in, the
+  whole panel out). Without the window id the clip decodes but never reaches the screen.
+- **The clip must be unloaded.** The pipeline outlived the app: after the app closed it was still listed, holding a decoder,
+  until `com.webos.media/unload`. The app must unload on every way out, and a TV script should sweep for strays.
+- **The glass bar does not show the video**: it still read the still wallpaper's blurred copy, as Sam saw. To blur the
+  video the app would have to read the video's picture. PicCap does read it on this TV (it holds a `VT_CAPTURE` pipeline, as
+  root, for Hyperion), so it can be done; it was not tried from the jail, because a second capture client may take the
+  capture away from Hyperion. Until that is tried, glass over video is a tint and rims, as the web app has it.
+- **Screenshots cannot check video.** `capture/executeOneShot` shows black where the video is, in every mode, and the app is
+  not allowed to call the capture service at all ("Not permitted"): the one TV service found so far that refuses it.
+- **The live TV preview: the TV says it works; nobody has looked.** The web engine's calls were recorded with `ls-monitor`
+  while the web Lumen started a preview, then repeated from the probe on a nameless handle, with the exported window id:
+  1. `com.webos.service.utp.broadcast/open` with
+     `{"options":{"appId":"<id>","updateLastChannelId":false,"windowId":"_Window_Id_5"}}`: answers with a `broadcastId` (112 ms).
+  2. `…/setAudioMute` with `{"broadcastId":…,"isMuteOn":true,"muteOwner":"<id>"}` (13 ms).
+  3. `…/changeChannel` with `{"broadcastId":…,"channelId":"1_41_202_204_16522_18176_9018"}` (374 ms).
+  4. `…/close` with the `broadcastId` when done (298 ms). After it, `videooutput/getStatus` showed MAIN not connected.
+  After step 3 `videooutput/getStatus` showed MAIN connected to the decoder for `com.samrenfrew.lumen.rtest`, 1920x1080 at
+  25 a second, not muted, over the whole panel.
+  **(verify)** that the picture shows behind the bar: not tested, Sam could not get to the TV.
+  Not tried: placing it in a tile-sized box. The web engine does that through the exported window's regions
+  (`wl_webos_exported_set_exported_window`); the recording shows the window manager passing on
+  `displayOutput {x:384,y:691,width:294,height:165}`.
+
+## Staying alive, so far (2026-11-24)
+Spike 4, the part that needs no reboot:
+
+- **Out of the box a native app is closed the moment another app opens**, as the web Lumen was before it went on the TV's
+  lists (`docs/keep-alive.md`). Lumen Rust Test launched the C test app with `applicationManager/launch`, and was gone with
+  no "close" line in its log. Its next launch was a fresh start.
+- **Launch parameters reach a fresh start** as the second program argument: `…"parameters":{"view":"ambient"}…`.
+- LG's SDL registers the app with the app manager itself, so how a relaunch of a running app arrives (an SDL event, or
+  nothing) is not known yet.
+- When the two test apps were opened in turn a few seconds apart, the window manager relaunched the one just closed
+  (`NL_APP_LAUNCH_BEGIN … "caller_id":"com.webos.surfacemanager","mode":"autoReload"`). Not understood.
+- The Home button and power-on are settings that name an app id (`keybinds.json`, `home-setup.sh`), the same for a native app.
+
+Then with `com.samrenfrew.lumen.rtest` added to `com.webos.memorymanager.KeepAlive` and `KeepOnLaunchEx` (`config/setConfigs`)
+and the TV rebooted, since the memory manager reads the lists only at start:
+
+- **It survives.** YouTube, the web Lumen and Plex were each opened over it: the same process every time.
+- **It is told when it leaves and returns**: SDL window event 13 (focus lost) when another app covers it, 12 (focus gained)
+  when it is back. In the back its own memory fell from 13.9 MB to about 5 MB with 4 to 6 MB swapped out. Its graphics
+  memory did not fall at all (61.7 MB and the 19 MB of window buffers), because the test app lets nothing go: letting
+  pictures go on event 13 is phase 1 work, and what that frees is not measured yet.
+- **A launch while it runs does nothing unless the app handles it.** With LG's SDL holding the app manager's subscription,
+  the launch call returned true and the app stayed in the back, with no event. SDL's `SDL_HINT_WEBOS_REGISTER_APP` hint did
+  not stop SDL registering, under either spelling or value tried.
+- **What works: the app takes its own name on the bus before `SDL_Init`** (`LSRegister("<app id>")`), and subscribes to
+  `applicationManager/registerApp` itself. SDL then cannot take the name, and still opens its window normally. The app hears
+  `{"event":"registered"}`, and on each later launch
+  `{"event":"relaunch","parameters":{"view":"ambient"},…}`: the launch parameters, every time.
+- **The app must bring itself forward.** Of four ways tried, only one works:
+  `wl_webos_shell_surface_set_state(surface, WL_WEBOS_SHELL_SURFACE_STATE_FULLSCREEN)`. `SDL_RaiseWindow`, `SDL_ShowWindow`
+  and the shell's default state do nothing.
+- **Coming forward took 0.19, 0.40 and 0.25 s** from the launch call to the window showing (`NL_APP_LAUNCH_BEGIN` to `NL_VSC`
+  visible in `/var/log/messages`), over YouTube, the web Lumen and Plex. The test app looks at the bus only every 250 ms
+  when idle; a thread of its own for the bus removes that wait. The budget is 0.3 s.
+- **The app must also close itself.** Once it holds the subscription, `closeByAppId` only sends `{"event":"close"}`: the
+  test app ignored it and stayed running until killed. It now exits on that event.
+- This also changes spike 2: with the name taken first, the same handle makes the TV calls, and the nameless one is not needed.
+- In the test app this path runs only when `/tmp/rtest-own-register` exists. The lists were put back afterwards (they take
+  effect at the next reboot) and the test app closed.
