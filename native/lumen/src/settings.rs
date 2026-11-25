@@ -23,6 +23,7 @@ pub struct Settings {
     pub home_forecast: Forecast,
     pub weather_city: String,
     pub captions: bool,
+    pub print_look: bool,
     pub hide_names: bool,
     pub folders: Vec<Folder>,
     pub wp_auto_minutes: f64,
@@ -76,6 +77,7 @@ impl Settings {
             home_forecast: Forecast::Off,
             weather_city: String::new(),
             captions: true,
+            print_look: false,
             hide_names: false,
             folders: Vec::new(),
             wp_auto_minutes: 0.0,
@@ -133,6 +135,7 @@ impl Settings {
             },
             weather_city: saved["weatherCity"].as_str().unwrap_or("").to_string(),
             captions: saved["wallpaperCaptions"].as_bool() != Some(false),
+            print_look: saved["printLook"].as_bool() == Some(true),
             hide_names: saved["hideNames"].as_bool() == Some(true),
             folders: saved["folders"].as_array().map_or_else(Vec::new, |all| {
                 all.iter().filter_map(|f| Some(Folder { name: f["name"].as_str()?.to_string(), app_ids: strings(&f["appIds"])? })).filter(|f| !f.name.is_empty()).collect()

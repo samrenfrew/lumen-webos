@@ -103,6 +103,8 @@ impl App {
     }
 
     pub(crate) fn close_saver(&mut self) {
+        self.saver_at = None;
+        self.home.wake(ticks());
         let Some(mut s) = self.saver.take() else { return };
         s.let_go(&mut self.draw);
         self.redraw = true;
@@ -120,13 +122,29 @@ impl App {
         }
     }
 
+    pub(crate) fn sleep_then_saver(&mut self) {
+        let spot = saver::clock_spot(&mut self.draw, self.home.weather.as_ref(), self.settings.saver_forecast, self.home.unix_now, self.home.twenty_four_hour);
+        let ms = self.home.go_to_sleep(spot, ticks());
+        self.saver_at = Some(ticks() + ms);
+    }
+
     pub(crate) fn tick_saver(&mut self, now: u32) -> Option<u32> {
+        if let Some(at) = self.saver_at {
+            if now < at {
+                return Some(at - now);
+            }
+            self.saver_at = None;
+            self.open_saver();
+        }
         let s = self.saver.as_mut()?;
         if s.done(now) {
             self.close_saver();
             return None;
         }
         s.weather = self.home.weather.clone();
+        if s.zoom_frame_due(now) {
+            self.redraw = true;
+        }
         s.tick(&mut self.draw, now)
     }
 

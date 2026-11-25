@@ -27,6 +27,7 @@ pub struct TvState {
     pub services_running: i64,
     pub updates: bool,
     pub node: bool,
+    pub web: String,
 }
 
 pub fn parse_tv_state(text: &str) -> TvState {
@@ -49,6 +50,7 @@ pub fn parse_tv_state(text: &str) -> TvState {
         services_running: number("services_running").unwrap_or(0),
         updates: field("updates") == "on",
         node: field("node") == "yes",
+        web: field("web"),
     }
 }
 

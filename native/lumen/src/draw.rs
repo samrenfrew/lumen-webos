@@ -349,9 +349,14 @@ impl Draw {
         self.copy_dimmed(from, (scale_x, scale_y, offset_x, offset_y), 1.0);
     }
 
-    pub fn copy_dimmed(&self, from: Tex, (scale_x, scale_y, offset_x, offset_y): (f32, f32, f32, f32), mul: f32) {
+    pub fn copy_dimmed(&self, from: Tex, uvx: (f32, f32, f32, f32), mul: f32) {
+        self.copy_printed(from, uvx, mul, false);
+    }
+
+    pub fn copy_printed(&self, from: Tex, (scale_x, scale_y, offset_x, offset_y): (f32, f32, f32, f32), mul: f32, print: bool) {
         self.p.copy.bind(0, c"u_tex", from.tex);
         self.p.copy.set1(c"u_mul", mul);
+        self.p.copy.set1(c"u_print", if print { 1.0 } else { 0.0 });
         self.p.copy.set4(c"u_uvx", scale_x, scale_y, offset_x, offset_y);
         self.gfx.quad(&self.p.copy, 0.0, 0.0, DESIGN_W, DESIGN_H);
     }

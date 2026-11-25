@@ -900,6 +900,9 @@ impl SettingsScreen {
                 tv::run_job(live, id, dir, |done| root::reboot(move |r| done(r.map(|_| "Restarting the TV".to_string()))));
                 return Outcome::Stay;
             }
+            "lg-home" => "lgHome",
+            "retire-web" if s.web == "pending" => return Outcome::Toast("The old Lumen goes when the TV next restarts".into(), false),
+            "retire-web" => "retireWeb",
             "tv-home" if lumen(&s.home) => "nativeOff",
             "tv-power-on" if lumen(&s.power_on) => "powerOnOff",
             "tv-home" => "nativeOn",
@@ -920,7 +923,7 @@ impl SettingsScreen {
             "privacy-updates" => "updatesOn",
             _ => return Outcome::Stay,
         };
-        if id == "tv-home" || id == "tv-power-on" {
+        if ["tv-home", "tv-power-on", "lg-home", "retire-web"].contains(&id) {
             tv::run_job(live, id, dir, move |done| root::home_setup(action, done));
         } else {
             tv::run_job(live, id, dir, move |done| root::privacy(action, done));

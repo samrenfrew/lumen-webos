@@ -101,6 +101,7 @@ pub struct App {
     screen: Option<settings_screen::SettingsScreen>,
     lab: Option<lab::Lab>,
     saver: Option<saver::Saver>,
+    saver_at: Option<u32>,
     alone: bool,
     guide: Option<guide::Guide>,
     live: live::Live,
@@ -247,6 +248,7 @@ impl App {
     fn show_wallpaper(&mut self) {
         if self.settings.wallpaper_type == "plain" {
             self.home.night = self.is_night();
+            self.home.print = false;
             let (w, h) = (PLAIN_W, PLAIN_H);
             let fade = self.shown_once;
             self.home.set_wallpaper(&mut self.draw, &Decoded { rgba: wallpaper::plain(w, h), w, h }, fade, ticks());
@@ -259,6 +261,7 @@ impl App {
         let from_store = kept.is_some();
         let Some(picture) = kept.or_else(|| decoded(&bundled)) else { return note!("wallpaper: none could be read") };
         self.home.night = self.is_night();
+        self.home.print = self.settings.print_look;
         let fade = self.shown_once;
         self.home.set_wallpaper(&mut self.draw, &picture, fade, ticks());
         let listed = std::fs::read_to_string(format!("{}/assets/wallpapers.tsv", self.draw.app_dir)).unwrap_or_default();
@@ -685,10 +688,9 @@ impl App {
             control_center::Outcome::Action(what) => {
                 self.panel = None;
                 match what {
-                    "lg-home" => self.open("com.webos.app.home".to_string()),
                     "art" if self.side.is_some() => self.open(saver_mode::SAVER_APP_ID.to_string()),
                     "art" => {
-                        self.open_saver();
+                        self.sleep_then_saver();
                         self.redraw = true;
                     }
                     "settings" => self.open("com.palm.app.settings".to_string()),
@@ -804,6 +806,9 @@ impl App {
         }
         if self.saver.is_some() {
             return self.saver_key(key);
+        }
+        if self.saver_at.is_some() {
+            return;
         }
         if self.guide.is_some() {
             return self.guide_key(key);
@@ -1002,6 +1007,14 @@ impl App {
         }
         if self.side == Some(side_apps::Side::Quick) {
             return self.draw_quick(now);
+        }
+        if self.side == Some(side_apps::Side::Guide) && self.guide.is_none() {
+            self.draw.gfx.into_screen();
+            unsafe {
+                glClearColor(0.0, 0.0, 0.0, 0.0);
+                glClear(GL_COLOR_BUFFER_BIT);
+            }
+            return;
         }
         if let Some(guide) = self.guide.as_mut() {
             self.draw.pictures.next_frame();
@@ -1325,6 +1338,7 @@ fn run() -> i32 {
         screen: None,
         lab: None,
         saver: None,
+        saver_at: None,
         alone,
         guide: None,
         live: live::Live::new(),

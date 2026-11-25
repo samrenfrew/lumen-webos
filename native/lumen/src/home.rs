@@ -47,6 +47,10 @@ const WHITE: [f32; 3] = [1.0, 1.0, 1.0];
 const TIME_LEFT: f32 = ROWS_EDGE - 6.0;
 const TIME_BASELINE: f32 = 132.0;
 const PERIOD_GAP: f32 = 7.0;
+const SLEEP_MS: f32 = 800.0;
+const WAKE_MS: f32 = 600.0;
+const SLEEP_CURVE: [f32; 4] = [0.45, 0.0, 0.2, 1.0];
+const SLEEP_DROP: f32 = DESIGN_H + 80.0 - (BAR_TILES_TOP - BAR_ABOVE_TILES);
 const DATE_BASELINE: f32 = 175.0;
 const WEATHER_BASELINE: f32 = 211.0;
 const WEATHER_ICON_TOP: f32 = 185.0;
@@ -247,12 +251,15 @@ pub struct Home {
     fading_from: Tex,
     wallpaper_fade: Anim,
     pub night: bool,
+    pub print: bool,
     glass: Tex,
     veil: Tex,
     blurs_made_with: [i32; 5],
     bar_made_with: f32,
     plates_made_with: [f32; 10],
     shift: Anim,
+    sleep: Anim,
+    sleep_clock: (f32, f32),
     veil_fade: Anim,
     drop: Anim,
     rows_at: Vec<Anim>,
@@ -484,12 +491,15 @@ impl Home {
             fading_from: Tex::default(),
             wallpaper_fade: Anim::still(1.0),
             night: false,
+            print: false,
             glass: Tex::default(),
             veil: Tex::default(),
             blurs_made_with: [0; 5],
             bar_made_with: 0.0,
             plates_made_with: [0.0; 10],
             shift: Anim::still(0.0),
+            sleep: Anim::still(0.0),
+            sleep_clock: (0.0, 0.0),
             veil_fade: Anim::still(0.0),
             drop: Anim::still(0.0),
             rows_at: Vec::new(),
@@ -565,9 +575,9 @@ impl Home {
         let shape = (raw.w as f32 / raw.h as f32) / (DESIGN_W / DESIGN_H);
         let mul = if self.night { 1.0 - NIGHT_DIM } else { 1.0 };
         if shape > 1.0 {
-            d.copy_dimmed(raw, (1.0 / shape, 1.0, (1.0 - 1.0 / shape) / 2.0, 0.0), mul);
+            d.copy_printed(raw, (1.0 / shape, 1.0, (1.0 - 1.0 / shape) / 2.0, 0.0), mul, self.print);
         } else {
-            d.copy_dimmed(raw, (1.0, shape, 0.0, (1.0 - shape) / 2.0), mul);
+            d.copy_printed(raw, (1.0, shape, 0.0, (1.0 - shape) / 2.0), mul, self.print);
         }
         d.gfx.free(&mut raw);
         self.blur_wallpaper(d);
@@ -692,10 +702,24 @@ impl Home {
 
     fn row_offset(&self, row: usize, now: u32) -> f32 {
         let shift = self.shift.at(now);
+        let asleep = self.sleep.at(now) * SLEEP_DROP;
         if row == 0 {
-            return -shift;
+            return asleep - shift;
         }
-        self.rows_at.get(row).map_or(-shift + self.drop.at(now) * GRID_DROP, |at| at.at(now))
+        asleep + self.rows_at.get(row).map_or(-shift + self.drop.at(now) * GRID_DROP, |at| at.at(now))
+    }
+
+    pub fn go_to_sleep(&mut self, clock_at: (f32, f32), now: u32) -> u32 {
+        self.sleep_clock = clock_at;
+        let ms = self.ms(SLEEP_MS);
+        self.sleep.go(1.0, ms, &SLEEP_CURVE, now);
+        ms as u32
+    }
+
+    pub fn wake(&mut self, now: u32) {
+        if self.sleep.target() > 0.0 {
+            self.sleep.go(0.0, self.ms(WAKE_MS), &SLEEP_CURVE, now);
+        }
     }
 
     fn live_top(&self) -> f32 {
@@ -1140,7 +1164,7 @@ impl Home {
     }
 
     pub fn moving(&self, now: u32) -> bool {
-        let anims = [&self.wallpaper_fade, &self.shift, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
+        let anims = [&self.wallpaper_fade, &self.shift, &self.sleep, &self.veil_fade, &self.drop, &self.shine_x, &self.shine_alpha, &self.status_alpha, &self.panel_alpha];
         anims.iter().any(|a| a.busy(now))
             || self.rows_at.iter().any(|a| a.busy(now))
             || self.tiles.iter().any(|t| t.focus.busy(now))
@@ -1420,13 +1444,30 @@ impl Home {
         }
     }
 
-    fn draw_status(&mut self, d: &mut Draw, alpha: f32) {
+    fn draw_sleeping_clock(&mut self, d: &mut Draw, alpha: f32, asleep: f32) {
+        let (time, period, _) = self.clock.clone();
+        let time_style = if d.fonts.is_sf("600-clock") { crate::saver::TIME } else { crate::saver::TIME_TNUM };
+        let mix = |a: f32, b: f32| a + (b - a) * asleep;
+        let scale = mix(TIME.px as f32 / time_style.px as f32, 1.0);
+        let (x, baseline) = (mix(TIME_LEFT, self.sleep_clock.0), mix(TIME_BASELINE, self.sleep_clock.1));
+        let Some(time) = d.text(&time, &time_style) else { return };
+        time.draw_scaled(d, x, baseline, scale, alpha);
+        if let Some(p) = d.text(&period, &crate::saver::PERIOD) {
+            let period_scale = mix(PERIOD.px as f32 / crate::saver::PERIOD.px as f32, 1.0);
+            p.draw_scaled(d, x + time.advance * scale + mix(PERIOD_GAP, crate::saver::PERIOD_GAP), baseline - mix(9.0, crate::saver::PERIOD_RISE), period_scale, alpha);
+        }
+    }
+
+    fn draw_status(&mut self, d: &mut Draw, alpha: f32, clock_alpha: f32, asleep: f32) {
+        if asleep > 0.0 {
+            self.draw_sleeping_clock(d, clock_alpha, asleep);
+        }
         if alpha <= 0.0 {
             return;
         }
         let (time, period, date) = self.clock.clone();
         let time_style = if d.fonts.is_sf("600-clock") { TIME } else { TIME_TNUM };
-        if let Some(time) = d.text(&time, &time_style) {
+        if let Some(time) = d.text(&time, &time_style).filter(|_| asleep <= 0.0) {
             time.draw(d, TIME_LEFT, TIME_BASELINE, alpha);
             if let Some(period) = d.text(&period, &PERIOD) {
                 period.draw(d, TIME_LEFT + time.advance + PERIOD_GAP, TIME_BASELINE - 9.0, alpha);
@@ -1698,7 +1739,9 @@ impl Home {
         d.pictures.next_frame();
         let shift = self.shift.at(now);
         let veiled = self.veil_fade.at(now);
-        let status_alpha = self.status_alpha.at(now);
+        let asleep = self.sleep.at(now);
+        let clock_alpha = self.status_alpha.at(now);
+        let status_alpha = clock_alpha * (1.0 - (asleep * 2.0).min(1.0));
         let panel_alpha = self.panel_alpha.at(now);
 
         let mut pictures: Vec<Option<(Tex, Tex)>> = Vec::with_capacity(self.tiles.len());
@@ -1767,7 +1810,7 @@ impl Home {
         let rows = self.row_count();
         for row in (0..rows).rev() {
             if row == 0 && self.sharp.tex != 0 {
-                self.draw_bar(d, lens, gloss, BAR_TILES_TOP - BAR_ABOVE_TILES - shift, veiled, now);
+                self.draw_bar(d, lens, gloss, BAR_TILES_TOP - BAR_ABOVE_TILES - shift + asleep * SLEEP_DROP, veiled, now);
                 unsafe { glEnable(GL_BLEND) }
             }
             let in_row = |at: &usize| place(*at, self.bar_count, self.cols).0 == row;
@@ -1783,7 +1826,7 @@ impl Home {
         }
 
         if !in_lab {
-            self.draw_status(d, status_alpha);
+            self.draw_status(d, status_alpha, clock_alpha + (1.0 - clock_alpha) * asleep, asleep);
         }
         self.draw_top(d, status_alpha, now);
         if in_lab {

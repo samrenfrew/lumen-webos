@@ -26,6 +26,9 @@ working on the TV. This is the spec for rewriting Lumen and its side apps as nat
   The id stays `com.samrenfrew.lumen.native`.
 - **The web Lumen is off the TV (Sam, 2026-11-24).** Home, Back and power-on point at Lumen Native (`home-setup.sh`), and
   `com.samrenfrew.lumen` was uninstalled so it cannot come back to the front. It stays in the repo and the Channel.
+  It was uninstalled before a restart, so bootd still asked for it at switch-on and LG opened its Apps store on an error page
+  (2026-11-25). `home-setup.sh retire-web`, run by `npm run deploy:native`, now does the switch in order: Home and power-on first,
+  then the uninstall, which waits for the boot guard while bootd still names the web Lumen.
 
 ## What does not come over (Sam, 2026-11-24)
 
@@ -57,7 +60,17 @@ Left out:
   too much bounce and too long a delay (was 60 ms and 1.12). The clock and top buttons now wait 260 ms before fading on Down.
 - **The Guide's light glass is gone (Sam, 2026-11-24):** it looked bad, so the rows are back to the plain tint and rims.
 - **Lower rows' shadows** are `grid_shadow` (0.65) of the app bar's, resting and focused, the Live TV row included.
-- **The Print look** on the home screen.
+- **The Print look** on the home screen. Back on 2026-11-25 as Settings > Wallpaper > Print look, off by default, on every
+  picture rather than only Art (Sam). Baked into the wallpaper copy in `COPY_FRAGMENT`, so it costs nothing per frame. **(verify)**
+- **Old Lumen (2026-11-25, (verify)):** Settings > Home and Power shows an "Old Lumen" row while the web Lumen, its Guide or its
+  Quick Settings are installed; Remove runs `home-setup.sh retire-web`. Shown as "Goes at the next restart" while it waits for one.
+- **Into the screensaver (2026-11-25, (verify)):** Screensaver in Lumen's Control Center first slides the clock from the top left to
+  the screensaver clock's exact place and size (`saver::clock_spot`), drops the dock and rows off the bottom and fades the rest
+  (`SLEEP_MS` 800), then opens the screensaver over it. Leaving it plays the same back (`WAKE_MS` 600). Quick Settings over an app
+  still opens Lumen Screensaver straight away.
+- **The screensaver's photos grow slowly (2026-11-25, (verify)):** each photo zooms in from its centre at `ZOOM_PER_MINUTE` (4% a
+  minute), stopping at `ZOOM_MOST` (10%), so nothing on screen stays still. Drawn 10 times a second (`ZOOM_FRAME_MS`); off with
+  Reduce motion.
 - **Focus strength** as a setting. One strength.
 - **Hide the dock** and its dim.
 - **The cloud wallpaper library.** Sam uses the built-in Landscape and Art wallpapers; those stay.

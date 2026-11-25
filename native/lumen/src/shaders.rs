@@ -32,7 +32,18 @@ vec2 rr_normal(vec2 p, vec2 half_size, float r) {
 pub const COPY_FRAGMENT: &str = r#"uniform sampler2D u_tex;
 uniform vec4 u_uvx;
 uniform float u_mul;
-void main() { gl_FragColor = vec4(texture2D(u_tex, v_uv * u_uvx.xy + u_uvx.zw).rgb * u_mul, 1.0); }
+uniform float u_print;
+void main() {
+  vec3 c = texture2D(u_tex, v_uv * u_uvx.xy + u_uvx.zw).rgb;
+  if (u_print > 0.5) {
+    float t = length((v_px - vec2(460.8, 64.8)) / vec2(1632.0, 1026.0));
+    vec4 light = t < 0.38 ? mix(vec4(vec3(1.0, 0.957, 0.871) * 0.07, 0.07), vec4(0.0), t / 0.38) : vec4(0.0, 0.0, 0.0, 0.36 * min((t - 0.38) / 0.62, 1.0));
+    c = light.rgb + c * (1.0 - light.a);
+    c = mix(c, vec3(0.925, 0.894, 0.831), 0.09);
+    c *= 0.86;
+  }
+  gl_FragColor = vec4(c * u_mul, 1.0);
+}
 "#;
 
 pub const BLUR_FRAGMENT: &str = r#"uniform sampler2D u_tex;

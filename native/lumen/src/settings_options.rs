@@ -226,6 +226,9 @@ pub fn options(config: &Value, facts: &Facts) -> Vec<Opt> {
         r.switch("wp-new", Group::Wallpaper, "New picture on startup", "Opens on another of your pictures each time. Off, it opens on the last one it showed.", "wpNewOnLaunch", true);
     }
     r.named("night-dim", Group::Wallpaper, "Dim the wallpaper", "A darker wallpaper, easier on the eyes in a dark room. At night: between 7 pm and 6 am.", &["Off", "At night", "Always"], &["off", "night", "always"], "wallpaperDim", "off");
+    if kind != "plain" {
+        r.switch("print-look", Group::Wallpaper, "Print look", "Pictures look printed on paper rather than lit up: a little darker, a faint cream tint, and light falling from the top left.", "printLook", false);
+    }
 
     let saver_on = flag(c, "ambientOn", false);
     r.listed("ambient-on", Group::Screensaver, "Screensaver", "Enabled: this app's screensaver replaces the TV's, a slow crossfade of pictures with the clock; any key returns to the home screen. Disabled: the TV's default LG screensaver runs. The TV's own auto power-off still applies.", words(&["Enabled", "Disabled"]), vec![json!("on"), json!("off")], json!(if saver_on { "on" } else { "off" }));
@@ -330,6 +333,7 @@ pub fn options(config: &Value, facts: &Facts) -> Vec<Opt> {
         },
     };
     r.action("tv-scripts", Group::System, "TV scripts", "The scripts Lumen runs on the TV as root: the Home button watcher, Home and Power, and Privacy. They ship inside Lumen; this copies this build's into place and restarts them. Needs the Homebrew Channel with root.".into(), scripts.into());
+    r.action("lg-home", Group::System, "LG Home", "Opens LG's own home screen. The Home button opens Lumen again once you leave it.".into(), "Open".into());
     r.switch("show-all-apps", Group::System, "Show system apps", "Offer the TV's own apps (Live TV, LG Channels, AirPlay, Screen Share, Game Optimizer, TV Settings) in Settings > Apps, so you can add them to the home screen.", "showAllApps", false);
     r.action("restore-backup", Group::System, "Restore settings from the TV", "Lumen keeps its settings on the TV (/var/lib/homehook/lumen-config.json), shared with the web Lumen. This reads that copy again, replacing the settings here.".into(), "Restore".into());
     r.out
@@ -358,8 +362,12 @@ fn tv_rows(r: &mut Rows, facts: &Facts) {
     let power_lumen = tv.is_some_and(|t| LUMEN_IDS.contains(&t.power_on.as_str()));
     let pending = tv.is_some_and(TvState::power_on_pending);
     r.action("tv-power-on", Group::Tv, "When the TV turns on", format!("{pre}{}", if !power_why.is_empty() && !power_lumen { power_why } else { "Lumen: the power button and a start after a power cut open Lumen first, before Live TV is drawn. Casting, Wake-on-LAN and HDMI-CEC still go where they ask. Takes effect after the TV restarts." }), shown("tv-power-on", format!("{}{}", if power_lumen { "Lumen" } else if !power_why.is_empty() { "Not available" } else { "Last input" }, if pending { " (after a restart)" } else { "" })));
-    if pending {
-        r.action("tv-restart", Group::Tv, "Restart the TV now", "The TV reads what it opens at power-on only when it starts. This restarts it now.".into(), shown("tv-restart", "Restart".into()));
+    let web = tv.map_or("", |t| t.web.as_str());
+    if web == "installed" || web == "pending" {
+        r.action("retire-web", Group::Tv, "Old Lumen", format!("{pre}The web Lumen, its Guide and its Quick Settings are still on the TV. Remove moves Home and power-on to this Lumen first, then uninstalls them. If the TV still opens the old one at power-on, they go at the next restart."), shown("retire-web", (if web == "pending" { "Goes at the next restart" } else { "Remove" }).into()));
+    }
+    if pending || web == "pending" {
+        r.action("tv-restart", Group::Tv, "Restart the TV now", "The TV reads what it opens at power-on only when it starts, and the old Lumen goes then. This restarts it now.".into(), shown("tv-restart", "Restart".into()));
     }
     let agreements = tv.and_then(|t| t.agreements);
     r.action("privacy-agreements", Group::Privacy, "LG data agreements", format!("{pre}{}Withdraws LG's optional agreements: screen recognition, ads based on what you watch, personalised ads, ad cookies, sharing with data partners, extra usage data, remote diagnostics and marketing. Voice and the terms of use stay. OK again puts back what was there before.", if tv.is_some_and(|t| !t.node) { "This TV has no node to change them safely. " } else { "" }), shown("privacy-agreements", match agreements { None => "Unknown".into(), Some(0) => "Withdrawn".into(), Some(n) => format!("{n} given") }));
@@ -408,6 +416,7 @@ pub fn switched(id: &str, config: &Value) -> Option<Vec<(String, Value)>> {
         "hide-names" => ("hideNames", false),
         "show-recents" => ("showRecents", true),
         "wallpaper-captions" => ("wallpaperCaptions", true),
+        "print-look" => ("printLook", false),
         "show-weather" => ("showWeather", true),
         "wp-new" => ("wpNewOnLaunch", true),
         "reduce-motion" => ("reduceMotion", false),
@@ -541,8 +550,24 @@ mod tests {
         assert_eq!(find(&all, "home-forecast").value, "Large");
         assert_eq!(find(&all, "show-weather").value, "On");
         assert_eq!(find(&all, "night-dim").value, "Off");
+        assert_eq!(find(&all, "print-look").value, "Off");
+        assert_eq!(switched("print-look", &json!({})), Some(vec![("printLook".to_string(), json!(true))]));
         assert!(all.iter().all(|o| o.id != "show-ampm"));
         assert_eq!(find(&all, "tv-home").value, "Not on a TV");
+    }
+
+    #[test]
+    fn the_old_lumen_row_shows_only_while_the_web_lumen_is_on_the_tv() {
+        let immich = Immich::default();
+        let shown = |web: &str| {
+            let tv = TvState { scripts: "ok".into(), web: web.into(), ..Default::default() };
+            let all = options(&json!({}), &Facts { tv: Some(&tv), ..facts(&immich, &[]) });
+            (all.iter().find(|o| o.id == "retire-web").map(|o| o.value.clone()), all.iter().any(|o| o.id == "tv-restart"))
+        };
+        assert_eq!(shown("installed"), (Some("Remove".into()), false));
+        assert_eq!(shown("pending"), (Some("Goes at the next restart".into()), true));
+        assert_eq!(shown("none"), (None, false));
+        assert_eq!(shown(""), (None, false));
     }
 
     #[test]

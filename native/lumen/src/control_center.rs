@@ -35,7 +35,6 @@ enum Cell {
     Clock,
     Sleep,
     Art,
-    Home,
     ScreenOff,
     Settings,
     Backlight,
@@ -45,16 +44,17 @@ enum Cell {
 
 type Grid = &'static [&'static [(Cell, usize)]];
 
+const SMALL_ROW: &[(Cell, usize)] = &[(Cell::Art, 1), (Cell::Settings, 1), (Cell::ScreenOff, 1), (Cell::Restart, 1)];
 const GRID: Grid = &[
     &[(Cell::Sound, 2), (Cell::Picture, 2)],
     &[(Cell::Clock, 2), (Cell::Sleep, 2)],
-    &[(Cell::Art, 1), (Cell::Home, 1), (Cell::ScreenOff, 1), (Cell::Settings, 1)],
+    SMALL_ROW,
     &[(Cell::Backlight, 3), (Cell::Eye, 1)],
 ];
 const QUICK_GRID: Grid = &[
     &[(Cell::Sound, 2), (Cell::Picture, 2)],
     &[(Cell::Backlight, 3), (Cell::Eye, 1)],
-    &[(Cell::Settings, 1), (Cell::Art, 1), (Cell::ScreenOff, 1), (Cell::Restart, 1)],
+    SMALL_ROW,
 ];
 const COLUMNS: usize = 4;
 const SLEEP_CHOICES: [&str; 7] = ["off", "10", "30", "60", "90", "120", "180"];
@@ -63,6 +63,8 @@ const UNIT: f32 = 90.0;
 const GAP: f32 = 18.0;
 const RIGHT_EDGE: f32 = 125.0;
 const PANEL_TOP: f32 = 150.0;
+const QUICK_RIGHT_EDGE: f32 = 64.0;
+const QUICK_TOP: f32 = 64.0;
 const CONTROLS_W: f32 = 4.0 * UNIT + 3.0 * GAP;
 const INPUTS_W: f32 = 3.0 * UNIT + 2.0 * GAP;
 const CAPTION_H: f32 = 30.0;
@@ -110,7 +112,6 @@ const SPEAKER: &str = "M4 9.5h3.5L12 6v12l-4.5-3.5H4zM15.5 9a4 4 0 0 1 0 6M18 6.
 const PICTURE: &str = "M3.5 5.5h17v11h-17zM8 20h8M12 16.5V20";
 const MOON: &str = "M20 14.5A8.5 8.5 0 1 1 9.5 4a6.8 6.8 0 0 0 10.5 10.5z";
 const TIMER: &str = "M12 8v4.5l3 1.8M12 4.5a8 8 0 1 0 0 16 8 8 0 0 0 0-16zM9.5 2.5h5";
-const HOUSE: &str = "M3 11.5 12 4l9 7.5M5.5 9.8V20h13V9.8M10 20v-6h4v6";
 const GEAR: &str = "M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z";
 const IMAGE: &str = "M3.5 5h17v14h-17zM3.5 15.5l5-5 4 4 3-3 5 5M15.5 9.3a.8.8 0 1 0 0-.1";
 const POWER: &str = "M12 3.5v8M7 6.5a7.5 7.5 0 1 0 10 0";
@@ -197,7 +198,6 @@ fn cell_label(cell: Cell) -> &'static str {
         Cell::Clock => "Clock",
         Cell::Sleep => "Sleep",
         Cell::Art => "Screensaver",
-        Cell::Home => "LG Home",
         Cell::ScreenOff => "Screen off",
         Cell::Settings => "All settings",
         Cell::Backlight => "Backlight",
@@ -208,7 +208,6 @@ fn cell_label(cell: Cell) -> &'static str {
 
 fn circle_glyph(cell: Cell) -> &'static str {
     match cell {
-        Cell::Home => HOUSE,
         Cell::Settings => GEAR,
         Cell::Art => IMAGE,
         Cell::ScreenOff => POWER,
@@ -358,6 +357,7 @@ struct Morph {
 pub struct ControlCenter {
     kind: Kind,
     grid: Grid,
+    corner: (f32, f32),
     restart_asked: bool,
     clock_format: String,
     row: usize,
@@ -415,6 +415,7 @@ impl ControlCenter {
         ControlCenter {
             kind,
             grid: GRID,
+            corner: (RIGHT_EDGE, PANEL_TOP),
             restart_asked: false,
             clock_format: clock_format.to_string(),
             row: 0,
@@ -435,6 +436,7 @@ impl ControlCenter {
     pub fn quick(now: u32) -> ControlCenter {
         let mut panel = ControlCenter::new(Kind::Controls, "auto", now);
         panel.grid = QUICK_GRID;
+        panel.corner = (QUICK_RIGHT_EDGE, QUICK_TOP);
         panel
     }
 
@@ -574,7 +576,6 @@ impl ControlCenter {
                 Outcome::Stay
             }
             Cell::Art => Outcome::Action("art"),
-            Cell::Home => Outcome::Action("lg-home"),
             Cell::Settings => Outcome::Action("settings"),
             Cell::ScreenOff => {
                 tvcontrols::screen_off(|done| {
@@ -806,7 +807,7 @@ impl ControlCenter {
         match cell_at(self.grid, self.row, self.x).0 {
             Cell::Restart if self.restart_asked => Some("Press OK again".to_string()),
             Cell::Eye => Some(format!("Eye Comfort: {}", if values.eye_comfort { "On" } else { "Off" })),
-            cell @ (Cell::Home | Cell::Settings | Cell::Art | Cell::ScreenOff | Cell::Restart) => Some(cell_label(cell).to_string()),
+            cell @ (Cell::Settings | Cell::Art | Cell::ScreenOff | Cell::Restart) => Some(cell_label(cell).to_string()),
             _ => None,
         }
     }
@@ -814,7 +815,7 @@ impl ControlCenter {
     fn draw_controls(&mut self, d: &mut Draw, now: u32) {
         let values = tvcontrols::values();
         let (grown, grow_alpha) = self.grown(CONTROLS_BUTTON, now, &d.look);
-        let (left, top) = (DESIGN_W - RIGHT_EDGE - CONTROLS_W, PANEL_TOP);
+        let (left, top) = (DESIGN_W - self.corner.0 - CONTROLS_W, self.corner.1);
         let menu = self.menu.as_ref().map(|m| (m.cell, m.index, m.lifts.iter().map(|l| l.at(now)).collect::<Vec<f32>>()));
         let morph = self.morph_t(now);
         let geo = menu.as_ref().map(|(cell, _, _)| geometry(self.grid, *cell, options(*cell).len()));
@@ -903,7 +904,7 @@ impl ControlCenter {
     fn draw_inputs(&mut self, d: &mut Draw, now: u32) {
         let Some(shown) = self.inputs.lock().ok().and_then(|l| l.clone()) else { return };
         let (grown, grow_alpha) = self.grown(INPUTS_BUTTON, now, &d.look);
-        let (left, top) = (DESIGN_W - RIGHT_EDGE - INPUTS_W, PANEL_TOP);
+        let (left, top) = (DESIGN_W - self.corner.0 - INPUTS_W, self.corner.1);
         if shown.is_empty() {
             if let Some(text) = d.text("No inputs selected: add some in Settings > Sources", &CAPTION) {
                 let (cx, cy) = grown.at(left + INPUTS_W / 2.0, top + CAPTION_H / 2.0);
@@ -1066,10 +1067,10 @@ mod tests {
     }
 
     #[test]
-    fn down_keeps_the_column_so_all_settings_leads_to_eye_comfort_and_screen_off_to_the_backlight() {
+    fn down_keeps_the_column_so_restart_leads_to_eye_comfort_and_screen_off_to_the_backlight() {
         let mut p = panel();
         press(&mut p, &[Key::Down, Key::Down, Key::Right, Key::Right, Key::Right, Key::Right], 0);
-        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Settings);
+        assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Restart);
         press(&mut p, &[Key::Down], 0);
         assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Eye);
         press(&mut p, &[Key::Up, Key::Left], 0);
@@ -1079,19 +1080,33 @@ mod tests {
     }
 
     #[test]
-    fn quick_settings_has_restart_in_place_of_lg_home_and_restarts_only_on_a_second_ok() {
+    fn restart_restarts_only_on_a_second_ok() {
         let mut p = panel();
         p.grid = QUICK_GRID;
-        assert!(!p.grid.iter().flat_map(|r| r.iter()).any(|c| matches!(c.0, Cell::Home | Cell::Clock | Cell::Sleep)));
         press(&mut p, &[Key::Down, Key::Down, Key::Right, Key::Right, Key::Right], 0);
         assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Restart);
         assert_eq!(press(&mut p, &[Key::Ok], 0), Outcome::Stay);
         assert_eq!(p.caption(&tvcontrols::values()).as_deref(), Some("Press OK again"));
         press(&mut p, &[Key::Left, Key::Right], 0);
         assert_eq!(p.caption(&tvcontrols::values()).as_deref(), Some("Restart"));
-        assert_eq!(press(&mut p, &[Key::Down, Key::Down], 0), Outcome::Stay);
         press(&mut p, &[Key::Up], 0);
         assert_eq!(cell_at(p.grid, p.row, p.x).0, Cell::Eye);
+    }
+
+    #[test]
+    fn control_center_and_quick_settings_have_the_same_small_buttons_in_the_same_order_under_the_big_ones() {
+        let small = |grid: Grid| grid.iter().find(|r| r.len() == COLUMNS).map(|r| r.iter().map(|c| c.0).collect::<Vec<_>>());
+        let order = Some(vec![Cell::Art, Cell::Settings, Cell::ScreenOff, Cell::Restart]);
+        assert_eq!(small(GRID), order);
+        assert_eq!(small(QUICK_GRID), order);
+        assert_eq!(QUICK_GRID.last().map(|r| r.len()), Some(COLUMNS));
+        assert!(!QUICK_GRID.iter().flat_map(|r| r.iter()).any(|c| matches!(c.0, Cell::Clock | Cell::Sleep)));
+    }
+
+    #[test]
+    fn quick_settings_sits_closer_to_the_corner_than_control_center() {
+        let (quick, home) = (ControlCenter::quick(0), panel());
+        assert!(quick.corner.0 < home.corner.0 && quick.corner.1 < home.corner.1);
     }
 
     #[test]

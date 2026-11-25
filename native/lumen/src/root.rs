@@ -24,12 +24,15 @@ const TV_SCRIPTS: [&str; 6] = ["watch.sh", "stadia.sh", "resume.sh", "home-setup
 const BOOT_DIR: &str = "/var/lib/webosbrew/init.d";
 const BOOT_HOOK: &str = "/var/lib/webosbrew/init.d/60-homehook";
 const DEV_APPS: &str = "/media/developer/apps/usr/palm/applications";
+const WEB_APPS: [&str; 3] = ["com.samrenfrew.lumen", "com.samrenfrew.lumen.guide", "com.samrenfrew.lumen.quick"];
 pub const SIDE_APPS: [&str; 3] = ["com.samrenfrew.lumen.guide", "com.samrenfrew.lumen.quick", "com.samrenfrew.lumen.native.saver"];
-const HOME_ACTIONS: [(&str, &str); 4] = [
+const HOME_ACTIONS: [(&str, &str); 6] = [
     ("nativeOn", "native-home on com.samrenfrew.lumen.native"),
     ("nativeOff", "native-home off"),
     ("powerOnOn", "power-on on com.samrenfrew.lumen.native"),
     ("powerOnOff", "power-on off"),
+    ("lgHome", "lg-home"),
+    ("retireWeb", "retire-web"),
 ];
 const PRIVACY_ACTIONS: [(&str, &str); 12] = [
     ("agreementsOff", "agreements off"),
@@ -273,12 +276,18 @@ fn tv_status_command(app_dir: &str) -> Option<String> {
             check.join("; "),
             format!("if [ ! -f {BOOT_HOOK} ]; then m=1; elif ! cmp -s {scripts}/60-homehook {BOOT_HOOK}; then d=1; fi"),
             format!("if [ ! -d {scripts} ]; then echo scripts=unshipped; elif [ $m = 1 ]; then echo scripts=missing; elif [ $d = 1 ]; then echo scripts=old; else echo scripts=ok; fi"),
+            web_state_command(),
             format!("[ -f {HOMEHOOK}/home-setup.sh ] && sh {HOMEHOOK}/home-setup.sh state"),
             format!("[ -f {HOMEHOOK}/privacy.sh ] && sh {HOMEHOOK}/privacy.sh state"),
             "true".to_string(),
         ]
         .join("; "),
     )
+}
+
+fn web_state_command() -> String {
+    let files: Vec<String> = WEB_APPS.iter().map(|id| format!("{DEV_APPS}/{id}/appinfo.json")).collect();
+    format!("w=none; for f in {}; do [ -f $f ] && w=installed; done; [ -f {HOMEHOOK}/retire-web ] && w=pending; echo web=$w", files.join(" "))
 }
 
 fn install_tv_scripts_command(app_dir: &str) -> Option<String> {

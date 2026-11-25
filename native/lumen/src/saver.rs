@@ -17,6 +17,9 @@ const SHOW_ANYWAY_MS: u32 = 8000;
 const FETCH_LEAD_MS: u32 = 10_000;
 const RETRY_MS: u32 = 5000;
 const SERVER_COPY_WAITS: u32 = 15;
+const ZOOM_PER_MINUTE: f32 = 0.04;
+const ZOOM_MOST: f32 = 0.1;
+const ZOOM_FRAME_MS: u32 = 100;
 const SHADE_H: f32 = 520.0;
 const SHADE_STOPS: [(f32, f32); 6] = [(0.0, 0.0), (0.25, 0.03), (0.45, 0.09), (0.65, 0.17), (0.82, 0.24), (1.0, 0.28)];
 const LEFT: f32 = 125.0;
@@ -24,7 +27,8 @@ const RIGHT: f32 = DESIGN_W - 125.0;
 const BOTTOM: f32 = DESIGN_H - 72.0;
 const CLOCK_LEFT: f32 = LEFT - 6.0;
 const CLOCK_BASELINE: f32 = 992.0;
-const PERIOD_GAP: f32 = 10.0;
+pub const PERIOD_GAP: f32 = 10.0;
+pub const PERIOD_RISE: f32 = CLOCK_BASELINE - PERIOD_BASELINE;
 const PERIOD_BASELINE: f32 = 989.0;
 const DATE_BASELINE: f32 = 988.0;
 const WEATHER_BASELINE: f32 = 943.0;
@@ -43,9 +47,9 @@ const RAIN_BLUE: [f32; 3] = [0.486, 0.769, 1.0];
 
 const TIME_SHADOW: [Shadow; 1] = [Shadow { drop: 4, blur: 24, strength: 0.28 }];
 const STATUS_SHADOW: [Shadow; 2] = [Shadow { drop: 1, blur: 16, strength: 0.5 }, Shadow { drop: 0, blur: 2, strength: 0.22 }];
-const TIME: Style = Style { px: 120, weight: "600-clock", spacing_em: 0.0, feature: "case", ink: INK, shadows: &TIME_SHADOW };
-const TIME_TNUM: Style = Style { feature: "tnum", ..TIME };
-const PERIOD: Style = Style { px: 32, weight: "400", spacing_em: -0.012, feature: "", ink: INK, shadows: &TIME_SHADOW };
+pub const TIME: Style = Style { px: 120, weight: "600-clock", spacing_em: 0.0, feature: "case", ink: INK, shadows: &TIME_SHADOW };
+pub const TIME_TNUM: Style = Style { feature: "tnum", ..TIME };
+pub const PERIOD: Style = Style { px: 32, weight: "400", spacing_em: -0.012, feature: "", ink: INK, shadows: &TIME_SHADOW };
 const LINE: Style = Style { px: 32, weight: "500", spacing_em: -0.012, feature: "", ink: INK, shadows: &STATUS_SHADOW };
 const CAST_TEMP: Style = Style { px: 26, weight: "600", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
 const CAST_TIME: Style = Style { px: 18, weight: "400", spacing_em: -0.011, feature: "", ink: WHITE, shadows: &STATUS_SHADOW };
@@ -98,6 +102,8 @@ pub struct Saver {
     opened_at: u32,
     shown: Tex,
     shown_at: Option<u32>,
+    shown_since: u32,
+    zoom_frame_at: u32,
     incoming: Tex,
     swap_at: u32,
     leaving_at: Option<u32>,
@@ -109,6 +115,19 @@ pub struct Saver {
     pub weather_line: bool,
     pub forecast: Forecast,
     pub unix_now: u64,
+}
+
+pub fn zoom_after(ms: u32) -> f32 {
+    (ms as f32 / 60_000.0 * ZOOM_PER_MINUTE).min(ZOOM_MOST)
+}
+
+pub fn clock_spot(d: &mut Draw, weather: Option<&Weather>, forecast: Forecast, unix_now: u64, twenty_four_hour: bool) -> (f32, f32) {
+    let Some(w) = weather.filter(|_| forecast == Forecast::Large) else { return (CLOCK_LEFT, CLOCK_BASELINE) };
+    let hours = weather::hours_ahead(w, unix_now, LARGE_HOURS);
+    let need = if hours.is_empty() { 0.0 } else { Large::lay_out(d, w, &hours, twenty_four_hour).height + 8.0 };
+    let row2 = 14.0 + DATE_LINE;
+    let extra = ((need - CLOCK_H - row2) / 2.0).max(0.0);
+    (CLOCK_LEFT, BOTTOM - row2 - extra - CLOCK_BELOW)
 }
 
 fn ease(x: f32) -> f32 {
@@ -168,6 +187,8 @@ impl Saver {
             opened_at: now,
             shown: Tex::default(),
             shown_at: None,
+            shown_since: now,
+            zoom_frame_at: now,
             incoming: Tex::default(),
             swap_at: 0,
             leaving_at: None,
@@ -204,6 +225,7 @@ impl Saver {
         note!("saver: upload {} ms", began.elapsed().as_millis());
         if self.shown.tex == 0 {
             self.shown = picture;
+            self.shown_since = now;
             if self.shown_at.is_none() {
                 self.show(now);
             }
@@ -236,15 +258,35 @@ impl Saver {
         if self.incoming.tex != 0 && now >= self.swap_at + crossfade {
             std::mem::swap(&mut self.shown, &mut self.incoming);
             d.gfx.free(&mut self.incoming);
+            self.shown_since = self.swap_at;
             self.swap_at = now + self.photo_ms;
             self.ask_at = Some(self.next_ask());
         }
         if self.leaving_at.is_none() && !self.asking && self.incoming.tex == 0 && self.ask_at.is_some_and(|at| now >= at) {
             self.ask(DESIGN_W as i32, DESIGN_H as i32);
         }
-        let mut next = [self.ask_at, (self.shown_at.is_none()).then_some(self.opened_at + SHOW_ANYWAY_MS), (self.incoming.tex != 0).then_some(self.swap_at)];
+        let zoom_frame = self.zooms().then_some(self.zoom_frame_at.max(now + 1));
+        let mut next = [self.ask_at, (self.shown_at.is_none()).then_some(self.opened_at + SHOW_ANYWAY_MS), (self.incoming.tex != 0).then_some(self.swap_at), zoom_frame];
         next.sort();
         next.into_iter().flatten().find(|&at| at > now).map(|at| at - now)
+    }
+
+    fn zooms(&self) -> bool {
+        !self.setup.reduce_motion && self.shown.tex != 0
+    }
+
+    pub fn zoom_frame_due(&mut self, now: u32) -> bool {
+        if !self.zooms() || now < self.zoom_frame_at {
+            return false;
+        }
+        self.zoom_frame_at = now + ZOOM_FRAME_MS;
+        true
+    }
+
+    fn zoomed(&self, picture: Tex, since: u32, now: u32, alpha: f32, d: &Draw) {
+        let grown = if self.setup.reduce_motion { 0.0 } else { zoom_after(now.saturating_sub(since)) };
+        let (w, h) = (DESIGN_W * (1.0 + grown), DESIGN_H * (1.0 + grown));
+        d.picture(picture, (DESIGN_W - w) / 2.0, (DESIGN_H - h) / 2.0, w, h, alpha);
     }
 
     pub fn let_go(&mut self, d: &mut Draw) {
@@ -312,11 +354,11 @@ impl Saver {
         d.p.dim.set1(c"u_alpha", scene);
         d.gfx.quad(&d.p.dim, 0.0, 0.0, DESIGN_W, DESIGN_H);
         if self.shown.tex != 0 {
-            d.picture(self.shown, 0.0, 0.0, DESIGN_W, DESIGN_H, scene);
+            self.zoomed(self.shown, self.shown_since, now, scene, d);
         }
         if self.incoming.tex != 0 && now >= self.swap_at {
             let cross = ease(now.saturating_sub(self.swap_at) as f32 / self.fade_ms(CROSSFADE_MS) as f32);
-            d.picture(self.incoming, 0.0, 0.0, DESIGN_W, DESIGN_H, scene * cross);
+            self.zoomed(self.incoming, self.swap_at, now, scene * cross, d);
         }
         let shade = Self::shade(d);
         d.picture(shade, 0.0, DESIGN_H - SHADE_H, DESIGN_W, SHADE_H, scene);
@@ -344,10 +386,7 @@ impl Saver {
             if let Some(w) = self.weather.clone() {
                 let hours = weather::hours_ahead(&w, self.unix_now, LARGE_HOURS);
                 let large = (!hours.is_empty()).then(|| Large::lay_out(d, &w, &hours, self.twenty_four_hour));
-                let row2 = 14.0 + DATE_LINE;
-                let need = large.as_ref().map_or(0.0, |l| l.height + 8.0);
-                let extra = ((need - CLOCK_H - row2) / 2.0).max(0.0);
-                let clock_baseline = BOTTOM - row2 - extra - CLOCK_BELOW;
+                let clock_baseline = clock_spot(d, Some(&w), self.forecast, self.unix_now, self.twenty_four_hour).1;
                 if let Some(t) = d.text(&time, &time_style) {
                     t.draw(d, CLOCK_LEFT, clock_baseline, alpha);
                     if let Some(p) = d.text(&period, &PERIOD) {
@@ -547,6 +586,13 @@ pub fn fetch_immich_wallpaper(app_dir: &str, wants: Wants, as_next: bool, then: 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_photo_grows_by_a_few_percent_a_minute_and_stops_at_a_tenth() {
+        assert_eq!(zoom_after(0), 0.0);
+        assert!((zoom_after(30_000) - 0.02).abs() < 1e-6);
+        assert_eq!(zoom_after(60 * 60_000), 0.1);
+    }
 
     #[test]
     fn the_large_forecast_names_the_first_likely_rain_and_the_days_range() {
