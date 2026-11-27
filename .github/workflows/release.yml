@@ -1,6 +1,7 @@
 # Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md) and publishes it on each push to main: the home screen and the same
-# program packaged as Lumen Screensaver, Lumen Guide and Lumen Quick Settings (com.samrenfrew.lumen.native, .saver, .guide, .quick).
-#  - The version comes from native/lumen/appinfo.json; if that tag exists, the patch number goes up to the next free one. All four apps
+# program packaged as Lumen Overlay (com.samrenfrew.lumen.native, .overlay; the Guide, Quick Settings, the screensaver and the Dock,
+# docs/plans/one-overlay.md). The old side apps (.saver, .guide, .quick) are no longer built and drop out of the listing.
+#  - The version comes from native/lumen/appinfo.json; if that tag exists, the patch number goes up to the next free one. Both apps
 #    share it, since they are one program.
 #  - It is published as a GitHub release (tag v<version>) and to the Homebrew Channel's stable repository on the hbc-repo branch.
 #  - The web Lumen is frozen at 2.2.1 (app/). Its Lumen, Guide and Quick Settings stay listed in the Channel, pointing at the v2.2.1
@@ -74,9 +75,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          IPKS=$(ls release/com.samrenfrew.lumen.native*_"$VERSION"_arm.ipk | grep -v native.overlay_)
+          IPKS=$(ls release/com.samrenfrew.lumen.native*_"$VERSION"_arm.ipk)
           {
-            printf 'Built from %s.\n\nInstall: from the Homebrew Channel (see the README), or drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen Native, Settings > Side apps.\n\n' "$GITHUB_SHA"
+            printf 'Built from %s.\n\nInstall: from the Homebrew Channel (see the README), or drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. Lumen Overlay can also be turned on in Lumen Native, Settings > Side apps.\n\n' "$GITHUB_SHA"
             for f in $IPKS; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done
           } > notes.md
           gh release create "v$VERSION" $IPKS --target "$GITHUB_SHA" --title "Lumen Native $VERSION (${GITHUB_SHA:0:7})" --notes-file notes.md
@@ -88,7 +89,7 @@ jobs:
           DL="https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION"
           PKG=native/lumen/build
           set --
-          for P in pkg:native pkg-saver:native.saver pkg-guide:native.guide pkg-quick:native.quick; do
+          for P in pkg:native pkg-overlay:native.overlay; do
             IPK="release/com.samrenfrew.lumen.${P#*:}_${VERSION}_arm.ipk"
             set -- "$@" "$IPK" "$DL/$(basename "$IPK")" "$PKG/${P%%:*}"
           done

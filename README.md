@@ -37,11 +37,12 @@ Lumen Native is built for this one TV: its graphics chip, its SDL and its system
 - **Home screen.** A glass bar of your apps under the clock, date and weather, with the hourly forecast. More rows of apps below, a Recent row, folders, dots under apps that are still open, re-ordering, and a menu on a long OK press. The pointer works too.
 - **Liquid glass.** The app bar and glass buttons bend the wallpaper at their edges. Settings > Appearance turns it off.
 - **Live TV.** A row of aerial channels with what is on now and next, and a live picture of the channel in focus. The Guide and the Full guide, with typed channel numbers. Settings > Channels picks and orders the row.
-- **Lumen Guide.** A narrow channel guide over the Live TV picture. LIST opens it on Now, GUIDE opens the Full guide.
+- **Guide over Live TV.** A narrow channel guide over the Live TV picture. LIST opens it on Now, GUIDE opens the Full guide.
 - **Control Center and Inputs.** Sound, picture, backlight, Eye Comfort, a sleep timer, the screensaver and the TV's inputs.
-- **Lumen Quick Settings.** Control Center over any app, on the remote's gear button.
+- **Quick Settings.** Control Center over any app, on the remote's gear button.
+- **Dock over apps.** Home over an app brings up your app bar over it. OK opens an app, Down or a second Home opens Lumen.
 - **Screensaver.** Your wallpaper pictures, or your own photos from an [Immich](https://immich.app/) server, with a large clock and the weather. Portrait photos show in pairs, and each photo slowly grows so nothing stays still. It can dim the backlight.
-- **Lumen Screensaver.** The same screensaver over the app you are watching, in LG's screensaver's place, so a key takes you back to where you left off.
+- **Screensaver over apps.** The same screensaver over the app you are watching, in LG's screensaver's place, so a key takes you back to where you left off. Home closes it.
 - **Settings.** Wallpapers (Landscapes and Art, each with its title and credit), Immich, the brightness schedule for each part of the day, the side apps, Home and Power, Privacy (withdraws LG's data agreements and blocks its ad servers), TV scripts and backup.
 
 ### Left out from the web Lumen
@@ -73,7 +74,7 @@ You need a rooted LG TV with the [Homebrew Channel](https://www.webosbrew.org/),
 2. Add this repository URL: `https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json`
 3. Install **Lumen Native** from the Channel's app list. On the TV it is called "Home".
 4. Open it, then go to Settings > System > TV scripts and press OK. This puts the scripts Lumen Native needs on the TV and starts them. They start again at each boot.
-5. Optional: in Settings > Side apps, turn on Lumen Guide, Lumen Quick Settings and Lumen Screensaver. They do not show in the TV's app list. The remote's buttons and the screensaver open them.
+5. Optional: in Settings > Side apps, turn on Lumen Overlay. It brings the Guide over Live TV, Quick Settings, the screensaver over apps and the Dock, each with its own switch. It does not show in the TV's app list. The remote's buttons and the screensaver open it.
 
 The [releases page](https://github.com/samrenfrew/lumen-webos/releases) also has each `.ipk`. You can install one with [Dev Manager](https://github.com/webosbrew/dev-manager-desktop/releases) or `ares-install`.
 
@@ -81,7 +82,7 @@ The public build has no third-party app logos and no SF font. Apps without an ic
 
 ### What the TV scripts do
 
-Without the TV scripts, these do not work: the Recent row, the screensaver in LG's place, the brightness schedule, Home and Power, Privacy, and the LIST, GUIDE and gear buttons for the side apps.
+Without the TV scripts, these do not work: the Recent row, the screensaver in LG's place, the brightness schedule, Home and Power, Privacy, and the LIST, GUIDE, gear and Home buttons for Lumen Overlay.
 
 The scripts live in `/var/lib/homehook/` on the TV, and the Homebrew Channel starts them at boot through `/var/lib/webosbrew/init.d/60-homehook`. To remove them, delete that file on the TV and restart it.
 
@@ -121,7 +122,7 @@ The app's log helps most. It is at `/tmp/lumen-native-<uid>/log` on the TV until
 
 ## Set up for development
 
-Lumen Native lives in [native/lumen/](native/lumen/). It is one program, packaged four times: the home screen, Lumen Screensaver, Lumen Guide and Lumen Quick Settings.
+Lumen Native lives in [native/lumen/](native/lumen/). It is one program, packaged twice: the home screen, and Lumen Overlay (the Guide, Quick Settings, the screensaver and the Dock over other apps).
 
 You need:
 
@@ -151,7 +152,7 @@ Then:
 npm run deploy:native
 ```
 
-This builds Lumen Native and installs it on the TV over SSH. Add `LUMEN_LAUNCH=1` to open it, `LUMEN_SAVER=1` to install Lumen Screensaver too, and `LUMEN_SIDE=1` to install Lumen Guide and Lumen Quick Settings. `sh tools/build_native.sh` builds the four `.ipk` files without installing them.
+This builds Lumen Native and installs it on the TV over SSH. Add `LUMEN_LAUNCH=1` to open it, and `LUMEN_OVERLAY=1` to install Lumen Overlay too (the Guide, Quick Settings, the screensaver and the Dock). `sh tools/build_native.sh` builds the two `.ipk` files without installing them.
 
 ### Work on the live app
 
