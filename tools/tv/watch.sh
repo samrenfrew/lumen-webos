@@ -70,6 +70,9 @@ QUICK=com.samrenfrew.lumen.quick
 NATIVE_GUIDE=com.samrenfrew.lumen.native.guide
 NATIVE_QUICK=com.samrenfrew.lumen.native.quick
 SAVER=com.samrenfrew.lumen.native.saver
+OVERLAY=com.samrenfrew.lumen.native.overlay   # Lumen Overlay: the Guide, Quick Settings, the screensaver and the Dock in one app (docs/plans/one-overlay.md)
+HOMEKEY=/var/lib/homehook/home.sh
+DOCK_OFF=/var/lib/homehook/dock-off
 LGSAVER=com.webos.app.screensaver
 LGSAVER_DIR=/usr/palm/applications/$LGSAVER   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
 SAVER_COPY=/var/lib/homehook/saver-app
@@ -118,11 +121,14 @@ me_in_front() {
   return 1
 }
 # prints the Lumen build Home should open: the last one in front if still installed, else the first installed one
-# Lumen Guide and Quick Settings: the native ones (Lumen Native's side apps) when installed, else the web ones. The native ones start in
-# well under the web ones' cold open and close when put away, so they are never started hidden.
+# Lumen Guide, Quick Settings and Lumen Screensaver: Lumen Overlay when installed, launched with the mode for each; else the native side
+# apps (Lumen Native's) when installed, else the web ones. The native ones start in well under the web ones' cold open and close when put
+# away, so they are never started hidden.
 pick_side_apps() {
   GUIDE=com.samrenfrew.lumen.guide; [ -d "$APPS/$NATIVE_GUIDE" ] && GUIDE=$NATIVE_GUIDE
   QUICK=com.samrenfrew.lumen.quick; [ -d "$APPS/$NATIVE_QUICK" ] && QUICK=$NATIVE_QUICK
+  SAVER=com.samrenfrew.lumen.native.saver
+  if [ -d "$APPS/$OVERLAY" ]; then GUIDE=$OVERLAY; QUICK=$OVERLAY; SAVER=$OVERLAY; fi
 }
 
 me_target() {
@@ -159,17 +165,18 @@ note_recent() {
 # rewrites the LIST (787) and GUIDE (362) binds for $1 = live (both open the guide, GUIDE on its Full guide) or away (GUIDE opens Lumen's Guide, LIST unbound), keeping
 # every other bind; the file is written only when it changes
 guide_binds() {
-  python3 - "$KEYBINDS" "$1" "$GUIDE" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
+  python3 - "$KEYBINDS" "$1" "$GUIDE" "$(me_target)" "$OVERLAY" <<'PY' 2>>/tmp/homehook.log
 import json, sys
-path, mode, guide, lumen = sys.argv[1:5]
+path, mode, guide, lumen, overlay = sys.argv[1:6]
 try:
     with open(path) as f: binds = json.load(f)
 except Exception:
     binds = {}
 want = dict(binds)
 if mode == 'live':
-    want['787'] = {'action': 'launch', 'id': guide}
-    want['362'] = {'action': 'launch', 'id': guide, 'params': {'view': 'full'}}
+    asked = {'mode': 'guide'} if guide == overlay else {}
+    want['787'] = {'action': 'launch', 'id': guide, 'params': asked} if asked else {'action': 'launch', 'id': guide}
+    want['362'] = {'action': 'launch', 'id': guide, 'params': dict(asked, view='full')}
 else:
     want.pop('787', None)
     if lumen:
@@ -187,7 +194,7 @@ guide_follow() {
   [ -d "$APPS/$GUIDE" ] || return
   if [ "$1" = "$LIVETV" ]; then
     guide_binds live
-    [ "$GUIDE" = "$NATIVE_GUIDE" ] && return
+    case "$GUIDE" in "$NATIVE_GUIDE"|"$OVERLAY") return ;; esac
     ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$GUIDE\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
       echo "$(date +%T) guide: start hidden: $r" >> /tmp/homehook.log ) &
   elif [ "$2" = "$LIVETV" ] || [ -z "$2" ]; then
@@ -200,13 +207,15 @@ guide_follow() {
 # the gear button (139): bound to gear.sh while Lumen Quick Settings is installed, and left to the TV when it is not. gear.sh asks which
 # app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
 # Lumen over the app.) Home (773) opens the installed Lumen build, and is left to the TV when none is: a bind naming an uninstalled
-# Lumen made Home do nothing. Every other bind is kept; the file is written only when it changes.
+# Lumen made Home do nothing. With Lumen Overlay installed, Home runs home.sh instead, which opens the Dock over other apps, unless
+# $DOCK_OFF is there. Every other bind is kept; the file is written only when it changes.
 gear_bind() {
   pick_side_apps
   quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
-  python3 - "$KEYBINDS" "$quick" "$(me_target)" <<'PY' 2>>/tmp/homehook.log
+  homekey=""; [ -d "$APPS/$OVERLAY" ] && [ -f "$HOMEKEY" ] && [ ! -f "$DOCK_OFF" ] && homekey=$HOMEKEY
+  python3 - "$KEYBINDS" "$quick" "$(me_target)" "$homekey" <<'PY' 2>>/tmp/homehook.log
 import json, os, sys
-path, gear, lumen = sys.argv[1:4]
+path, gear, lumen, homekey = sys.argv[1:5]
 try:
     with open(path) as f: binds = json.load(f)
 except Exception:
@@ -216,7 +225,9 @@ if gear:
     want['139'] = {'action': 'exec', 'command': 'sh ' + gear}
 else:
     want.pop('139', None)
-if lumen:
+if lumen and homekey:
+    want['773'] = {'action': 'exec', 'command': 'sh ' + homekey}
+elif lumen:
     want['773'] = {'action': 'launch', 'id': lumen}
 else:
     want.pop('773', None)
@@ -250,8 +261,8 @@ ns_showing() {
 # either changed; the copy takes the source's mtime, so no fork while nothing changed. tv.json is written again after a copy.
 ns_config() {
   copied=0
-  for d in "$SAVER_COPY" "$APPS/$SAVER"; do
-    [ -f "$d/lumen-saver" ] || continue
+  for d in "$SAVER_COPY" "$APPS/com.samrenfrew.lumen.native.saver" "$APPS/$OVERLAY"; do
+    [ -f "$d/lumen-saver" ] || [ -f "$d/lumen-overlay" ] || continue
     for f in "$LUMEN_CONFIG" "$IMMICH_CONFIG"; do
       c="$d/config/${f##*/}"
       [ -f "$f" ] || continue
@@ -267,7 +278,7 @@ ns_config() {
 # tv.json in each native Lumen Screensaver folder: the TV's menu language and its 12/24-hour clock; false when none was written
 ns_tvjson() {
   dirs=""
-  for d in "$SAVER_COPY" "$APPS/$SAVER"; do [ -f "$d/lumen-saver" ] && dirs="$dirs $d"; done
+  for d in "$SAVER_COPY" "$APPS/com.samrenfrew.lumen.native.saver" "$APPS/$OVERLAY"; do { [ -f "$d/lumen-saver" ] || [ -f "$d/lumen-overlay" ]; } && dirs="$dirs $d"; done
   [ -n "$dirs" ] || return 1
   loc=$(luna-send -n 1 luna://com.webos.settingsservice/getSystemSettings '{"keys":["localeInfo"]}' </dev/null 2>/dev/null | sed -n 's/.*"UI": *"\([A-Za-z0-9-]*\)".*/\1/p')
   hh=$(luna-send -n 1 luna://com.webos.service.systemservice/getPreferences '{"keys":["timeFormat"]}' </dev/null 2>/dev/null | sed -n 's/.*"timeFormat": *"HH\([0-9]*\)".*/\1/p')
@@ -303,7 +314,7 @@ ns_restore() {
 quick_start() {
   pick_side_apps
   [ -d "$APPS/$QUICK" ] || return
-  [ "$QUICK" = "$NATIVE_QUICK" ] && return
+  case "$QUICK" in "$NATIVE_QUICK"|"$OVERLAY") return ;; esac
   run=$(luna-send -n 1 luna://com.webos.applicationManager/running '{}' </dev/null 2>/dev/null)
   case "$run" in *'"id":"'$QUICK'"'*) return ;; esac
   ( r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$QUICK\",\"params\":{\"hidden\":true}}" </dev/null 2>&1)
@@ -462,6 +473,7 @@ while true; do
     wake_wanted && [ "$pwstate" = Active ] && wake_open ""
     stop_preload
   fi
+  pick_side_apps
   out=$(luna-send -n 1 luna://com.webos.applicationManager/getForegroundAppInfo '{}' </dev/null 2>/dev/null)
   front=$(me_in_front "$out") && lastme=$front
   app=$(printf '%s' "$out" | sed -n 's/.*"appId":"\([^"]*\)".*/\1/p')
@@ -582,7 +594,7 @@ while true; do
             # leaves its screensaver state first, as Hyperion stops while the TV is in it
             who=$SAVER
             luna-send -n 1 luna://com.webos.service.tvpower/power/turnOnScreen '{}' </dev/null >/dev/null 2>&1
-            r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$SAVER\",\"params\":{${from#,}}}" </dev/null 2>&1)
+            r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$SAVER\",\"params\":{\"mode\":\"saver\"$from}}" </dev/null 2>&1)
           else
             who=$target
             r=$(luna-send -n 1 luna://com.webos.applicationManager/launch "{\"id\":\"$target\",\"params\":{\"view\":\"ambient\"$from}}" </dev/null 2>&1)

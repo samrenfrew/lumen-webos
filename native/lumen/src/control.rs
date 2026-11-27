@@ -5,6 +5,7 @@ use std::sync::mpsc::{channel, Sender};
 use std::time::Duration;
 
 pub const PORT: u16 = 9997;
+pub const OVERLAY_PORT: u16 = 9996;
 const ANSWER_WITHIN: Duration = Duration::from_secs(20);
 
 pub type Answer = Sender<Vec<u8>>;
@@ -26,10 +27,10 @@ fn serve(stream: TcpStream) {
     }
 }
 
-pub fn start() {
-    std::thread::spawn(|| match TcpListener::bind(("127.0.0.1", PORT)) {
+pub fn start(port: u16) {
+    std::thread::spawn(move || match TcpListener::bind(("127.0.0.1", port)) {
         Ok(listener) => {
-            note!("control: listening on 127.0.0.1:{}", PORT);
+            note!("control: listening on 127.0.0.1:{}", port);
             for stream in listener.incoming().flatten() {
                 std::thread::spawn(move || serve(stream));
             }

@@ -5,7 +5,8 @@ const USAGE = `node tools/tv/nctl.mjs <command>
   where | stats | get | set <name> <value> | reset | key <left|right|up|down|ok|back>... | call <uri> <json> | quit
   shot <out.png>
 Talks to Lumen Native's control channel. Open the tunnel first:
-  ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -f -N -L 19997:127.0.0.1:9997 root@192.168.0.20`;
+  ssh -o BatchMode=yes -o ExitOnForwardFailure=yes -f -N -L 19997:127.0.0.1:9997 root@192.168.0.20
+Lumen Overlay (and the other side apps) listen on 9996: tunnel 19996 to it and set LUMEN_NCTL_PORT=19996.`;
 
 const PORT = Number(process.env.LUMEN_NCTL_PORT || 19997);
 const [verb, ...rest] = process.argv.slice(2);

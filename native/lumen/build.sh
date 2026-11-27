@@ -38,5 +38,5 @@ mkdir -p "$OVERLAY_PKG"
 cp "$PKG/lumen" "$OVERLAY_PKG/lumen-overlay"
 cp "$HERE/appinfo-overlay.json" "$OVERLAY_PKG/appinfo.json"
 cp "$PKG/icon.png" "$PKG/largeIcon.png" "$OVERLAY_PKG/"
-sh "$HERE/assets.sh" "$OVERLAY_PKG" saver
+sh "$HERE/assets.sh" "$OVERLAY_PKG" overlay
 echo "Built: $PKG $SAVER_PKG $HERE/build/pkg-guide $HERE/build/pkg-quick $OVERLAY_PKG"

@@ -88,6 +88,7 @@ const FOLDER_COLUMNS: usize = 3;
 const FOLDER_ROW_STEP: f32 = 176.0;
 const FOLDER_PRESETS: [&str; 3] = ["Games", "Tools", "Media"];
 const TOAST_MS: u32 = 3500;
+pub const DOCK_DROP_MS: f32 = 350.0;
 pub const HOLD_MS: u32 = 600;
 pub const GUIDE_TILE: &str = "livetv:guide";
 const CHANNEL_PREFIX: &str = "channel:";
@@ -184,6 +185,14 @@ pub struct LiveShown {
     pub now: Option<Programme>,
     pub next: Option<Programme>,
     pub loading: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DockExit {
+    Bar,
+    Down,
+    Up,
+    Open,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -292,6 +301,7 @@ pub struct Home {
     pub preview_showing: Option<String>,
     pub preview_loading: Option<String>,
     live_offset: Anim,
+    pub dock: bool,
 }
 
 pub fn place(index: usize, bar_count: usize, cols: usize) -> (usize, usize) {
@@ -533,6 +543,7 @@ impl Home {
             preview_showing: None,
             preview_loading: None,
             live_offset: Anim::still(0.0),
+            dock: false,
         }
     }
 
@@ -1160,6 +1171,58 @@ impl Home {
         self.in_live = false;
         self.focus = 0;
         self.animate_to_state(d, was_lower, was_shift, now);
+    }
+
+    pub fn open_as_dock(&mut self, d: &mut Draw, tint: Tex, app: Option<&str>, now: u32) {
+        self.dock = true;
+        self.glass = tint;
+        self.veil = tint;
+        d.glass_backdrop = tint;
+        d.veil_backdrop = tint;
+        self.zone = Zone::Rows;
+        self.moving = None;
+        self.folder = None;
+        self.in_live = false;
+        self.engaged = true;
+        self.focus = dock_start(&self.tiles.iter().take(self.bar_count).map(|t| &t.app).collect::<Vec<_>>(), app);
+        self.settle(now);
+        self.sleep = Anim::still(1.0);
+        self.sleep.go(0.0, self.ms(WAKE_MS), &SLEEP_CURVE, now);
+    }
+
+    pub fn drop_dock(&mut self, now: u32) {
+        self.sleep.go(1.0, self.ms(DOCK_DROP_MS), &SLEEP_CURVE, now);
+    }
+
+    pub fn dock_focus(&self) -> Option<(usize, &Shown)> {
+        let tile = self.tiles.get(self.focus).filter(|_| self.focus < self.bar_count)?;
+        Some((self.focus, &tile.app))
+    }
+
+    pub fn dock_select(&mut self, d: &Draw, at: usize, now: u32) -> bool {
+        if at >= self.bar_count {
+            return false;
+        }
+        let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
+        self.focus = at;
+        self.animate_to_state(d, was_lower, was_shift, now);
+        true
+    }
+
+    pub fn from_dock(&mut self, d: &Draw, col: usize, exit: DockExit, now: u32) -> Option<Action> {
+        self.zone = Zone::Rows;
+        self.moving = None;
+        self.folder = None;
+        self.in_live = false;
+        self.engaged = true;
+        self.focus = col.min(self.bar_count.saturating_sub(1));
+        self.settle(now);
+        match exit {
+            DockExit::Bar => None,
+            DockExit::Down => self.key(d, Key::Down, now),
+            DockExit::Up => self.key(d, Key::Up, now),
+            DockExit::Open => self.key(d, Key::Ok, now),
+        }
     }
 
     pub fn bar_focus(&self) -> Option<(usize, usize)> {
@@ -1841,6 +1904,31 @@ impl Home {
         self.draw_toast(d, now);
     }
 
+    pub fn draw_dock(&mut self, d: &mut Draw, now: u32) {
+        d.pictures.next_frame();
+        let mut pictures = Vec::with_capacity(self.bar_count);
+        for tile in self.tiles.iter_mut().take(self.bar_count) {
+            let icon = Self::icon_of(d, tile);
+            pictures.push((Self::resting_tile(d, tile, icon, 1.0), icon));
+        }
+        let (lens, gloss) = self.bar_plates(d);
+        d.gfx.into_screen();
+        unsafe {
+            glClearColor(0.0, 0.0, 0.0, 0.0);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        self.draw_bar(d, lens, gloss, BAR_TILES_TOP - BAR_ABOVE_TILES + self.sleep.at(now) * SLEEP_DROP, 0.0, now);
+        unsafe { glEnable(GL_BLEND) }
+        let last = (self.focus < self.bar_count).then_some(self.focus);
+        for at in (0..self.bar_count).filter(|&at| Some(at) != last).chain(last) {
+            let (resting, icon) = pictures[at];
+            self.draw_tile(d, at, resting, icon, now);
+        }
+        self.draw_open_dots(d, 0, now);
+        self.draw_labels(d, 0, now);
+    }
+
     pub fn set_live(&mut self, d: &mut Draw, shown: Vec<LiveShown>, now: u32) {
         let slot = livetv::live_slot(self.cols, TILE_W, TILE_GAP);
         if shown.iter().eq(self.live.iter().map(|l| &l.shown)) && slot == self.live_slot {
@@ -2033,6 +2121,11 @@ impl Home {
     }
 }
 
+pub fn dock_start(bar: &[&Shown], app: Option<&str>) -> usize {
+    let Some(app) = app else { return 0 };
+    bar.iter().position(|shown| shown.id == app || shown.inside.as_ref().is_some_and(|inside| inside.iter().any(|a| a.id == app))).unwrap_or(0)
+}
+
 pub fn usual_gap(gaps: &mut [u32]) -> Option<f32> {
     if gaps.len() < 5 {
         return None;
@@ -2060,6 +2153,18 @@ mod tests {
 
     fn app(id: &str) -> Shown {
         Shown { id: id.into(), title: id.into(), icon_file: None, glyph: None, color: None, inside: None }
+    }
+
+    #[test]
+    fn the_dock_starts_on_the_app_in_front_or_the_folder_holding_it_else_the_first() {
+        let mut folder = app("folder:Games");
+        folder.inside = Some(vec![app("stadia")]);
+        let (plex, youtube) = (app("plex"), app("youtube"));
+        let bar = [&plex, &folder, &youtube];
+        assert_eq!(dock_start(&bar, Some("youtube")), 2);
+        assert_eq!(dock_start(&bar, Some("stadia")), 1);
+        assert_eq!(dock_start(&bar, Some("com.webos.app.livetv")), 0);
+        assert_eq!(dock_start(&bar, None), 0);
     }
 
     #[test]

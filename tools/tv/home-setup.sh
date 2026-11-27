@@ -49,7 +49,9 @@ STAND_IN="$HH/home-app"               # the stand-in Home app, mounted over LG H
 TAKEOVER="$HH/home-mount"          # holds the Lumen id while the takeover is on; the guard mounts again at each boot
 LGSAVER=com.webos.app.screensaver
 LGSAVER_DIR="${LGSAVER_DIR:-/usr/palm/applications/$LGSAVER}"
-SAVER=com.samrenfrew.lumen.native.saver
+SAVER=com.samrenfrew.lumen.native.saver   # or Lumen Overlay when installed, which is the screensaver when launched with no mode
+SAVER_MAIN=lumen-saver
+[ -d "$APPS/com.samrenfrew.lumen.native.overlay" ] && SAVER=com.samrenfrew.lumen.native.overlay && SAVER_MAIN=lumen-overlay
 NATIVE=com.samrenfrew.lumen.native
 WEB="com.samrenfrew.lumen com.samrenfrew.lumen.guide com.samrenfrew.lumen.quick"
 RETIRE="$HH/retire-web"              # there while the web Lumen waits for a restart to be uninstalled
@@ -278,7 +280,7 @@ saver_extras () {
 saver_sum () { { (cd "$APPS/$SAVER" && find . -type f | grep -v '^\./config/' | sort | xargs -r md5sum); saver_extras | xargs -r md5sum; } | md5sum | cut -d ' ' -f 1; }
 saver_fresh () { [ "$(saver_sum)" = "$(cat "$SAVER_COPY/.lumen-sum" 2>/dev/null)" ]; }
 # the native side app; the old web one has saver.html instead of lumen-saver
-saver_native () { [ -f "$APPS/$SAVER/lumen-saver" ]; }
+saver_native () { [ -f "$APPS/$SAVER/$SAVER_MAIN" ]; }
 
 # $1/config as watch.sh keeps it: Lumen's settings and Immich server (with their mtimes), and tv.json, the TV's language and clock
 saver_config () {
@@ -303,7 +305,7 @@ saver_stage () {
   "version": "3.0.0",
   "vendor": "Lumen",
   "type": "native",
-  "main": "lumen-saver",
+  "main": "$SAVER_MAIN",
   "title": "Screen Saver",
   "icon": "",
   "visible": false,

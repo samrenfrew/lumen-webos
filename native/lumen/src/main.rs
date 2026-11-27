@@ -7,6 +7,7 @@ mod compose;
 #[cfg(feature = "dev")]
 mod control;
 mod control_center;
+mod dock;
 mod draw;
 mod ffi;
 mod gfx;
@@ -109,6 +110,7 @@ pub struct App {
     over_live_tv: bool,
     side: Option<side_apps::Side>,
     quit_at: Option<u32>,
+    dock_exit_waiting: Option<home::DockExit>,
     settings: Settings,
     saved: Value,
     known: Vec<apps::Known>,
@@ -293,7 +295,7 @@ impl App {
     }
 
     fn show_apps(&mut self) {
-        if self.on_its_own() {
+        if self.on_its_own() && self.side != Some(side_apps::Side::Dock) {
             return;
         }
         let listed = apps::listed(&self.launch_points, &self.known);
@@ -836,6 +838,9 @@ impl App {
         if self.saver_at.is_some() {
             return;
         }
+        if self.side == Some(side_apps::Side::Dock) {
+            return self.dock_key(key);
+        }
         if self.guide.is_some() {
             return self.guide_key(key);
         }
@@ -862,7 +867,7 @@ impl App {
 
     fn pointer_moved(&mut self, x: i32, y: i32) {
         self.touched_at = ticks();
-        if self.screen.is_some() || self.panel.is_some() || self.saver.is_some() || self.guide.is_some() || self.hidden {
+        if self.screen.is_some() || self.panel.is_some() || self.saver.is_some() || self.guide.is_some() || self.side.is_some() || self.hidden {
             return;
         }
         let (dx, dy) = (x as f32 * DESIGN_W / self.draw.gfx.screen_w as f32, y as f32 * DESIGN_H / self.draw.gfx.screen_h as f32);
@@ -888,7 +893,7 @@ impl App {
         }
         let can_hold = match &self.screen {
             Some(screen) => screen.can_hold(),
-            None => self.lab.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none() && self.home.can_hold(),
+            None => self.side.is_none() && self.lab.is_none() && self.panel.is_none() && self.saver.is_none() && self.guide.is_none() && self.home.can_hold(),
         };
         if !can_hold {
             return self.key(Key::Ok);
@@ -938,6 +943,10 @@ impl App {
 
     fn relaunched(&mut self, parameters: Value) {
         self.touched_at = ticks();
+        if self.alone && side_apps::is_home_press(&parameters) {
+            note!("relaunch {}: Home pressed over the screensaver, so it closes", parameters);
+            return self.close_saver();
+        }
         if self.alone {
             return note!("relaunch {}: already up as the screensaver", parameters);
         }
@@ -949,6 +958,9 @@ impl App {
         #[cfg(not(feature = "webos"))]
         let came_forward = SHELL_FULL_SCREEN;
         note!("relaunch {}: asked for full screen, {}", parameters, came_forward);
+        if let Some((col, exit)) = dock::arrival(&parameters) {
+            return self.arrive_from_dock(col, exit);
+        }
         let view = parameters["view"].as_str().map(String::from);
         if view.is_none() && !self.hidden {
             self.home.go_home(&self.draw, ticks());
@@ -1032,6 +1044,9 @@ impl App {
         if self.saver.is_some() {
             return self.draw_saver(now);
         }
+        if self.side == Some(side_apps::Side::Dock) {
+            return self.home.draw_dock(&mut self.draw, now);
+        }
         if self.side == Some(side_apps::Side::Quick) {
             return self.draw_quick(now);
         }
@@ -1088,6 +1103,9 @@ impl App {
         if let Some(guide) = &self.guide {
             return guide.moving(now) || self.home.toast_showing(now);
         }
+        if self.side == Some(side_apps::Side::Dock) {
+            return self.home.moving(now);
+        }
         if self.side.is_some() {
             return self.panel.as_ref().is_some_and(|p| p.moving(now));
         }
@@ -1112,6 +1130,7 @@ impl App {
         let mut words = line.splitn(3, ' ');
         let (verb, first, rest) = (words.next().unwrap_or(""), words.next().unwrap_or(""), words.next().unwrap_or(""));
         match verb {
+            "where" if self.side == Some(side_apps::Side::Dock) => said(&answer, json!({"screen": "dock", "home": self.home.where_now()})),
             "where" if self.saver.is_some() => said(&answer, self.saver.as_ref().map_or(Value::Null, |s| s.where_now(ticks()))),
             "where" if self.guide.is_some() => said(&answer, self.guide.as_ref().map(|g| g.where_now(&self.live)).unwrap_or_default()),
             "where" if self.lab.is_some() => said(&answer, self.lab.as_ref().map_or(Value::Null, |l| l.where_now(&self.draw.look, self.draw.liquid))),
@@ -1206,6 +1225,7 @@ fn save_shot(app: &mut App, args: &[String]) -> i32 {
             "--at" => at_ms = rest.next().and_then(|ms| ms.parse().ok()).unwrap_or(SHOT_SETTLED_MS),
             "--against" => against = rest.next().cloned(),
             "saver" => app.open_saver_for_shot(),
+            "dock" => app.open_dock_for_shot(),
             "lab" => app.open_lab(),
             "hold" => match app.screen.as_mut() {
                 Some(screen) => screen.hold(ticks()),
@@ -1367,6 +1387,7 @@ fn run() -> i32 {
         over_live_tv,
         side,
         quit_at: None,
+        dock_exit_waiting: None,
         settings: Settings::defaults(),
         saved: Value::Null,
         known: Vec::new(),
@@ -1400,7 +1421,10 @@ fn run() -> i32 {
     } else {
         app.load_kept();
         app.refresh_from_tv();
-        if start_view.is_some() {
+        let start = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).unwrap_or(Value::Null);
+        if let Some((col, exit)) = dock::arrival(&start["parameters"]) {
+            app.arrive_from_dock(col, exit);
+        } else if start_view.is_some() {
             app.apply_view(start_view.as_deref());
         }
     }
@@ -1413,7 +1437,7 @@ fn run() -> i32 {
     }
 
     #[cfg(feature = "dev")]
-    control::start();
+    control::start(if app.on_its_own() { control::OVERLAY_PORT } else { control::PORT });
     let per_ms = 1000.0 / unsafe { SDL_GetPerformanceFrequency() } as f64;
     let mut first_frame_shown = false;
     let mut wait_ms = 0;
@@ -1528,6 +1552,7 @@ fn run() -> i32 {
         let draw_ms = (unsafe { SDL_GetPerformanceCounter() } - draw_from) as f64 * per_ms;
         unsafe { SDL_GL_SwapWindow(app.window) }
         app.home.frame_shown(ticks(), draw_ms);
+        app.dock_exit_after_frame();
         if let Some(lab) = app.lab.as_mut() {
             lab.frame_shown(ticks(), draw_ms);
         }
