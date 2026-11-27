@@ -71,9 +71,10 @@ since it is only worth having if it shows the moment Home is pressed.
 
 - **First Home press:** the dock slides up from the bottom over the app, with the same look and the open-app dots. Focus starts on the
   app you are in **(default)**.
-- **Which apps:** a setting, home's dock apps or the most recent apps (`/var/lib/homehook/recent`) **(Sam)**.
+- **Which apps:** home's dock apps only, no setting **(Sam)**. A recents choice was dropped, because Down opening full home only makes
+  sense when the bar is the top of home. So: one of the dock apps is Home, then OK; any other app is Home, Down, and pick it on home.
 - **Second Home press:** opens full home.
-- **Leaving the dock row opens full home there (proposed):** Down opens home focused on row 2, Up on the top buttons. Home opens with
+- **Leaving the dock row opens full home there (Sam):** Down opens home focused on row 2, Up on the top buttons. Home opens with
   its dock and rows in the same place as the overlay's dock, so the rows look as if they rose up under it. The rows are not drawn
   over the app: that would be home as an overlay again, with its memory and drawing cost over a playing app.
 - **OK on an app:** opens it, and the dock drops away.
