@@ -139,7 +139,6 @@ const TRASH: &str = "M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 
 const MINUS: &str = "M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM8 12h8";
 const FOLDER: &str = "M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z";
 const OPEN_DOT: f32 = 10.0;
-const OPEN_DOT_ABOVE: f32 = 22.0;
 pub const TOP_ITEMS: [(&str, &str, &str); 3] = [("controls", "Control Center", SLIDERS), ("settings", "Settings", GEAR), ("inputs", "Inputs", INPUTS)];
 
 #[derive(Clone, PartialEq, Debug)]
@@ -1433,10 +1432,14 @@ impl Home {
             if !(open(&app.id) || app.inside.as_ref().is_some_and(|inside| inside.iter().any(|a| open(&a.id)))) {
                 continue;
             }
-            let (x, y, w, _, _) = self.tile_box(at, now);
-            let (cx, cy) = (x + w / 2.0, y - OPEN_DOT_ABOVE);
-            d.fill(cx - OPEN_DOT / 2.0 - 3.0, cy - OPEN_DOT / 2.0 - 3.0, OPEN_DOT + 6.0, OPEN_DOT + 6.0, OPEN_DOT / 2.0 + 3.0, [0.0, 0.0, 0.0, 0.2]);
-            d.fill(cx - OPEN_DOT / 2.0, cy - OPEN_DOT / 2.0, OPEN_DOT, OPEN_DOT, OPEN_DOT / 2.0, [1.0, 1.0, 1.0, 0.92]);
+            let shown = 1.0 - self.tile_focus(at, now);
+            if shown <= 0.0 {
+                continue;
+            }
+            let col = self.place_of(at).1;
+            let (cx, cy) = (tile_centre(col), row_top(row) + self.row_offset(row, now) - BAR_ABOVE_TILES / 2.0);
+            d.fill(cx - OPEN_DOT / 2.0 - 3.0, cy - OPEN_DOT / 2.0 - 3.0, OPEN_DOT + 6.0, OPEN_DOT + 6.0, OPEN_DOT / 2.0 + 3.0, [0.0, 0.0, 0.0, 0.2 * shown]);
+            d.fill(cx - OPEN_DOT / 2.0, cy - OPEN_DOT / 2.0, OPEN_DOT, OPEN_DOT, OPEN_DOT / 2.0, [1.0, 1.0, 1.0, 0.92 * shown]);
         }
     }
 
