@@ -7,6 +7,7 @@ const INPUT_STATUS: &str = "luna://com.webos.service.eim/getAllInputStatus";
 const APP_LOAD_STATUS: &str = "luna://com.webos.applicationManager/getAppLoadStatus";
 const LIVE_TV: &str = "com.webos.app.livetv";
 const SIDE_LISTING: &str = "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json";
+const STILL_BUSY: &str = "Still working on the last change. Try again when it finishes.";
 const FALLBACK_INPUT_ICON: &str = "hdmigeneric.png";
 
 #[derive(Clone, Default, PartialEq, Debug)]
@@ -338,7 +339,7 @@ pub fn test_immich(shared: &Shared) {
 pub fn run_job(shared: &Shared, id: &str, app_dir: &str, job: impl FnOnce(Box<dyn FnOnce(Result<String, String>) + Send>)) {
     if let Ok(mut live) = shared.lock() {
         if !live.busy.is_empty() {
-            return;
+            return crate::toast(STILL_BUSY.into(), false);
         }
         live.busy = id.to_string();
     }

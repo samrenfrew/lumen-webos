@@ -138,6 +138,8 @@ const INPUTS: &str = "M3.5 7.5h17v7.2a2 2 0 0 1-2 2h-3.2l-1 2.3H9.7l-1-2.3H5.5a2
 const TRASH: &str = "M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6";
 const MINUS: &str = "M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM8 12h8";
 const FOLDER: &str = "M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z";
+const OPEN_DOT: f32 = 10.0;
+const OPEN_DOT_ABOVE: f32 = 22.0;
 pub const TOP_ITEMS: [(&str, &str, &str); 3] = [("controls", "Control Center", SLIDERS), ("settings", "Settings", GEAR), ("inputs", "Inputs", INPUTS)];
 
 #[derive(Clone, PartialEq, Debug)]
@@ -274,6 +276,7 @@ pub struct Home {
     pub twenty_four_hour: bool,
     pub caption: Option<(String, String)>,
     pub hide_names: bool,
+    pub open_apps: Vec<String>,
     pub unix_now: u64,
     toast: Option<(String, bool, u32)>,
     focus_changed: bool,
@@ -514,6 +517,7 @@ impl Home {
             twenty_four_hour: true,
             caption: None,
             hide_names: false,
+            open_apps: Vec::new(),
             unix_now: 0,
             toast: None,
             focus_changed: false,
@@ -1422,6 +1426,20 @@ impl Home {
         }
     }
 
+    fn draw_open_dots(&self, d: &Draw, row: usize, now: u32) {
+        for at in (0..self.tiles.len()).filter(|&at| self.place_of(at).0 == row) {
+            let app = &self.tiles[at].app;
+            let open = |id: &String| self.open_apps.contains(id);
+            if !(open(&app.id) || app.inside.as_ref().is_some_and(|inside| inside.iter().any(|a| open(&a.id)))) {
+                continue;
+            }
+            let (x, y, w, _, _) = self.tile_box(at, now);
+            let (cx, cy) = (x + w / 2.0, y - OPEN_DOT_ABOVE);
+            d.fill(cx - OPEN_DOT / 2.0 - 3.0, cy - OPEN_DOT / 2.0 - 3.0, OPEN_DOT + 6.0, OPEN_DOT + 6.0, OPEN_DOT / 2.0 + 3.0, [0.0, 0.0, 0.0, 0.2]);
+            d.fill(cx - OPEN_DOT / 2.0, cy - OPEN_DOT / 2.0, OPEN_DOT, OPEN_DOT, OPEN_DOT / 2.0, [1.0, 1.0, 1.0, 0.92]);
+        }
+    }
+
     fn draw_labels(&mut self, d: &mut Draw, row: usize, now: u32) {
         if self.hide_names {
             return;
@@ -1821,6 +1839,7 @@ impl Home {
                 }
             }
             if !in_lab {
+                self.draw_open_dots(d, row, now);
                 self.draw_labels(d, row, now);
             }
         }

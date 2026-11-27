@@ -25,6 +25,7 @@ pub struct Settings {
     pub captions: bool,
     pub print_look: bool,
     pub hide_names: bool,
+    pub show_recents: bool,
     pub folders: Vec<Folder>,
     pub wp_auto_minutes: f64,
     pub wallpaper_dim: String,
@@ -79,6 +80,7 @@ impl Settings {
             captions: true,
             print_look: false,
             hide_names: false,
+            show_recents: true,
             folders: Vec::new(),
             wp_auto_minutes: 0.0,
             wallpaper_dim: "off".into(),
@@ -137,6 +139,7 @@ impl Settings {
             captions: saved["wallpaperCaptions"].as_bool() != Some(false),
             print_look: saved["printLook"].as_bool() == Some(true),
             hide_names: saved["hideNames"].as_bool() == Some(true),
+            show_recents: saved["showRecents"].as_bool() != Some(false),
             folders: saved["folders"].as_array().map_or_else(Vec::new, |all| {
                 all.iter().filter_map(|f| Some(Folder { name: f["name"].as_str()?.to_string(), app_ids: strings(&f["appIds"])? })).filter(|f| !f.name.is_empty()).collect()
             }),

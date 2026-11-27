@@ -52,6 +52,7 @@ use std::time::Instant;
 use util::status_kb;
 
 pub const APP_ID: &str = "com.samrenfrew.lumen.native";
+const OPEN_APPS_READ_MS: [u64; 2] = [1500, 5000];
 const WEBOS_BACK_SCANCODE: c_int = 482;
 const SHELL_FULL_SCREEN: c_int = 3;
 const LAUNCH: &str = "luna://com.webos.applicationManager/launch";
@@ -318,6 +319,9 @@ impl App {
             self.home.look_changed(&mut self.draw);
         }
         self.home.hide_names = self.settings.hide_names;
+        if !self.settings.show_recents {
+            self.home.open_apps.clear();
+        }
         self.home.weather_line = self.settings.show_weather;
         self.home.forecast = self.settings.home_forecast;
         self.home.set_apps(&mut self.draw, shown, self.settings.first_row, ticks());
@@ -386,6 +390,27 @@ impl App {
         });
         self.fetch_a_wallpaper_if_wanted();
         self.ask_for_weather();
+        self.read_open_apps();
+    }
+
+    fn read_open_apps(&self) {
+        if self.on_its_own() || !self.settings.show_recents {
+            return;
+        }
+        for wait in OPEN_APPS_READ_MS {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(wait));
+                root::running_apps(|found| match found {
+                    Ok(ids) => post(move |app| {
+                        if app.settings.show_recents && app.home.open_apps != ids {
+                            app.home.open_apps = ids;
+                            app.redraw = true;
+                        }
+                    }),
+                    Err(why) => note!("open apps: {}", why),
+                });
+            });
+        }
     }
 
     fn ask_for_weather(&mut self) {
@@ -669,6 +694,7 @@ impl App {
         self.show_wallpaper();
         self.fetch_a_wallpaper_if_wanted();
         self.ask_for_weather();
+        self.read_open_apps();
     }
 
     fn panel_key(&mut self, key: Key) {
@@ -980,6 +1006,7 @@ impl App {
             SDL_WINDOWEVENT_FOCUS_GAINED => {
                 self.hidden = false;
                 self.redraw = true;
+                self.read_open_apps();
                 note!("shown");
             }
             _ => self.redraw = true,

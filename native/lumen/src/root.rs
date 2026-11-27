@@ -1,5 +1,5 @@
 use crate::bus;
-use serde_json::json;
+use serde_json::{json, Value};
 
 const EXEC: &str = "luna://org.webosbrew.hbchannel.service/exec";
 const HOMEHOOK: &str = "/var/lib/homehook";
@@ -520,6 +520,19 @@ pub fn immich_request(base: &str, key: &str, path: &str, then: impl FnOnce(Resul
     run(immich_request_command(base, key, path), 20000, then);
 }
 
+pub fn running_apps_read(out: &str) -> Vec<String> {
+    let reply: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
+    let plain = |id: &str| !id.is_empty() && id.len() < 128 && id.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+    let mut ids: Vec<String> = reply["running"].as_array().map_or(&[][..], Vec::as_slice).iter().filter_map(|a| a["id"].as_str()).filter(|id| plain(id)).map(String::from).collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+pub fn running_apps(then: impl FnOnce(Result<Vec<String>, String>) + Send + 'static) {
+    run(Some("luna-send -n 1 -w 5000 luna://com.webos.applicationManager/running '{}'".to_string()), 8000, move |out| then(out.map(|text| running_apps_read(&text))));
+}
+
 pub fn append_log(text: &str) {
     run(Some(append_log_command(text)), 6000, |_| {});
 }
@@ -527,6 +540,13 @@ pub fn append_log(text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_open_apps_are_read_from_the_app_managers_running_list() {
+        let reply = r#"{"returnValue":true,"running":[{"id":"youtube.leanback.v4","processid":"1"},{"id":"com.beb.plxnative"},{"id":"bad id;reboot"},{"id":"com.beb.plxnative"}]}"#;
+        assert_eq!(running_apps_read(reply), ["com.beb.plxnative", "youtube.leanback.v4"]);
+        assert!(running_apps_read("not json").is_empty());
+    }
 
     #[test]
     fn a_quoted_value_cannot_end_its_own_quotes() {
