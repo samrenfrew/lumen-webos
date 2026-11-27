@@ -98,7 +98,7 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
 
 ## Verify (built 2026-11-27, seen by Claude only)
 
-- The Dock with the remote: Home over an app, Left and Right, OK, Down, Up, Back, a second Home, and 10 s with no key.
+- The Dock with the remote: Home over an app, Left and Right, OK, Down, Up, Back, a second Home, and Settings > Side apps > Dock hides after (Never, 10 s, 30 s, 1 minute; 30 s by default).
 - Home over the screensaver (over an app) closes it and leaves the app, rather than opening Lumen. Seen by Claude with `home.sh`.
 - Home over the Guide or Quick Settings switches to the Dock. Seen by Claude with `home.sh`.
 - Settings > Side apps: the four switches, and the gear, LIST and Home following them after you leave Lumen.
@@ -155,5 +155,5 @@ since it is only worth having if it shows the moment Home is pressed.
   its dock and rows in the same place as the overlay's dock, so the rows look as if they rose up under it. The rows are not drawn
   over the app: that would be home as an overlay again, with its memory and drawing cost over a playing app.
 - **OK on an app:** opens it, and the dock drops away.
-- **Back, or 10 s with no key** **(default)**: closes it, and the app is where you left it.
+- **Back, or no key for the time in Settings > Side apps > Dock hides after (Sam: Never, 10 s, 30 s or 1 minute, 30 s by default)**: closes it, and the app is where you left it.
 - **With home in front:** Home does what it does now, no dock.

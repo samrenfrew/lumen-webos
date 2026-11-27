@@ -39,6 +39,7 @@ pub struct Settings {
     pub immich_picks: Vec<String>,
     pub guide_full: bool,
     pub idle_seconds: u32,
+    pub dock_hide_seconds: u32,
     pub home_preview: bool,
     pub guide_preview: bool,
     pub preview_sound: bool,
@@ -94,6 +95,7 @@ impl Settings {
             immich_picks: vec!["immich:recent".into()],
             guide_full: false,
             idle_seconds: 0,
+            dock_hide_seconds: 30,
             home_preview: false,
             guide_preview: false,
             preview_sound: false,
@@ -169,6 +171,7 @@ impl Settings {
             guide_preview: saved["guidePreview"].as_bool() == Some(true),
             preview_sound: saved["guideSound"].as_bool() == Some(true),
             idle_seconds: saved["idleSeconds"].as_u64().filter(|s| [0, 30, 60, 120, 300].contains(s)).map_or(defaults.idle_seconds, |s| s as u32),
+            dock_hide_seconds: saved["dockHideSeconds"].as_u64().filter(|s| [0, 10, 30, 60].contains(s)).map_or(defaults.dock_hide_seconds, |s| s as u32),
         })
     }
 }
@@ -206,6 +209,14 @@ mod tests {
         assert_eq!(Settings::parse(r#"{"idleSeconds":120}"#).unwrap().idle_seconds, 120);
         assert_eq!(Settings::parse(r#"{"idleSeconds":45}"#).unwrap().idle_seconds, 0);
         assert_eq!(Settings::parse(r#"{}"#).unwrap().idle_seconds, 0);
+    }
+
+    #[test]
+    fn the_dock_hides_after_one_of_the_offered_times_or_never_and_otherwise_after_thirty_seconds() {
+        assert_eq!(Settings::parse(r#"{"dockHideSeconds":60}"#).unwrap().dock_hide_seconds, 60);
+        assert_eq!(Settings::parse(r#"{"dockHideSeconds":0}"#).unwrap().dock_hide_seconds, 0);
+        assert_eq!(Settings::parse(r#"{"dockHideSeconds":45}"#).unwrap().dock_hide_seconds, 30);
+        assert_eq!(Settings::parse(r#"{}"#).unwrap().dock_hide_seconds, 30);
     }
 
     #[test]

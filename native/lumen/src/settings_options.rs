@@ -410,6 +410,7 @@ fn side_rows(r: &mut Rows, facts: &Facts) {
             };
             r.action(option, Group::SideApps, title, description.into(), value);
         }
+        r.counted("dock-hide", Group::SideApps, "Dock hides after", "How long the Dock stays over an app with no key pressed. Back always hides it at once.", words(&["Never", "10 seconds", "30 seconds", "1 minute"]), &[0.0, 10.0, 30.0, 60.0], "dockHideSeconds", 30.0);
     }
     if let Some(side) = side.filter(|s| crate::root::SIDE_APPS.iter().any(|id| s.installed(id).is_some())) {
         let n = side.behind().len();
@@ -497,6 +498,7 @@ pub fn chosen(opt: &Opt, index: usize, config: &Value, cities: &[City]) -> Resul
         "first-row" => one("firstRow", whole(&value)),
         "wp-auto" => one("wpAutoMinutes", value),
         "idle-screensaver" => one("idleSeconds", whole(&value)),
+        "dock-hide" => one("dockHideSeconds", whole(&value)),
         "ambient-seconds" => one("ambientSeconds", whole(&value)),
         "immich-recent-days" => one("immichRecentDays", whole(&value)),
         "brightness-day" => one("blDay", whole(&value)),

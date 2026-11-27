@@ -9,7 +9,6 @@ use serde_json::Value;
 pub const OVERLAY_APP_ID: &str = "com.samrenfrew.lumen.native.overlay";
 const OVERLAY_PROGRAM: &str = "lumen-overlay";
 pub const IDLE_CLOSE_MS: u32 = 30_000;
-const DOCK_IDLE_CLOSE_MS: u32 = 10_000;
 pub const CLOSE_AFTER_MS: u32 = 400;
 const QUICK_GLASS_RGB: [u8; 3] = [40, 44, 58];
 const SHADE_W: f32 = 900.0;
@@ -33,12 +32,6 @@ impl Side {
         }
     }
 
-    fn idle_close_ms(self) -> u32 {
-        match self {
-            Side::Dock => DOCK_IDLE_CLOSE_MS,
-            _ => IDLE_CLOSE_MS,
-        }
-    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -242,7 +235,11 @@ impl App {
             return Some(left as u32);
         }
         let idle = now.wrapping_sub(self.touched_at);
-        let idle_close_ms = self.side?.idle_close_ms();
+        let idle_close_ms = match self.side? {
+            Side::Dock if self.settings.dock_hide_seconds == 0 => return None,
+            Side::Dock => self.settings.dock_hide_seconds * 1000,
+            _ => IDLE_CLOSE_MS,
+        };
         if idle >= idle_close_ms {
             note!("closing after {} s without a key", idle_close_ms / 1000);
             self.close_side();
