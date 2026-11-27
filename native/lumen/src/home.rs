@@ -1525,8 +1525,6 @@ impl Home {
                 return;
             }
             let large = crate::saver::Large::lay_out(d, &w, &hours, self.twenty_four_hour);
-            let shade = self.forecast_shade(d, large.width, large.height);
-            d.picture(shade, ROWS_EDGE - 90.0, CAST_BOTTOM - large.height - 60.0, shade.w as f32, shade.h as f32, alpha);
             return large.draw(d, &w, &hours, self.twenty_four_hour, ROWS_EDGE + large.width, CAST_BOTTOM, alpha);
         }
         let hours = weather::hours_ahead(&w, self.unix_now, CAST_HOURS);
@@ -1535,8 +1533,6 @@ impl Home {
         }
         let width = hours.len() as f32 * (CAST_COL + CAST_GAP) - CAST_GAP;
         let top = CAST_BOTTOM - 103.8;
-        let shade = self.forecast_shade(d, width, 103.8);
-        d.picture(shade, ROWS_EDGE - 90.0, top - 60.0, shade.w as f32, shade.h as f32, alpha);
         for (i, hour) in hours.iter().enumerate() {
             let centre = ROWS_EDGE + i as f32 * (CAST_COL + CAST_GAP) + CAST_COL / 2.0;
             let icon = d.glyph(weather::icon(hour.kind, hour.day), CAST_ICON as i32, 1.8);
@@ -1586,26 +1582,6 @@ impl Home {
         piece(d, 0.0, ends / 64.0, x, ends);
         piece(d, ends / 64.0, 1.0 - ends / 64.0, x + ends, w - 2.0 * ends);
         piece(d, 1.0 - ends / 64.0, 1.0, x + w - ends, ends);
-    }
-
-    fn forecast_shade(&mut self, d: &mut Draw, width: f32, height: f32) -> Tex {
-        let key = format!("shape:castshade:{}x{}", width as i32, height as i32);
-        if let Some(p) = d.pictures.find(&key) {
-            return p;
-        }
-        let (w, h) = ((width + 180.0) as usize, (height + 110.0) as usize);
-        let mut rgba = vec![0u8; w * h * 4];
-        for y in 0..h {
-            for x in 0..w {
-                let (nx, ny) = ((x as f32 + 0.5) / w as f32 * 2.0 - 1.0, (y as f32 + 0.5) / h as f32 * 2.0 - 1.0);
-                let r = (nx * nx + ny * ny).sqrt();
-                let a = if r < 0.55 { 0.34 - (0.14 * r / 0.55) } else { (0.2 * (1.0 - (r - 0.55) / 0.45)).max(0.0) };
-                rgba[(y * w + x) * 4 + 3] = (a * 255.0) as u8;
-            }
-        }
-        let picture = d.gfx.upload_rgba(&rgba, w as i32, h as i32);
-        d.keep(&key, picture);
-        picture
     }
 
     fn draw_caption(&mut self, d: &mut Draw, alpha: f32) {
