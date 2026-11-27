@@ -63,3 +63,19 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
 - **(verify)** A relaunch with a new mode while open reaches the app (`handlesRelaunch` for a native app, `nativeLifeCycleInterfaceVersion`
   2) and the switch is quick.
 - **(verify)** LG's screensaver starting while another mode is up. The screensaver should take over, and a key go back to the app.
+
+## Later: the Dock over any app (idea, 2026-11-27)
+
+Home's dock over the app you are in, so you can switch apps without leaving it. It is a mode of the overlay app and needs it kept warm,
+since it is only worth having if it shows the moment Home is pressed.
+
+- **First Home press:** the dock slides up from the bottom over the app, with the same look and the open-app dots. Focus starts on the
+  app you are in **(default)**.
+- **Which apps:** a setting, home's dock apps or the most recent apps (`/var/lib/homehook/recent`) **(Sam)**.
+- **Second Home press:** opens full home.
+- **Leaving the dock row opens full home there (proposed):** Down opens home focused on row 2, Up on the top buttons. Home opens with
+  its dock and rows in the same place as the overlay's dock, so the rows look as if they rose up under it. The rows are not drawn
+  over the app: that would be home as an overlay again, with its memory and drawing cost over a playing app.
+- **OK on an app:** opens it, and the dock drops away.
+- **Back, or 10 s with no key** **(default)**: closes it, and the app is where you left it.
+- **With home in front:** Home does what it does now, no dock.
