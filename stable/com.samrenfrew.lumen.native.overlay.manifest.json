@@ -1,15 +1,15 @@
 {
   "id": "com.samrenfrew.lumen.native.overlay",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "type": "native",
   "title": "Lumen Overlay",
   "appDescription": "The Guide, Quick Settings and the screensaver over the app you are watching, from Lumen Native.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.overlay.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
   "rootRequired": true,
-  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.1/com.samrenfrew.lumen.native.overlay_3.0.1_arm.ipk",
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.1.0/com.samrenfrew.lumen.native.overlay_3.1.0_arm.ipk",
   "ipkHash": {
-    "sha256": "ea26881f17264f75f6c027d29054baf8e8b1003079864e358e995a87a78a5a52"
+    "sha256": "3fcd30daf8fcfdd3334802b079d064cf1380f833815f0481c27ba7634137133f"
   },
-  "ipkSize": 1307038
+  "ipkSize": 1307050
 }
