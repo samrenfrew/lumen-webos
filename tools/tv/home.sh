@@ -1,6 +1,6 @@
 #!/bin/sh
 # The remote's Home button, bound to this script by watch.sh (LG Input Hook, key 773) while Lumen Overlay is installed and its Dock is
-# not switched off (/var/lib/homehook/dock-off). docs/plans/one-overlay.md, "The Dock over any app".
+# not switched off (/var/lib/homehook/overlay-dock-off). docs/plans/one-overlay.md, "The Dock over any app".
 # With the old Lumen Screensaver up, Home only closes it. While Lumen Overlay is up, the press goes to it: over its screensaver it closes,
 # over the Dock it opens Lumen, and over the Guide or Quick Settings it switches to the Dock. Otherwise, with Lumen or LG Home in front it
 # opens Lumen as before, and over any other app it opens the Dock, named in "app" so the Dock starts on it.

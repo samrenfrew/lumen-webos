@@ -10,7 +10,6 @@ use crate::livetv::{self, Channel, Programme};
 use crate::look::Look;
 use std::collections::HashMap;
 
-pub const GUIDE_APP_ID: &str = "com.samrenfrew.lumen.native.guide";
 const EDGE: f32 = 125.0;
 const ROWS_PREVIEW: [f32; 4] = [DESIGN_W - 64.0 - 448.0, DESIGN_H - 56.0 - 252.0, 448.0, 252.0];
 const FULL_PREVIEW: [f32; 4] = [DESIGN_W - EDGE - 400.0, 150.0, 400.0, 225.0];

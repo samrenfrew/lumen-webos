@@ -222,7 +222,7 @@ impl App {
 
     fn write_boot_line(&mut self) {
         self.boot_written = true;
-        let line = format!("boot native{} {}, RSS {} kB", self.side.map_or(String::new(), |s| format!(" {}", s.app_id())), self.boot.join(", "), status_kb("VmRSS"));
+        let line = format!("boot native{} {}, RSS {} kB", self.side.map_or(String::new(), |s| format!(" {}", s.name())), self.boot.join(", "), status_kb("VmRSS"));
         note!("{}", line);
         root::append_log(&format!("{} {}\n", util::utc_stamp(clock::unix_now()), line));
     }
@@ -716,7 +716,7 @@ impl App {
             control_center::Outcome::Action(what) => {
                 self.panel = None;
                 match what {
-                    "art" if self.side.is_some() => self.open(saver_mode::SAVER_APP_ID.to_string()),
+                    "art" if self.side.is_some() => return self.become_saver(&json!({"mode": "saver"})),
                     "art" => {
                         self.sleep_then_saver();
                         self.redraw = true;

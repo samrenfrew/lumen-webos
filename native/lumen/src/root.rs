@@ -25,8 +25,17 @@ const BOOT_DIR: &str = "/var/lib/webosbrew/init.d";
 const BOOT_HOOK: &str = "/var/lib/webosbrew/init.d/60-homehook";
 const DEV_APPS: &str = "/media/developer/apps/usr/palm/applications";
 const WEB_APPS: [&str; 3] = ["com.samrenfrew.lumen", "com.samrenfrew.lumen.guide", "com.samrenfrew.lumen.quick"];
-pub const SIDE_APPS: [&str; 3] = ["com.samrenfrew.lumen.native.guide", "com.samrenfrew.lumen.native.quick", "com.samrenfrew.lumen.native.saver"];
-const HOME_ACTIONS: [(&str, &str); 6] = [
+pub const SIDE_APPS: [&str; 1] = ["com.samrenfrew.lumen.native.overlay"];
+const HOME_ACTIONS: [(&str, &str); 15] = [
+    ("overlayGuideOn", "overlay guide on"),
+    ("overlayGuideOff", "overlay guide off"),
+    ("overlayQuickOn", "overlay quick on"),
+    ("overlayQuickOff", "overlay quick off"),
+    ("overlaySaverOn", "overlay saver on"),
+    ("overlaySaverOff", "overlay saver off"),
+    ("overlayDockOn", "overlay dock on"),
+    ("overlayDockOff", "overlay dock off"),
+    ("retireSide", "retire-side"),
     ("nativeOn", "native-home on com.samrenfrew.lumen.native"),
     ("nativeOff", "native-home off"),
     ("powerOnOn", "power-on on com.samrenfrew.lumen.native"),
@@ -696,16 +705,17 @@ mod tests {
 
     #[test]
     fn a_side_app_installs_only_from_this_repos_releases_with_a_proper_checksum() {
-        let id = "com.samrenfrew.lumen.native.guide";
-        let url = "https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/com.samrenfrew.lumen.native.guide_2.3.0_all.ipk";
+        let id = "com.samrenfrew.lumen.native.overlay";
+        let url = "https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/com.samrenfrew.lumen.native.overlay_2.3.0_all.ipk";
         let sum = "a".repeat(64);
         assert!(install_side_app_command(id, url, &sum).unwrap().contains("\"version\": *\"2.3.0\""));
-        assert_eq!(install_side_app_command(id, "https://evil.example/com.samrenfrew.lumen.native.guide_2.3.0_all.ipk", &sum), None);
-        assert_eq!(install_side_app_command(id, &url.replace("guide_", "quick_"), &sum), None);
+        assert_eq!(install_side_app_command(id, "https://evil.example/com.samrenfrew.lumen.native.overlay_2.3.0_all.ipk", &sum), None);
+        assert_eq!(install_side_app_command(id, &url.replace("overlay_", "quick_"), &sum), None);
+        assert_eq!(install_side_app_command("com.samrenfrew.lumen.native.guide", &url.replace("overlay", "guide"), &sum), None);
         assert_eq!(install_side_app_command(id, url, "'; reboot"), None);
         assert_eq!(install_side_app_command("bbc.iplayer.3.0", url, &sum), None);
         assert_eq!(uninstall_side_app_command("com.webos.app.home"), None);
-        assert_eq!(side_app_versions_read("com.samrenfrew.lumen.native.quick 1.2.3\nother.app 1.0.0\ncom.samrenfrew.lumen.native.guide 1.x\n"), [("com.samrenfrew.lumen.native.quick".to_string(), "1.2.3".to_string())]);
+        assert_eq!(side_app_versions_read("com.samrenfrew.lumen.native.overlay 1.2.3\nother.app 1.0.0\ncom.samrenfrew.lumen.native.overlay 1.x\n"), [("com.samrenfrew.lumen.native.overlay".to_string(), "1.2.3".to_string())]);
     }
 
     #[test]

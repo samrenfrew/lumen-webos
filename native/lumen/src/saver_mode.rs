@@ -6,8 +6,6 @@ use crate::settings::Settings;
 use crate::{note, post, root, side_apps, store, ticks, weather, App, SETTINGS_FILE};
 use std::sync::Arc;
 
-pub const SAVER_APP_ID: &str = "com.samrenfrew.lumen.native.saver";
-pub const SAVER_PROGRAM: &str = "lumen-saver";
 const SHOT_PHOTO: &str = "../../app/public/wallpapers/default-2.jpg";
 
 pub fn runs_alone(args: &[String]) -> bool {
@@ -169,8 +167,9 @@ mod tests {
 
     #[test]
     fn the_same_program_starts_as_the_screensaver_when_packaged_or_launched_as_it() {
-        assert!(runs_alone(&args(&["/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native.saver/lumen-saver", "{}"])));
-        assert!(runs_alone(&args(&["./lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native.saver","parameters":{}}"#])));
+        assert!(runs_alone(&args(&["/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native.overlay/lumen-overlay", "{}"])));
+        assert!(runs_alone(&args(&["./lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native.overlay","parameters":{"mode":"saver"}}"#])));
+        assert!(runs_alone(&args(&["/usr/palm/applications/com.webos.app.screensaver/lumen-overlay", r#"{"appId":"com.webos.app.screensaver","parameters":{}}"#])));
         assert!(runs_alone(&args(&["lumen", "--saver"])));
         assert!(!runs_alone(&args(&["/x/lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native","parameters":{"view":"ambient"}}"#])));
         assert!(!runs_alone(&args(&["lumen", "--shot", "a.png", "saver"])));

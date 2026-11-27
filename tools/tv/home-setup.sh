@@ -23,6 +23,11 @@
 #                                       power-on move to Lumen Native first if they named the web Lumen. bootd reads its copy only at a full
 #                                       restart, so while it still names the web Lumen the uninstall waits for the guard at the next restart:
 #                                       a switch-on that asks for a missing app opens LG's Apps store on an error page instead.
+#   sh home-setup.sh overlay <feature> on|off
+#                                       switches one of Lumen Overlay's features (guide, quick, saver, dock; docs/plans/one-overlay.md) on or
+#                                       off. Writes only the flag watch.sh reads (overlay-<feature>-off); nothing is installed or removed.
+#   sh home-setup.sh retire-side        uninstalls the old side apps (Lumen Guide, Quick Settings and Screensaver), once Lumen Overlay is
+#                                       installed. The guard does it too.
 #   sh home-setup.sh guard              run at each boot (and each TV scripts restart) by 60-homehook: undoes the mounts if no Lumen
 #                                       build is installed, mounts them again, and removes the power-on copy if a firmware update
 #                                       changed LG's own file.
@@ -49,6 +54,9 @@ STAND_IN="$HH/home-app"               # the stand-in Home app, mounted over LG H
 TAKEOVER="$HH/home-mount"          # holds the Lumen id while the takeover is on; the guard mounts again at each boot
 LGSAVER=com.webos.app.screensaver
 LGSAVER_DIR="${LGSAVER_DIR:-/usr/palm/applications/$LGSAVER}"
+OVERLAY=com.samrenfrew.lumen.native.overlay
+OLD_SIDE="com.samrenfrew.lumen.native.guide com.samrenfrew.lumen.native.quick com.samrenfrew.lumen.native.saver"
+OVERLAY_FEATURES="guide quick saver dock"
 SAVER=com.samrenfrew.lumen.native.saver   # or Lumen Overlay when installed, which is the screensaver when launched with no mode
 SAVER_MAIN=lumen-saver
 [ -d "$APPS/com.samrenfrew.lumen.native.overlay" ] && SAVER=com.samrenfrew.lumen.native.overlay && SAVER_MAIN=lumen-overlay
@@ -145,6 +153,7 @@ do_state () {
   if saver_mounted && [ "$(sam_type "$LGSAVER")" = native ]; then echo saver=on
   elif [ -f "$SAVER_FLAG" ]; then echo saver=broken
   else echo saver=off; fi
+  for f in $OVERLAY_FEATURES; do if [ -f "$HH/overlay-$f-off" ]; then echo "overlay_$f=off"; else echo "overlay_$f=on"; fi; done
 }
 
 lghome_pids () {   # LG's own Home: the Flutter runner given its id (webOS 25), or its own program on older firmware
@@ -422,6 +431,10 @@ do_guard () {
       saver_on >/dev/null || log "guard: the screensaver mount could not be put back"
     fi
   fi
+  if installed "$OVERLAY" && old_side_left; then
+    i=0; while [ $i -lt 60 ] && [ -z "$(sam_type "$OVERLAY")" ]; do sleep 2; i=$((i + 1)); done
+    retire_side >/dev/null || log "guard: the old side apps could not be uninstalled yet"
+  fi
   if [ -f "$RETIRE" ] && ! web_named "$(cat "$LOADED")"; then
     i=0; while [ $i -lt 60 ] && [ -z "$(sam_type "$NATIVE")" ]; do sleep 2; i=$((i + 1)); done
     retire_web_now >/dev/null || log "guard: the web Lumen could not be uninstalled yet"
@@ -461,6 +474,27 @@ retire_web () {
   say "retire-web: switching on opens the web Lumen until the TV restarts, so it is uninstalled at the next restart"
 }
 
+old_side_left () { for id in $OLD_SIDE; do installed "$id" && return 0; done; return 1; }
+
+retire_side () {
+  installed "$OVERLAY" || { say "retire-side: Lumen Overlay is not installed, so the old side apps stay"; return 1; }
+  left=
+  for id in $OLD_SIDE; do remove_app "$id" || left="$left $id"; done
+  [ -z "$left" ] || { say "retire-side: could not uninstall$left"; return 1; }
+  say "retire-side: the old Lumen Guide, Quick Settings and Screensaver are uninstalled; Lumen Overlay does all three"
+}
+
+overlay_feature () {
+  case " $OVERLAY_FEATURES " in *" $1 "*) [ -n "$1" ] ;; *) false ;; esac || { echo "usage: overlay guide|quick|saver|dock on|off"; return 2; }
+  case "$2" in
+    on) rm -f "$HH/overlay-$1-off" ;;
+    off) touch "$HH/overlay-$1-off" ;;
+    *) echo "usage: overlay guide|quick|saver|dock on|off"; return 2 ;;
+  esac
+  sync
+  say "overlay $1: $2"
+}
+
 case "$1" in
   check) do_check ;;
   status) do_status ;;
@@ -469,6 +503,8 @@ case "$1" in
   power-on) case "$2" in on) power_on "$3" ;; off) power_off ;; *) echo "usage: power-on on [app-id] | off"; exit 2 ;; esac ;;
   saver-mount) case "$2" in on) saver_on ;; off) saver_off ;; *) echo "usage: saver-mount on | off"; exit 2 ;; esac ;;
   retire-web) retire_web ;;
+  retire-side) retire_side ;;
+  overlay) overlay_feature "$2" "$3" ;;
   lg-home) lg_home ;;
   lg-home-return) lg_home_return ;;
   guard) do_guard ;;

@@ -72,7 +72,7 @@ NATIVE_QUICK=com.samrenfrew.lumen.native.quick
 SAVER=com.samrenfrew.lumen.native.saver
 OVERLAY=com.samrenfrew.lumen.native.overlay   # Lumen Overlay: the Guide, Quick Settings, the screensaver and the Dock in one app (docs/plans/one-overlay.md)
 HOMEKEY=/var/lib/homehook/home.sh
-DOCK_OFF=/var/lib/homehook/dock-off
+OVERLAY_OFF=/var/lib/homehook/overlay   # overlay-<feature>-off switches off one of Lumen Overlay's features (home-setup.sh overlay)
 LGSAVER=com.webos.app.screensaver
 LGSAVER_DIR=/usr/palm/applications/$LGSAVER   # mounted over by home-setup.sh saver-mount on (Lumen Screensaver)
 SAVER_COPY=/var/lib/homehook/saver-app
@@ -128,7 +128,12 @@ pick_side_apps() {
   GUIDE=com.samrenfrew.lumen.guide; [ -d "$APPS/$NATIVE_GUIDE" ] && GUIDE=$NATIVE_GUIDE
   QUICK=com.samrenfrew.lumen.quick; [ -d "$APPS/$NATIVE_QUICK" ] && QUICK=$NATIVE_QUICK
   SAVER=com.samrenfrew.lumen.native.saver
-  if [ -d "$APPS/$OVERLAY" ]; then GUIDE=$OVERLAY; QUICK=$OVERLAY; SAVER=$OVERLAY; fi
+  if [ -d "$APPS/$OVERLAY" ]; then
+    GUIDE=$OVERLAY; QUICK=$OVERLAY; SAVER=$OVERLAY
+    [ -f "$OVERLAY_OFF-guide-off" ] && GUIDE=none
+    [ -f "$OVERLAY_OFF-quick-off" ] && QUICK=none
+    [ -f "$OVERLAY_OFF-saver-off" ] && SAVER=none
+  fi
 }
 
 me_target() {
@@ -191,7 +196,7 @@ PY
 # the app in front changed from $2 to $1: into Live TV, the binds for it and the guide started hidden; out of it, the other binds and the guide closed
 guide_follow() {
   pick_side_apps
-  [ -d "$APPS/$GUIDE" ] || return
+  if [ ! -d "$APPS/$GUIDE" ]; then [ "$GUIDE" = none ] && guide_binds away; return; fi
   if [ "$1" = "$LIVETV" ]; then
     guide_binds live
     case "$GUIDE" in "$NATIVE_GUIDE"|"$OVERLAY") return ;; esac
@@ -208,11 +213,11 @@ guide_follow() {
 # app is in front at the press. (A bind rewritten as the app in front changed was stale for a few seconds, and the gear then opened
 # Lumen over the app.) Home (773) opens the installed Lumen build, and is left to the TV when none is: a bind naming an uninstalled
 # Lumen made Home do nothing. With Lumen Overlay installed, Home runs home.sh instead, which opens the Dock over other apps, unless
-# $DOCK_OFF is there. Every other bind is kept; the file is written only when it changes.
+# its Dock is switched off. Every other bind is kept; the file is written only when it changes.
 gear_bind() {
   pick_side_apps
   quick=""; [ -d "$APPS/$QUICK" ] && [ -f "$GEAR" ] && quick=$GEAR
-  homekey=""; [ -d "$APPS/$OVERLAY" ] && [ -f "$HOMEKEY" ] && [ ! -f "$DOCK_OFF" ] && homekey=$HOMEKEY
+  homekey=""; [ -d "$APPS/$OVERLAY" ] && [ -f "$HOMEKEY" ] && [ ! -f "$OVERLAY_OFF-dock-off" ] && homekey=$HOMEKEY
   python3 - "$KEYBINDS" "$quick" "$(me_target)" "$homekey" <<'PY' 2>>/tmp/homehook.log
 import json, os, sys
 path, gear, lumen, homekey = sys.argv[1:5]
