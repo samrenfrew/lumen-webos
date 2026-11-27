@@ -136,29 +136,35 @@ fn rgba_of(loaded: *mut SDL_Surface) -> Option<Decoded> {
 
 impl Draw {
     pub fn new(screen_w: i32, screen_h: i32, app_dir: &str, look: Look) -> Draw {
+        let began = std::time::Instant::now();
+        let gfx = Gfx::new(screen_w, screen_h);
+        let p = Programs {
+            copy: Program::new("copy", shaders::COPY_FRAGMENT),
+            blur: Program::new("blur", shaders::BLUR_FRAGMENT),
+            backdrop: Program::new("backdrop", shaders::BACKDROP_FRAGMENT),
+            lens: Program::new("lens", shaders::LENS_FRAGMENT),
+            gloss: Program::new("gloss", shaders::GLOSS_FRAGMENT),
+            bar_middle: Program::new("bar middle", shaders::BAR_MIDDLE_FRAGMENT),
+            bar_rim: Program::new("bar rim", shaders::BAR_RIM_FRAGMENT),
+            shine: Program::new("shine", shaders::SHINE_FRAGMENT),
+            tile: Program::new("tile", shaders::TILE_FRAGMENT),
+            picture: Program::new("picture", shaders::PICTURE_FRAGMENT),
+            glass: Program::new("glass", shaders::GLASS_FRAGMENT),
+            ink: Program::new("ink", shaders::INK_FRAGMENT),
+            dim: Program::new("dim", shaders::DIM_FRAGMENT),
+            fill: Program::new("fill", shaders::FILL_FRAGMENT),
+            spin: Program::new("spin", shaders::SPIN_FRAGMENT),
+        };
+        let compiled = began.elapsed().as_millis();
+        let fonts = Fonts::new(app_dir);
+        crate::note!("draw: shaders {} ms, fonts {} ms", compiled, began.elapsed().as_millis() - compiled);
         Draw {
-            gfx: Gfx::new(screen_w, screen_h),
-            p: Programs {
-                copy: Program::new("copy", shaders::COPY_FRAGMENT),
-                blur: Program::new("blur", shaders::BLUR_FRAGMENT),
-                backdrop: Program::new("backdrop", shaders::BACKDROP_FRAGMENT),
-                lens: Program::new("lens", shaders::LENS_FRAGMENT),
-                gloss: Program::new("gloss", shaders::GLOSS_FRAGMENT),
-                bar_middle: Program::new("bar middle", shaders::BAR_MIDDLE_FRAGMENT),
-                bar_rim: Program::new("bar rim", shaders::BAR_RIM_FRAGMENT),
-                shine: Program::new("shine", shaders::SHINE_FRAGMENT),
-                tile: Program::new("tile", shaders::TILE_FRAGMENT),
-                picture: Program::new("picture", shaders::PICTURE_FRAGMENT),
-                glass: Program::new("glass", shaders::GLASS_FRAGMENT),
-                ink: Program::new("ink", shaders::INK_FRAGMENT),
-                dim: Program::new("dim", shaders::DIM_FRAGMENT),
-                fill: Program::new("fill", shaders::FILL_FRAGMENT),
-                spin: Program::new("spin", shaders::SPIN_FRAGMENT),
-            },
+            gfx,
+            p,
             pictures: Pictures::new(PICTURE_BUDGET_BYTES),
             look,
             liquid: false,
-            fonts: Fonts::new(app_dir),
+            fonts,
             app_dir: app_dir.to_string(),
             glass_backdrop: Tex::default(),
             veil_backdrop: Tex::default(),

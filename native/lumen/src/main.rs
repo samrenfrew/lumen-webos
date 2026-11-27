@@ -1366,6 +1366,11 @@ fn run() -> i32 {
         }
         SDL_GL_SetSwapInterval(1);
         SDL_GL_GetDrawableSize(window, &mut screen_w, &mut screen_h);
+        if overlay && !taking_a_shot {
+            glClearColor(0.0, 0.0, 0.0, 0.0);
+            glClear(GL_COLOR_BUFFER_BIT);
+            SDL_GL_SwapWindow(window);
+        }
     }
     let window_at = began.elapsed().as_millis();
     note!("open: {}x{}, {}, {}, {} ms after start", screen_w, screen_h, gl_string(GL_RENDERER), gl_string(GL_VERSION), window_at);

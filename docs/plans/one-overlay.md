@@ -119,9 +119,27 @@ Seen by Claude on 2026-11-27, keys sent over the dev control channel (the overla
 Dock came up on YouTube with Live TV's open dot; Right moved to Plex; Down opened Lumen on the tile under Plex in row 2; Up opened
 Lumen on Control Center; OK on Plex opened Plex; Back closed it; a second Home opened Lumen at the same tile.
 
-Cold, the Dock's first frame comes 0.9 to 1.5 s after the press (`boot native overlay dock` in the log). The overlay is not kept
-running between presses, so every Home is a cold start. Keeping it warm needs an overlay that stays open without taking the keys,
-which is not solved.
+### How fast it opens (measured 2026-11-27)
+
+Measured with a script on the TV that runs `home.sh` over YouTube, closing the overlay between runs: the press, `NL_APP_LAUNCH_BEGIN`
+and `NL_VSC visible` in `/var/log/messages`, the process start from `/proc/<pid>/stat`, and the boot line. Every open is a cold
+start, as the overlay is not kept running between presses. The Guide and Quick Settings start the same way, so each change below
+helps them too.
+
+| Stage | Before | After |
+| --- | --- | --- |
+| `home.sh` until the launch | 90-130 ms (two TV queries) | 70-90 ms (one) |
+| Launch to the process starting | under 15 ms | same |
+| Process start to window | 100-230 ms (SDL and EGL) | same |
+| Shaders | 375-460 ms, compiled at every start | 4-7 ms, read back from `shader-*.bin` in the store |
+| Then the first frame | 40-100 ms | 100-260 ms (the first draw with read-back shaders is slower) |
+| First frame to visible | 200-300 ms, the TV revealing the window | overlapped: an empty frame is shown as soon as the window exists |
+| **Press to the Dock on screen** | **850-1,100 ms** (2.2 s on the first run after an install) | **about 450-580 ms** |
+
+The shaders are kept by `gfx::Program::new` (`glGetProgramBinary`, keyed by the source and the chip's name), so home's cold start
+gains the same 0.4 s. The rest is SDL and EGL starting, the first frame, and the script. Getting under about 0.4 s needs the overlay
+kept running between presses: closing would hide its window instead of ending, and a press would be a relaunch. Not tried: it needs
+the window to stop taking the remote's keys while hidden.
 
 ### The idea, as agreed
 
