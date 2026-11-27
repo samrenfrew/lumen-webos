@@ -3,19 +3,16 @@ use crate::home::Key;
 use crate::picker::Wants;
 use crate::saver::{self, Saver, Setup};
 use crate::settings::Settings;
-use crate::{note, post, root, store, ticks, weather, App, SETTINGS_FILE};
+use crate::{note, post, root, side_apps, store, ticks, weather, App, SETTINGS_FILE};
 use serde_json::Value;
 use std::sync::Arc;
 
 pub const SAVER_APP_ID: &str = "com.samrenfrew.lumen.native.saver";
-const SAVER_PROGRAM: &str = "lumen-saver";
+pub const SAVER_PROGRAM: &str = "lumen-saver";
 const SHOT_PHOTO: &str = "../../app/public/wallpapers/default-2.jpg";
 
 pub fn runs_alone(args: &[String]) -> bool {
-    let program = args.first().and_then(|a| a.rsplit('/').next()).unwrap_or("");
-    let asked = args.get(1).is_some_and(|a| a == "--saver");
-    let launched_as = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).is_some_and(|l| l["appId"].as_str() == Some(SAVER_APP_ID));
-    program == SAVER_PROGRAM || asked || launched_as
+    side_apps::mode_of(args) == Some(side_apps::Mode::Saver)
 }
 
 fn wants(settings: &Settings) -> Wants {

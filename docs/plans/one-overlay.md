@@ -53,6 +53,8 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
 ## Steps (each leaves the TV working)
 
 1. Mode from the launch parameter, with the program name still read as a fallback. Tests for the parsing.
+   **Built 2026-11-27, tested on the desktop, not on the TV:** `side_apps::mode_of`. A `mode` in the parameters wins over the program
+   name and app id; home's own id ignores it. Nothing launches with `mode` yet, so the TV behaves as before.
 2. Package `.overlay` beside the old three in `build_native.sh` and `deploy_native.sh`. Try each mode over SSH with Sam watching.
 3. `watch.sh`, `gear.sh` and `saver-mount` use `.overlay` when installed, the old ids otherwise.
 4. Settings > Side apps: one row and the feature switches. Removes the old ids. Keep-alive list updated.

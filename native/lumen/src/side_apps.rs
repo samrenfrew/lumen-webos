@@ -3,7 +3,7 @@ use crate::draw::Draw;
 use crate::ffi::*;
 use crate::gfx::{Tex, DESIGN_W};
 use crate::settings::Settings;
-use crate::{guide, note, store, ticks, App, SETTINGS_FILE};
+use crate::{guide, note, saver_mode, store, ticks, App, SETTINGS_FILE};
 use serde_json::Value;
 
 pub const QUICK_APP_ID: &str = "com.samrenfrew.lumen.native.quick";
@@ -32,13 +32,41 @@ impl Side {
     }
 }
 
-pub fn side_of(args: &[String]) -> Option<Side> {
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Mode {
+    Guide,
+    Quick,
+    Saver,
+}
+
+pub fn mode_of(args: &[String]) -> Option<Mode> {
     let program = args.first().and_then(|a| a.rsplit('/').next()).unwrap_or("");
-    let launched_as = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).and_then(|l| l["appId"].as_str().map(String::from));
-    match (program, launched_as.as_deref()) {
-        (GUIDE_PROGRAM, _) | (_, Some(guide::GUIDE_APP_ID)) => Some(Side::Guide),
-        (QUICK_PROGRAM, _) | (_, Some(QUICK_APP_ID)) => Some(Side::Quick),
+    let first = args.get(1).map_or("", String::as_str);
+    let launch = serde_json::from_str::<Value>(first).unwrap_or(Value::Null);
+    let launched_as = launch["appId"].as_str();
+    if launched_as == Some(crate::APP_ID) {
+        return None;
+    }
+    let asked = match launch["parameters"]["mode"].as_str() {
+        Some("guide") => Some(Mode::Guide),
+        Some("quick") => Some(Mode::Quick),
+        Some("saver") => Some(Mode::Saver),
         _ => None,
+    };
+    asked.or(match (program, launched_as) {
+        (GUIDE_PROGRAM, _) | (_, Some(guide::GUIDE_APP_ID)) => Some(Mode::Guide),
+        (QUICK_PROGRAM, _) | (_, Some(QUICK_APP_ID)) => Some(Mode::Quick),
+        (saver_mode::SAVER_PROGRAM, _) | (_, Some(saver_mode::SAVER_APP_ID)) => Some(Mode::Saver),
+        _ if first == "--saver" => Some(Mode::Saver),
+        _ => None,
+    })
+}
+
+pub fn side_of(args: &[String]) -> Option<Side> {
+    match mode_of(args)? {
+        Mode::Guide => Some(Side::Guide),
+        Mode::Quick => Some(Side::Quick),
+        Mode::Saver => None,
     }
 }
 
@@ -175,6 +203,22 @@ mod tests {
         assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.quick"}"#)), Some(Side::Quick));
         assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.guide","parameters":{"view":"full"}}"#)), Some(Side::Guide));
         assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native"}"#)), None);
+    }
+
+    #[test]
+    fn the_mode_in_the_launch_parameters_wins_over_the_program_and_app_id() {
+        let overlay = |mode: &str| args("lumen-overlay", &format!(r#"{{"appId":"com.samrenfrew.lumen.native.overlay","parameters":{{"mode":"{mode}"}}}}"#));
+        assert_eq!(mode_of(&overlay("guide")), Some(Mode::Guide));
+        assert_eq!(mode_of(&overlay("quick")), Some(Mode::Quick));
+        assert_eq!(mode_of(&overlay("saver")), Some(Mode::Saver));
+        assert_eq!(mode_of(&args("lumen-guide", r#"{"parameters":{"mode":"quick"}}"#)), Some(Mode::Quick));
+        assert_eq!(mode_of(&args("lumen-guide", r#"{"parameters":{"mode":"nonsense"}}"#)), Some(Mode::Guide));
+    }
+
+    #[test]
+    fn home_stays_home_whatever_mode_it_is_asked_for() {
+        assert_eq!(mode_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native","parameters":{"mode":"quick"}}"#)), None);
+        assert_eq!(mode_of(&args("lumen", "--shot")), None);
     }
 
     #[test]
