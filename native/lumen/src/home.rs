@@ -88,6 +88,7 @@ const FOLDER_COLUMNS: usize = 3;
 const FOLDER_ROW_STEP: f32 = 176.0;
 const FOLDER_PRESETS: [&str; 3] = ["Games", "Tools", "Media"];
 const TOAST_MS: u32 = 3500;
+pub const DOCK_DROP_MS: f32 = 350.0;
 pub const HOLD_MS: u32 = 600;
 pub const GUIDE_TILE: &str = "livetv:guide";
 const CHANNEL_PREFIX: &str = "channel:";
@@ -138,6 +139,7 @@ const INPUTS: &str = "M3.5 7.5h17v7.2a2 2 0 0 1-2 2h-3.2l-1 2.3H9.7l-1-2.3H5.5a2
 const TRASH: &str = "M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6";
 const MINUS: &str = "M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM8 12h8";
 const FOLDER: &str = "M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z";
+const OPEN_DOT: f32 = 10.0;
 pub const TOP_ITEMS: [(&str, &str, &str); 3] = [("controls", "Control Center", SLIDERS), ("settings", "Settings", GEAR), ("inputs", "Inputs", INPUTS)];
 
 #[derive(Clone, PartialEq, Debug)]
@@ -183,6 +185,14 @@ pub struct LiveShown {
     pub now: Option<Programme>,
     pub next: Option<Programme>,
     pub loading: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum DockExit {
+    Bar,
+    Down,
+    Up,
+    Open,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -256,7 +266,7 @@ pub struct Home {
     veil: Tex,
     blurs_made_with: [i32; 5],
     bar_made_with: f32,
-    plates_made_with: [f32; 10],
+    plates_made_with: [f32; 13],
     shift: Anim,
     sleep: Anim,
     sleep_clock: (f32, f32),
@@ -274,6 +284,7 @@ pub struct Home {
     pub twenty_four_hour: bool,
     pub caption: Option<(String, String)>,
     pub hide_names: bool,
+    pub open_apps: Vec<String>,
     pub unix_now: u64,
     toast: Option<(String, bool, u32)>,
     focus_changed: bool,
@@ -290,6 +301,7 @@ pub struct Home {
     pub preview_showing: Option<String>,
     pub preview_loading: Option<String>,
     live_offset: Anim,
+    pub dock: bool,
 }
 
 pub fn place(index: usize, bar_count: usize, cols: usize) -> (usize, usize) {
@@ -496,7 +508,7 @@ impl Home {
             veil: Tex::default(),
             blurs_made_with: [0; 5],
             bar_made_with: 0.0,
-            plates_made_with: [0.0; 10],
+            plates_made_with: [0.0; 13],
             shift: Anim::still(0.0),
             sleep: Anim::still(0.0),
             sleep_clock: (0.0, 0.0),
@@ -514,6 +526,7 @@ impl Home {
             twenty_four_hour: true,
             caption: None,
             hide_names: false,
+            open_apps: Vec::new(),
             unix_now: 0,
             toast: None,
             focus_changed: false,
@@ -530,6 +543,7 @@ impl Home {
             preview_showing: None,
             preview_loading: None,
             live_offset: Anim::still(0.0),
+            dock: false,
         }
     }
 
@@ -1159,6 +1173,58 @@ impl Home {
         self.animate_to_state(d, was_lower, was_shift, now);
     }
 
+    pub fn open_as_dock(&mut self, d: &mut Draw, tint: Tex, app: Option<&str>, now: u32) {
+        self.dock = true;
+        self.glass = tint;
+        self.veil = tint;
+        d.glass_backdrop = tint;
+        d.veil_backdrop = tint;
+        self.zone = Zone::Rows;
+        self.moving = None;
+        self.folder = None;
+        self.in_live = false;
+        self.engaged = true;
+        self.focus = dock_start(&self.tiles.iter().take(self.bar_count).map(|t| &t.app).collect::<Vec<_>>(), app);
+        self.settle(now);
+        self.sleep = Anim::still(1.0);
+        self.sleep.go(0.0, self.ms(WAKE_MS), &SLEEP_CURVE, now);
+    }
+
+    pub fn drop_dock(&mut self, now: u32) {
+        self.sleep.go(1.0, self.ms(DOCK_DROP_MS), &SLEEP_CURVE, now);
+    }
+
+    pub fn dock_focus(&self) -> Option<(usize, &Shown)> {
+        let tile = self.tiles.get(self.focus).filter(|_| self.focus < self.bar_count)?;
+        Some((self.focus, &tile.app))
+    }
+
+    pub fn dock_select(&mut self, d: &Draw, at: usize, now: u32) -> bool {
+        if at >= self.bar_count {
+            return false;
+        }
+        let (was_lower, was_shift) = (self.lower(), self.shift.to_value());
+        self.focus = at;
+        self.animate_to_state(d, was_lower, was_shift, now);
+        true
+    }
+
+    pub fn from_dock(&mut self, d: &Draw, col: usize, exit: DockExit, now: u32) -> Option<Action> {
+        self.zone = Zone::Rows;
+        self.moving = None;
+        self.folder = None;
+        self.in_live = false;
+        self.engaged = true;
+        self.focus = col.min(self.bar_count.saturating_sub(1));
+        self.settle(now);
+        match exit {
+            DockExit::Bar => None,
+            DockExit::Down => self.key(d, Key::Down, now),
+            DockExit::Up => self.key(d, Key::Up, now),
+            DockExit::Open => self.key(d, Key::Ok, now),
+        }
+    }
+
     pub fn bar_focus(&self) -> Option<(usize, usize)> {
         (self.zone == Zone::Rows && !self.engaged && self.place_of(self.focus).0 == 0).then_some((self.focus, self.bar_count))
     }
@@ -1296,9 +1362,9 @@ impl Home {
         resting
     }
 
-    fn plate_look(d: &Draw) -> [f32; 10] {
+    fn plate_look(d: &Draw) -> [f32; 13] {
         let l = &d.look;
-        [l.bezel, l.edge_shape, l.specular, l.light_angle, l.colour_rims, l.rim_light, l.sheen, l.glow, l.side_width, l.side_bend]
+        [l.bezel, l.edge_shape, l.specular, l.light_angle, l.colour_rims, l.rim_light, l.sheen, l.glow, l.side_width, l.side_bend, l.dock_colour_rims, l.dock_glow, l.dock_glow_reach]
     }
 
     fn bar_plates(&mut self, d: &mut Draw) -> (Tex, Tex) {
@@ -1317,8 +1383,10 @@ impl Home {
             program.set1(c"u_edge_shape", d.look.edge_shape);
             program.set2(c"u_side", d.look.side_width, d.look.side_bend);
             let [lx, ly] = d.light();
-            program.set4(c"u_light", lx, ly, d.look.specular, d.look.colour_rims);
-            program.set3(c"u_finish", [d.look.rim_light, d.look.sheen, d.look.glow]);
+            let (rims, glow, reach) = if self.dock { (d.look.dock_colour_rims, d.look.dock_glow, d.look.dock_glow_reach) } else { (d.look.colour_rims, d.look.glow, 14.0) };
+            program.set4(c"u_light", lx, ly, d.look.specular, rims);
+            program.set3(c"u_finish", [d.look.rim_light, d.look.sheen, glow]);
+            program.set1(c"u_glow_reach", reach);
             d.gfx.quad(program, 0.0, 0.0, w, h);
         }
         self.bar_made_with = d.look.bezel * d.look.side_width.max(1.0);
@@ -1385,6 +1453,7 @@ impl Home {
         program.set4(c"u_plate", plate.0, plate.1, plate.2, plate.3);
         program.set3(c"u_tone", [d.look.saturate, d.look.brighten, d.look.tint]);
         program.set1(c"u_frost", d.look.frost);
+        program.set1(c"u_clear", if self.dock { 1.0 } else { 0.0 });
         program.set3(c"u_mag", [BAR_X + BAR_W / 2.0, plate.1 + plate.3 / 2.0, d.magnify()]);
     }
 
@@ -1394,7 +1463,13 @@ impl Home {
         let inset = self.bar_made_with.max(22.0) + 1.0;
         let (ix, iy, iw, ih) = (BAR_X + inset, bar_y + inset, BAR_W - 2.0 * inset, BAR_H - 2.0 * inset);
 
-        unsafe { glDisable(GL_BLEND) }
+        unsafe {
+            if self.dock {
+                glEnable(GL_BLEND);
+            } else {
+                glDisable(GL_BLEND);
+            }
+        }
         self.bar_uniforms(d, &d.p.bar_middle, gloss, (px, py, pw, ph), veiled);
         d.gfx.quad(&d.p.bar_middle, ix, iy, iw, ih);
 
@@ -1419,6 +1494,24 @@ impl Home {
             d.p.shine.set4(c"u_box", x, bar_y, 260.0, 28.0);
             d.p.shine.set1(c"u_alpha", glow);
             d.gfx.quad(&d.p.shine, x, bar_y, 260.0, 28.0);
+        }
+    }
+
+    fn draw_open_dots(&self, d: &Draw, row: usize, now: u32) {
+        for at in (0..self.tiles.len()).filter(|&at| self.place_of(at).0 == row) {
+            let app = &self.tiles[at].app;
+            let open = |id: &String| self.open_apps.contains(id);
+            if !(open(&app.id) || app.inside.as_ref().is_some_and(|inside| inside.iter().any(|a| open(&a.id)))) {
+                continue;
+            }
+            let shown = 1.0 - self.tile_focus(at, now);
+            if shown <= 0.0 {
+                continue;
+            }
+            let col = self.place_of(at).1;
+            let (cx, cy) = (tile_centre(col), row_top(row) + self.row_offset(row, now) - BAR_ABOVE_TILES / 2.0);
+            d.fill(cx - OPEN_DOT / 2.0 - 3.0, cy - OPEN_DOT / 2.0 - 3.0, OPEN_DOT + 6.0, OPEN_DOT + 6.0, OPEN_DOT / 2.0 + 3.0, [0.0, 0.0, 0.0, 0.2 * shown]);
+            d.fill(cx - OPEN_DOT / 2.0, cy - OPEN_DOT / 2.0, OPEN_DOT, OPEN_DOT, OPEN_DOT / 2.0, [1.0, 1.0, 1.0, 0.92 * shown]);
         }
     }
 
@@ -1504,8 +1597,6 @@ impl Home {
                 return;
             }
             let large = crate::saver::Large::lay_out(d, &w, &hours, self.twenty_four_hour);
-            let shade = self.forecast_shade(d, large.width, large.height);
-            d.picture(shade, ROWS_EDGE - 90.0, CAST_BOTTOM - large.height - 60.0, shade.w as f32, shade.h as f32, alpha);
             return large.draw(d, &w, &hours, self.twenty_four_hour, ROWS_EDGE + large.width, CAST_BOTTOM, alpha);
         }
         let hours = weather::hours_ahead(&w, self.unix_now, CAST_HOURS);
@@ -1514,8 +1605,6 @@ impl Home {
         }
         let width = hours.len() as f32 * (CAST_COL + CAST_GAP) - CAST_GAP;
         let top = CAST_BOTTOM - 103.8;
-        let shade = self.forecast_shade(d, width, 103.8);
-        d.picture(shade, ROWS_EDGE - 90.0, top - 60.0, shade.w as f32, shade.h as f32, alpha);
         for (i, hour) in hours.iter().enumerate() {
             let centre = ROWS_EDGE + i as f32 * (CAST_COL + CAST_GAP) + CAST_COL / 2.0;
             let icon = d.glyph(weather::icon(hour.kind, hour.day), CAST_ICON as i32, 1.8);
@@ -1565,26 +1654,6 @@ impl Home {
         piece(d, 0.0, ends / 64.0, x, ends);
         piece(d, ends / 64.0, 1.0 - ends / 64.0, x + ends, w - 2.0 * ends);
         piece(d, 1.0 - ends / 64.0, 1.0, x + w - ends, ends);
-    }
-
-    fn forecast_shade(&mut self, d: &mut Draw, width: f32, height: f32) -> Tex {
-        let key = format!("shape:castshade:{}x{}", width as i32, height as i32);
-        if let Some(p) = d.pictures.find(&key) {
-            return p;
-        }
-        let (w, h) = ((width + 180.0) as usize, (height + 110.0) as usize);
-        let mut rgba = vec![0u8; w * h * 4];
-        for y in 0..h {
-            for x in 0..w {
-                let (nx, ny) = ((x as f32 + 0.5) / w as f32 * 2.0 - 1.0, (y as f32 + 0.5) / h as f32 * 2.0 - 1.0);
-                let r = (nx * nx + ny * ny).sqrt();
-                let a = if r < 0.55 { 0.34 - (0.14 * r / 0.55) } else { (0.2 * (1.0 - (r - 0.55) / 0.45)).max(0.0) };
-                rgba[(y * w + x) * 4 + 3] = (a * 255.0) as u8;
-            }
-        }
-        let picture = d.gfx.upload_rgba(&rgba, w as i32, h as i32);
-        d.keep(&key, picture);
-        picture
     }
 
     fn draw_caption(&mut self, d: &mut Draw, alpha: f32) {
@@ -1821,6 +1890,7 @@ impl Home {
                 }
             }
             if !in_lab {
+                self.draw_open_dots(d, row, now);
                 self.draw_labels(d, row, now);
             }
         }
@@ -1841,6 +1911,31 @@ impl Home {
         self.draw_folder(d, panel_alpha, now);
         self.draw_menu(d, panel_alpha);
         self.draw_toast(d, now);
+    }
+
+    pub fn draw_dock(&mut self, d: &mut Draw, now: u32) {
+        d.pictures.next_frame();
+        let mut pictures = Vec::with_capacity(self.bar_count);
+        for tile in self.tiles.iter_mut().take(self.bar_count) {
+            let icon = Self::icon_of(d, tile);
+            pictures.push((Self::resting_tile(d, tile, icon, 1.0), icon));
+        }
+        let (lens, gloss) = self.bar_plates(d);
+        d.gfx.into_screen();
+        unsafe {
+            glClearColor(0.0, 0.0, 0.0, 0.0);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        self.draw_bar(d, lens, gloss, BAR_TILES_TOP - BAR_ABOVE_TILES + self.sleep.at(now) * SLEEP_DROP, 0.0, now);
+        unsafe { glEnable(GL_BLEND) }
+        let last = (self.focus < self.bar_count).then_some(self.focus);
+        for at in (0..self.bar_count).filter(|&at| Some(at) != last).chain(last) {
+            let (resting, icon) = pictures[at];
+            self.draw_tile(d, at, resting, icon, now);
+        }
+        self.draw_open_dots(d, 0, now);
+        self.draw_labels(d, 0, now);
     }
 
     pub fn set_live(&mut self, d: &mut Draw, shown: Vec<LiveShown>, now: u32) {
@@ -2035,6 +2130,11 @@ impl Home {
     }
 }
 
+pub fn dock_start(bar: &[&Shown], app: Option<&str>) -> usize {
+    let Some(app) = app else { return 0 };
+    bar.iter().position(|shown| shown.id == app || shown.inside.as_ref().is_some_and(|inside| inside.iter().any(|a| a.id == app))).unwrap_or(0)
+}
+
 pub fn usual_gap(gaps: &mut [u32]) -> Option<f32> {
     if gaps.len() < 5 {
         return None;
@@ -2062,6 +2162,18 @@ mod tests {
 
     fn app(id: &str) -> Shown {
         Shown { id: id.into(), title: id.into(), icon_file: None, glyph: None, color: None, inside: None }
+    }
+
+    #[test]
+    fn the_dock_starts_on_the_app_in_front_or_the_folder_holding_it_else_the_first() {
+        let mut folder = app("folder:Games");
+        folder.inside = Some(vec![app("stadia")]);
+        let (plex, youtube) = (app("plex"), app("youtube"));
+        let bar = [&plex, &folder, &youtube];
+        assert_eq!(dock_start(&bar, Some("youtube")), 2);
+        assert_eq!(dock_start(&bar, Some("stadia")), 1);
+        assert_eq!(dock_start(&bar, Some("com.webos.app.livetv")), 0);
+        assert_eq!(dock_start(&bar, None), 0);
     }
 
     #[test]

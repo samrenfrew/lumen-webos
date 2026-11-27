@@ -7,6 +7,7 @@ const INPUT_STATUS: &str = "luna://com.webos.service.eim/getAllInputStatus";
 const APP_LOAD_STATUS: &str = "luna://com.webos.applicationManager/getAppLoadStatus";
 const LIVE_TV: &str = "com.webos.app.livetv";
 const SIDE_LISTING: &str = "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/apps.json";
+const STILL_BUSY: &str = "Still working on the last change. Try again when it finishes.";
 const FALLBACK_INPUT_ICON: &str = "hdmigeneric.png";
 
 #[derive(Clone, Default, PartialEq, Debug)]
@@ -28,7 +29,10 @@ pub struct TvState {
     pub updates: bool,
     pub node: bool,
     pub web: String,
+    pub overlay_off: Vec<String>,
 }
+
+pub const OVERLAY_FEATURES: [&str; 4] = ["guide", "quick", "saver", "dock"];
 
 pub fn parse_tv_state(text: &str) -> TvState {
     let field = |name: &str| text.lines().filter_map(|line| line.split_once('=')).find(|(key, _)| key.trim() == name).map_or(String::new(), |(_, value)| value.trim().to_string());
@@ -51,6 +55,7 @@ pub fn parse_tv_state(text: &str) -> TvState {
         updates: field("updates") == "on",
         node: field("node") == "yes",
         web: field("web"),
+        overlay_off: OVERLAY_FEATURES.iter().filter(|f| field(&format!("overlay_{f}")) == "off").map(|f| f.to_string()).collect(),
     }
 }
 
@@ -105,7 +110,8 @@ pub fn side_title(id: &str) -> &'static str {
     match id {
         "com.samrenfrew.lumen.native.guide" => "Lumen Guide",
         "com.samrenfrew.lumen.native.quick" => "Lumen Quick Settings",
-        _ => "Lumen Screensaver",
+        "com.samrenfrew.lumen.native.saver" => "Lumen Screensaver",
+        _ => "Lumen Overlay",
     }
 }
 
@@ -338,7 +344,7 @@ pub fn test_immich(shared: &Shared) {
 pub fn run_job(shared: &Shared, id: &str, app_dir: &str, job: impl FnOnce(Box<dyn FnOnce(Result<String, String>) + Send>)) {
     if let Ok(mut live) = shared.lock() {
         if !live.busy.is_empty() {
-            return;
+            return crate::toast(STILL_BUSY.into(), false);
         }
         live.busy = id.to_string();
     }
@@ -386,12 +392,20 @@ mod tests {
     #[test]
     fn a_side_app_is_behind_only_when_a_newer_release_is_listed() {
         let listing = json!({"packages": [
-            {"id": "com.samrenfrew.lumen.native.guide", "manifest": {"version": "1.10.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
-            {"id": "com.samrenfrew.lumen.native.quick", "manifest": {"version": "1.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
+            {"id": "com.samrenfrew.lumen.native.overlay", "manifest": {"version": "1.10.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
+            {"id": "com.samrenfrew.lumen.native.guide", "manifest": {"version": "9.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}},
             {"id": "someone.else", "manifest": {"version": "9.0.0", "ipkUrl": "u", "ipkHash": {"sha256": "s"}}}
         ]});
-        let side = SideApps { installed: vec![("com.samrenfrew.lumen.native.guide".into(), "1.9.3".into()), ("com.samrenfrew.lumen.native.quick".into(), "1.0.0".into())], latest: Some(releases_in(&listing)), offline: false };
-        assert_eq!(side.behind(), ["com.samrenfrew.lumen.native.guide"]);
+        let behind = |have: &str| SideApps { installed: vec![("com.samrenfrew.lumen.native.overlay".into(), have.into())], latest: Some(releases_in(&listing)), offline: false }.behind();
+        assert_eq!(behind("1.9.3"), ["com.samrenfrew.lumen.native.overlay"]);
+        assert!(behind("1.10.0").is_empty());
+    }
+
+    #[test]
+    fn the_overlays_switched_off_features_are_read_from_the_tv_state() {
+        let state = parse_tv_state("home=x\noverlay_guide=on\noverlay_quick=off\noverlay_saver=on\noverlay_dock=off\n");
+        assert_eq!(state.overlay_off, ["quick", "dock"]);
+        assert!(parse_tv_state("home=x\n").overlay_off.is_empty());
     }
 
     #[test]

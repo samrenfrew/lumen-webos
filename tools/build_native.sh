@@ -1,6 +1,7 @@
 #!/bin/sh
-# Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md), and packages it four times: the home screen, then the same program as
-# Lumen Screensaver, Lumen Guide and Lumen Quick Settings (com.samrenfrew.lumen.native.saver, .guide, .quick). Prints the four .ipk paths in that order.
+# Builds Lumen Native (native/lumen/, docs/plans/native-rewrite.md), and packages it twice: the home screen, then the same program as
+# Lumen Overlay (com.samrenfrew.lumen.native.overlay: the Guide, Quick Settings, the screensaver and the Dock; docs/plans/one-overlay.md).
+# Prints the two .ipk paths in that order.
 # With cargo on the PATH and glibc 2.36 or newer (the SDK's host tools need it), build.sh runs here. Otherwise it runs in the
 # lumen-native image (native/lumen/Dockerfile), which has the Rust in native/lumen/rust-toolchain.toml.
 # Env: WEBOS_SDK (the SDK folder), LUMEN_PRIVATE=0 (no private font), LUMEN_BUILD_DIR (where the .ipk goes), LUMEN_DEV=0 (no control channel).
@@ -21,6 +22,6 @@ fi
 cd "$ROOT/app"
 [ -d node_modules ] || npm ci --no-audit --no-fund >&2
 mkdir -p "$OUT"
-for ID in native native.saver native.guide native.quick; do rm -f "$OUT/com.samrenfrew.lumen.${ID}_"*.ipk; done
-for P in pkg pkg-saver pkg-guide pkg-quick; do npx ares-package "$ROOT/native/lumen/build/$P" --no-minify -o "$OUT" >&2; done
-for ID in native native.saver native.guide native.quick; do ls "$OUT/com.samrenfrew.lumen.${ID}_"*.ipk; done
+for ID in native native.saver native.guide native.quick native.overlay; do rm -f "$OUT/com.samrenfrew.lumen.${ID}_"*.ipk; done
+for P in pkg pkg-overlay; do npx ares-package "$ROOT/native/lumen/build/$P" --no-minify -o "$OUT" >&2; done
+for ID in native native.overlay; do ls "$OUT/com.samrenfrew.lumen.${ID}_"*.ipk; done

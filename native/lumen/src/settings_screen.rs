@@ -857,7 +857,7 @@ impl SettingsScreen {
                     Outcome::Stay
                 }
             },
-            "side-guide" | "side-quick" | "side-saver" | "side-update" => {
+            "side-overlay" | "side-update" => {
                 let Some(side) = side else { return Outcome::Toast("Still checking the side apps".into(), false) };
                 let online = self.online;
                 let after = live.clone();
@@ -903,6 +903,14 @@ impl SettingsScreen {
             "lg-home" => "lgHome",
             "retire-web" if s.web == "pending" => return Outcome::Toast("The old Lumen goes when the TV next restarts".into(), false),
             "retire-web" => "retireWeb",
+            "overlay-guide" if !s.overlay_off.iter().any(|f| f == "guide") => "overlayGuideOff",
+            "overlay-guide" => "overlayGuideOn",
+            "overlay-quick" if !s.overlay_off.iter().any(|f| f == "quick") => "overlayQuickOff",
+            "overlay-quick" => "overlayQuickOn",
+            "overlay-saver" if !s.overlay_off.iter().any(|f| f == "saver") => "overlaySaverOff",
+            "overlay-saver" => "overlaySaverOn",
+            "overlay-dock" if !s.overlay_off.iter().any(|f| f == "dock") => "overlayDockOff",
+            "overlay-dock" => "overlayDockOn",
             "tv-home" if lumen(&s.home) => "nativeOff",
             "tv-power-on" if lumen(&s.power_on) => "powerOnOff",
             "tv-home" => "nativeOn",
@@ -923,7 +931,7 @@ impl SettingsScreen {
             "privacy-updates" => "updatesOn",
             _ => return Outcome::Stay,
         };
-        if ["tv-home", "tv-power-on", "lg-home", "retire-web"].contains(&id) {
+        if ["tv-home", "tv-power-on", "lg-home", "retire-web"].contains(&id) || id.starts_with("overlay-") {
             tv::run_job(live, id, dir, move |done| root::home_setup(action, done));
         } else {
             tv::run_job(live, id, dir, move |done| root::privacy(action, done));

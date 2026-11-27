@@ -85,6 +85,7 @@ pub const GLOSS_FRAGMENT: &str = r#"uniform vec4 u_bar;
 uniform float u_radius;
 uniform vec4 u_light;
 uniform vec3 u_finish;
+uniform float u_glow_reach;
 vec4 over(vec4 under, vec3 c, float a) { return vec4(under.rgb * (1.0 - a) + c * a, under.a * (1.0 - a) + a); }
 void main() {
   vec2 hs = u_bar.zw * 0.5;
@@ -103,7 +104,7 @@ void main() {
   g = over(g, vec3(0.43, 0.78, 1.0), clamp(band * 0.5 * tl * u_light.w, 0.0, 1.0));
   g = over(g, vec3(1.0, 0.47, 0.75), clamp(band * 0.28 * br * u_light.w, 0.0, 1.0));
   g = over(g, vec3(1.0), clamp(line * (0.55 * tl + 0.2 * br) * u_finish.x, 0.0, 1.0));
-  g = over(g, vec3(1.0), clamp(0.05 * u_finish.z * smoothstep(-14.0, 0.0, d), 0.0, 1.0));
+  g = over(g, vec3(1.0), clamp(0.05 * u_finish.z * smoothstep(-u_glow_reach, 0.0, d), 0.0, 1.0));
   float spark = pow(max(facing, 0.0), 6.0) * (smoothstep(-4.0, -0.5, d) + 0.35 * smoothstep(-16.0, 0.0, d)) + 0.5 * pow(max(-facing, 0.0), 6.0) * smoothstep(-4.0, -0.5, d);
   g = over(g, vec3(1.0), clamp(u_light.z * spark, 0.0, 1.0));
   gl_FragColor = g;
@@ -123,13 +124,17 @@ vec3 behind(vec2 uv) {
 }
 uniform float u_frost;
 uniform vec3 u_mag;
-vec3 glazed(vec3 col, vec2 q) {
+uniform float u_clear;
+vec4 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  float a = 1.0;
+  if (u_clear > 0.0) { col = vec3(0.0); a = u_tone.z; }
   col = col * (1.0 - u_frost) + u_frost;
+  a = a + (1.0 - a) * u_frost;
   vec4 g = texture2D(u_gloss, q);
-  return col * (1.0 - g.a) + g.rgb;
+  return vec4(col * (1.0 - g.a) + g.rgb, a * (1.0 - g.a) + g.a);
 }
-void main() { gl_FragColor = vec4(glazed(behind(v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0)), (v_px - u_plate.xy) / u_plate.zw), 1.0); }
+void main() { gl_FragColor = glazed(behind(v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0)), (v_px - u_plate.xy) / u_plate.zw); }
 "#;
 
 pub const BAR_RIM_FRAGMENT: &str = r#"uniform sampler2D u_glass;
@@ -145,11 +150,15 @@ vec3 behind(vec2 uv) {
 }
 uniform float u_frost;
 uniform vec3 u_mag;
-vec3 glazed(vec3 col, vec2 q) {
+uniform float u_clear;
+vec4 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  float a = 1.0;
+  if (u_clear > 0.0) { col = vec3(0.0); a = u_tone.z; }
   col = col * (1.0 - u_frost) + u_frost;
+  a = a + (1.0 - a) * u_frost;
   vec4 g = texture2D(u_gloss, q);
-  return col * (1.0 - g.a) + g.rgb;
+  return vec4(col * (1.0 - g.a) + g.rgb, a * (1.0 - g.a) + g.a);
 }
 uniform sampler2D u_lens;
 uniform vec2 u_bend;
@@ -163,7 +172,8 @@ void main() {
   if (u_bend.x == 0.0) col = behind(uv);
   else if (u_bend.y > 0.0) col = vec3(behind(uv + off * (1.0 + u_bend.y)).r, behind(uv + off).g, behind(uv + off * (1.0 - u_bend.y)).b);
   else col = behind(uv + off);
-  gl_FragColor = vec4(glazed(col, q) * lens.b, lens.b + (1.0 - lens.b) * lens.a);
+  vec4 c = glazed(col, q);
+  gl_FragColor = vec4(c.rgb * lens.b, c.a * lens.b + (1.0 - lens.b) * lens.a);
 }
 "#;
 

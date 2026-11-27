@@ -1,5 +1,5 @@
 use crate::bus;
-use serde_json::json;
+use serde_json::{json, Value};
 
 const EXEC: &str = "luna://org.webosbrew.hbchannel.service/exec";
 const HOMEHOOK: &str = "/var/lib/homehook";
@@ -20,13 +20,22 @@ pub const PICTURE_MODES: [&str; 7] = ["vivid", "normal", "eco", "cinema", "sport
 pub const SLEEP_MINUTES: [&str; 9] = ["off", "10", "20", "30", "60", "90", "120", "180", "240"];
 pub const SOUND_MODES: [&str; 7] = ["standard", "news", "movie", "music", "sports", "game", "aiSound"];
 const NATIVE_DIR: &str = "/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native";
-const TV_SCRIPTS: [&str; 6] = ["watch.sh", "stadia.sh", "resume.sh", "home-setup.sh", "privacy.sh", "gear.sh"];
+const TV_SCRIPTS: [&str; 7] = ["watch.sh", "stadia.sh", "resume.sh", "home-setup.sh", "privacy.sh", "gear.sh", "home.sh"];
 const BOOT_DIR: &str = "/var/lib/webosbrew/init.d";
 const BOOT_HOOK: &str = "/var/lib/webosbrew/init.d/60-homehook";
 const DEV_APPS: &str = "/media/developer/apps/usr/palm/applications";
 const WEB_APPS: [&str; 3] = ["com.samrenfrew.lumen", "com.samrenfrew.lumen.guide", "com.samrenfrew.lumen.quick"];
-pub const SIDE_APPS: [&str; 3] = ["com.samrenfrew.lumen.native.guide", "com.samrenfrew.lumen.native.quick", "com.samrenfrew.lumen.native.saver"];
-const HOME_ACTIONS: [(&str, &str); 6] = [
+pub const SIDE_APPS: [&str; 1] = ["com.samrenfrew.lumen.native.overlay"];
+const HOME_ACTIONS: [(&str, &str); 15] = [
+    ("overlayGuideOn", "overlay guide on"),
+    ("overlayGuideOff", "overlay guide off"),
+    ("overlayQuickOn", "overlay quick on"),
+    ("overlayQuickOff", "overlay quick off"),
+    ("overlaySaverOn", "overlay saver on"),
+    ("overlaySaverOff", "overlay saver off"),
+    ("overlayDockOn", "overlay dock on"),
+    ("overlayDockOff", "overlay dock off"),
+    ("retireSide", "retire-side"),
     ("nativeOn", "native-home on com.samrenfrew.lumen.native"),
     ("nativeOff", "native-home off"),
     ("powerOnOn", "power-on on com.samrenfrew.lumen.native"),
@@ -520,6 +529,19 @@ pub fn immich_request(base: &str, key: &str, path: &str, then: impl FnOnce(Resul
     run(immich_request_command(base, key, path), 20000, then);
 }
 
+pub fn running_apps_read(out: &str) -> Vec<String> {
+    let reply: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
+    let plain = |id: &str| !id.is_empty() && id.len() < 128 && id.chars().all(|c| c.is_ascii_alphanumeric() || "._-".contains(c));
+    let mut ids: Vec<String> = reply["running"].as_array().map_or(&[][..], Vec::as_slice).iter().filter_map(|a| a["id"].as_str()).filter(|id| plain(id)).map(String::from).collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+pub fn running_apps(then: impl FnOnce(Result<Vec<String>, String>) + Send + 'static) {
+    run(Some("luna-send -n 1 -w 5000 luna://com.webos.applicationManager/running '{}'".to_string()), 8000, move |out| then(out.map(|text| running_apps_read(&text))));
+}
+
 pub fn append_log(text: &str) {
     run(Some(append_log_command(text)), 6000, |_| {});
 }
@@ -527,6 +549,13 @@ pub fn append_log(text: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_open_apps_are_read_from_the_app_managers_running_list() {
+        let reply = r#"{"returnValue":true,"running":[{"id":"youtube.leanback.v4","processid":"1"},{"id":"com.beb.plxnative"},{"id":"bad id;reboot"},{"id":"com.beb.plxnative"}]}"#;
+        assert_eq!(running_apps_read(reply), ["com.beb.plxnative", "youtube.leanback.v4"]);
+        assert!(running_apps_read("not json").is_empty());
+    }
 
     #[test]
     fn a_quoted_value_cannot_end_its_own_quotes() {
@@ -676,16 +705,17 @@ mod tests {
 
     #[test]
     fn a_side_app_installs_only_from_this_repos_releases_with_a_proper_checksum() {
-        let id = "com.samrenfrew.lumen.native.guide";
-        let url = "https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/com.samrenfrew.lumen.native.guide_2.3.0_all.ipk";
+        let id = "com.samrenfrew.lumen.native.overlay";
+        let url = "https://github.com/samrenfrew/lumen-webos/releases/download/v2.3.0/com.samrenfrew.lumen.native.overlay_2.3.0_all.ipk";
         let sum = "a".repeat(64);
         assert!(install_side_app_command(id, url, &sum).unwrap().contains("\"version\": *\"2.3.0\""));
-        assert_eq!(install_side_app_command(id, "https://evil.example/com.samrenfrew.lumen.native.guide_2.3.0_all.ipk", &sum), None);
-        assert_eq!(install_side_app_command(id, &url.replace("guide_", "quick_"), &sum), None);
+        assert_eq!(install_side_app_command(id, "https://evil.example/com.samrenfrew.lumen.native.overlay_2.3.0_all.ipk", &sum), None);
+        assert_eq!(install_side_app_command(id, &url.replace("overlay_", "quick_"), &sum), None);
+        assert_eq!(install_side_app_command("com.samrenfrew.lumen.native.guide", &url.replace("overlay", "guide"), &sum), None);
         assert_eq!(install_side_app_command(id, url, "'; reboot"), None);
         assert_eq!(install_side_app_command("bbc.iplayer.3.0", url, &sum), None);
         assert_eq!(uninstall_side_app_command("com.webos.app.home"), None);
-        assert_eq!(side_app_versions_read("com.samrenfrew.lumen.native.quick 1.2.3\nother.app 1.0.0\ncom.samrenfrew.lumen.native.guide 1.x\n"), [("com.samrenfrew.lumen.native.quick".to_string(), "1.2.3".to_string())]);
+        assert_eq!(side_app_versions_read("com.samrenfrew.lumen.native.overlay 1.2.3\nother.app 1.0.0\ncom.samrenfrew.lumen.native.overlay 1.x\n"), [("com.samrenfrew.lumen.native.overlay".to_string(), "1.2.3".to_string())]);
     }
 
     #[test]

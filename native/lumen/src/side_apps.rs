@@ -3,12 +3,11 @@ use crate::draw::Draw;
 use crate::ffi::*;
 use crate::gfx::{Tex, DESIGN_W};
 use crate::settings::Settings;
-use crate::{guide, note, store, ticks, App, SETTINGS_FILE};
+use crate::{note, store, ticks, App, SETTINGS_FILE};
 use serde_json::Value;
 
-pub const QUICK_APP_ID: &str = "com.samrenfrew.lumen.native.quick";
-const GUIDE_PROGRAM: &str = "lumen-guide";
-const QUICK_PROGRAM: &str = "lumen-quick";
+pub const OVERLAY_APP_ID: &str = "com.samrenfrew.lumen.native.overlay";
+const OVERLAY_PROGRAM: &str = "lumen-overlay";
 pub const IDLE_CLOSE_MS: u32 = 30_000;
 pub const CLOSE_AFTER_MS: u32 = 400;
 const QUICK_GLASS_RGB: [u8; 3] = [40, 44, 58];
@@ -21,25 +20,82 @@ const SHADE_RGB: [f32; 3] = [8.0 / 255.0, 10.0 / 255.0, 18.0 / 255.0];
 pub enum Side {
     Guide,
     Quick,
+    Dock,
 }
 
 impl Side {
-    pub fn app_id(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
-            Side::Guide => guide::GUIDE_APP_ID,
-            Side::Quick => QUICK_APP_ID,
+            Side::Guide => "overlay guide",
+            Side::Quick => "overlay quick",
+            Side::Dock => "overlay dock",
         }
     }
+
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Mode {
+    Guide,
+    Quick,
+    Saver,
+    Dock,
+}
+
+pub fn mode_of(args: &[String]) -> Option<Mode> {
+    let program = args.first().and_then(|a| a.rsplit('/').next()).unwrap_or("");
+    let first = args.get(1).map_or("", String::as_str);
+    let launch = serde_json::from_str::<Value>(first).unwrap_or(Value::Null);
+    let launched_as = launch["appId"].as_str();
+    if launched_as == Some(crate::APP_ID) {
+        return None;
+    }
+    let asked = match launch["parameters"]["mode"].as_str() {
+        Some("guide") => Some(Mode::Guide),
+        Some("quick") => Some(Mode::Quick),
+        Some("saver") => Some(Mode::Saver),
+        Some("dock") => Some(Mode::Dock),
+        _ => None,
+    };
+    asked.or(match (program, launched_as) {
+        (OVERLAY_PROGRAM, _) | (_, Some(OVERLAY_APP_ID)) => Some(Mode::Saver),
+        _ if first == "--saver" => Some(Mode::Saver),
+        _ => None,
+    })
+}
+
+pub fn bus_name(args: &[String]) -> String {
+    if let Some(id) = args.get(1).and_then(|a| crate::launched_as(a)) {
+        return id;
+    }
+    match mode_of(args) {
+        Some(_) => OVERLAY_APP_ID,
+        None => crate::APP_ID,
+    }
+    .to_string()
 }
 
 pub fn side_of(args: &[String]) -> Option<Side> {
-    let program = args.first().and_then(|a| a.rsplit('/').next()).unwrap_or("");
-    let launched_as = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).and_then(|l| l["appId"].as_str().map(String::from));
-    match (program, launched_as.as_deref()) {
-        (GUIDE_PROGRAM, _) | (_, Some(guide::GUIDE_APP_ID)) => Some(Side::Guide),
-        (QUICK_PROGRAM, _) | (_, Some(QUICK_APP_ID)) => Some(Side::Quick),
-        _ => None,
+    match mode_of(args)? {
+        Mode::Guide => Some(Side::Guide),
+        Mode::Quick => Some(Side::Quick),
+        Mode::Dock => Some(Side::Dock),
+        Mode::Saver => None,
     }
+}
+
+pub fn switches_to(now: Side, parameters: &Value) -> Option<Side> {
+    let asked = match parameters["mode"].as_str()? {
+        "guide" => Side::Guide,
+        "quick" => Side::Quick,
+        "dock" => Side::Dock,
+        _ => return None,
+    };
+    (asked != now).then_some(asked)
+}
+
+pub fn is_home_press(parameters: &Value) -> bool {
+    parameters["mode"].as_str() == Some("dock")
 }
 
 pub fn asked_to_stay_hidden(launch: &Value) -> bool {
@@ -84,29 +140,64 @@ impl App {
         }
         self.tick_clock();
         if asked_to_stay_hidden(launch) {
-            note!("{}: asked to start hidden, which a native side app does not need; closing", side.app_id());
+            note!("{}: asked to start hidden, which a native side app does not need; closing", side.name());
             self.running = false;
             return;
         }
+        self.open_side(side, &launch["parameters"]);
+    }
+
+    fn open_side(&mut self, side: Side, parameters: &Value) {
+        self.side = Some(side);
+        self.over_live_tv = side == Side::Guide;
+        self.draw.see_through = side == Side::Quick;
         match side {
             Side::Guide => {
                 self.live.load_kept();
-                self.open_guide(launch["parameters"]["view"].as_str() == Some("full"));
+                self.open_guide(parameters["view"].as_str() == Some("full"));
             }
             Side::Quick => {
                 let glass = QUICK_GLASS_RGB.iter().chain(&[255]).copied().cycle().take(4 * 4 * 4).collect::<Vec<u8>>();
                 self.draw.glass_backdrop = self.draw.gfx.upload_rgba(&glass, 4, 4);
                 self.panel = Some(ControlCenter::quick(ticks()));
             }
+            Side::Dock => self.open_dock(parameters["app"].as_str()),
         }
         self.redraw = true;
+    }
+
+    fn switch_side(&mut self, to: Side, parameters: &Value) {
+        note!("relaunch {}: switching from {} to {}", parameters, self.side.map_or("", Side::name), to.name());
+        if self.guide.take().is_some() {
+            self.live.guide_opened(false, &self.settings, crate::clock::unix_now());
+        }
+        self.panel = None;
+        self.quit_at = None;
+        self.open_side(to, parameters);
+    }
+
+    pub(crate) fn become_saver(&mut self, parameters: &Value) {
+        note!("relaunch {}: switching from {} to the screensaver", parameters, self.side.map_or("", Side::name));
+        if self.guide.take().is_some() {
+            self.live.guide_opened(false, &self.settings, crate::clock::unix_now());
+        }
+        self.panel = None;
+        self.quit_at = None;
+        self.side = None;
+        self.over_live_tv = false;
+        self.alone = true;
+        self.home = crate::home::Home::new();
+        self.start_alone();
     }
 
     pub(crate) fn close_side(&mut self) {
         if self.quit_at.is_some() {
             return;
         }
-        note!("{}: closing", self.side.map_or("", Side::app_id));
+        note!("{}: closing", self.side.map_or("", Side::name));
+        if self.side == Some(Side::Dock) {
+            self.home.drop_dock(ticks());
+        }
         self.guide = None;
         if let Some(panel) = self.panel.as_mut() {
             panel.close(ticks(), &self.draw.look);
@@ -118,6 +209,16 @@ impl App {
     pub(crate) fn side_relaunched(&mut self, parameters: &Value) {
         if asked_to_stay_hidden(parameters) {
             return note!("relaunch {}: hidden start while up, left as it is", parameters);
+        }
+        if parameters["mode"].as_str() == Some("saver") {
+            return self.become_saver(parameters);
+        }
+        if let Some(to) = self.side.and_then(|now| switches_to(now, parameters)) {
+            return self.switch_side(to, parameters);
+        }
+        if self.side == Some(Side::Dock) && is_home_press(parameters) {
+            note!("relaunch {}: Home pressed again over the Dock, so home opens", parameters);
+            return self.leave_dock(crate::home::DockExit::Bar);
         }
         note!("relaunch {}: closing, as LIST or the gear pressed again does", parameters);
         self.close_side();
@@ -135,12 +236,17 @@ impl App {
             return Some(left as u32);
         }
         let idle = now.wrapping_sub(self.touched_at);
-        if idle >= IDLE_CLOSE_MS {
-            note!("closing after {} s without a key", IDLE_CLOSE_MS / 1000);
+        let idle_close_ms = match self.side? {
+            Side::Dock if self.settings.dock_hide_seconds == 0 => return None,
+            Side::Dock => self.settings.dock_hide_seconds * 1000,
+            _ => IDLE_CLOSE_MS,
+        };
+        if idle >= idle_close_ms {
+            note!("closing after {} s without a key", idle_close_ms / 1000);
             self.close_side();
             return Some(CLOSE_AFTER_MS);
         }
-        Some(IDLE_CLOSE_MS - idle)
+        Some(idle_close_ms - idle)
     }
 
     pub(crate) fn draw_quick(&mut self, now: u32) {
@@ -169,12 +275,63 @@ mod tests {
     }
 
     #[test]
-    fn the_side_app_is_known_by_its_program_or_the_app_id_it_was_launched_as() {
-        assert_eq!(side_of(&args("/apps/x/lumen-guide", "{}")), Some(Side::Guide));
-        assert_eq!(side_of(&args("lumen-quick", "{}")), Some(Side::Quick));
-        assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.quick"}"#)), Some(Side::Quick));
-        assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.guide","parameters":{"view":"full"}}"#)), Some(Side::Guide));
+    fn a_relaunch_in_the_other_mode_switches_and_the_same_mode_or_none_closes() {
+        let params = |text: &str| serde_json::from_str::<Value>(text).unwrap();
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"quick"}"#)), Some(Side::Quick));
+        assert_eq!(switches_to(Side::Quick, &params(r#"{"mode":"guide","view":"full"}"#)), Some(Side::Guide));
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"guide"}"#)), None);
+        assert_eq!(switches_to(Side::Quick, &params("{}")), None);
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"saver"}"#)), None);
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"dock","app":"com.webos.app.livetv"}"#)), Some(Side::Dock));
+        assert_eq!(switches_to(Side::Dock, &params(r#"{"mode":"quick"}"#)), Some(Side::Quick));
+        assert_eq!(switches_to(Side::Dock, &params(r#"{"mode":"dock"}"#)), None);
+    }
+
+    #[test]
+    fn only_a_launch_in_dock_mode_is_a_home_press() {
+        assert!(is_home_press(&serde_json::json!({"mode": "dock", "app": "youtube.leanback.v4"})));
+        assert!(!is_home_press(&serde_json::json!({"mode": "guide"})));
+        assert!(!is_home_press(&serde_json::json!({})));
+    }
+
+    #[test]
+    fn the_overlay_is_known_by_its_program_or_the_app_id_it_was_launched_as_and_the_old_side_apps_are_not() {
+        assert_eq!(mode_of(&args("/apps/x/lumen-overlay", "{}")), Some(Mode::Saver));
+        assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.overlay","parameters":{"mode":"guide","view":"full"}}"#)), Some(Side::Guide));
+        assert_eq!(mode_of(&args("/apps/x/lumen-guide", "{}")), None);
+        assert_eq!(mode_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.quick"}"#)), None);
         assert_eq!(side_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native"}"#)), None);
+    }
+
+    #[test]
+    fn the_mode_in_the_launch_parameters_wins_over_the_program_and_app_id() {
+        let overlay = |mode: &str| args("lumen-overlay", &format!(r#"{{"appId":"com.samrenfrew.lumen.native.overlay","parameters":{{"mode":"{mode}"}}}}"#));
+        assert_eq!(mode_of(&overlay("guide")), Some(Mode::Guide));
+        assert_eq!(mode_of(&overlay("quick")), Some(Mode::Quick));
+        assert_eq!(mode_of(&overlay("saver")), Some(Mode::Saver));
+        assert_eq!(mode_of(&overlay("dock")), Some(Mode::Dock));
+        assert_eq!(mode_of(&args("lumen-overlay", r#"{"parameters":{"mode":"quick"}}"#)), Some(Mode::Quick));
+        assert_eq!(mode_of(&args("lumen-overlay", r#"{"parameters":{"mode":"nonsense"}}"#)), Some(Mode::Saver));
+    }
+
+    #[test]
+    fn it_joins_the_bus_as_the_app_the_tv_launched_whatever_its_mode() {
+        assert_eq!(bus_name(&args("lumen-overlay", r#"{"appId":"com.webos.app.screensaver","parameters":{}}"#)), "com.webos.app.screensaver");
+        assert_eq!(bus_name(&args("lumen-overlay", r#"{"parameters":{"mode":"quick"}}"#)), OVERLAY_APP_ID);
+        assert_eq!(bus_name(&args("lumen", "--saver")), OVERLAY_APP_ID);
+        assert_eq!(bus_name(&args("lumen", "--shot")), crate::APP_ID);
+    }
+
+    #[test]
+    fn the_overlay_app_with_no_mode_is_the_screensaver() {
+        assert_eq!(mode_of(&args("lumen-overlay", "{}")), Some(Mode::Saver));
+        assert_eq!(mode_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.overlay","parameters":{}}"#)), Some(Mode::Saver));
+    }
+
+    #[test]
+    fn home_stays_home_whatever_mode_it_is_asked_for() {
+        assert_eq!(mode_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native","parameters":{"mode":"quick"}}"#)), None);
+        assert_eq!(mode_of(&args("lumen", "--shot")), None);
     }
 
     #[test]

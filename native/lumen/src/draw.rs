@@ -92,6 +92,7 @@ pub struct Draw {
     pub pictures: Pictures<Tex>,
     pub look: Look,
     pub liquid: bool,
+    pub see_through: bool,
     pub fonts: Fonts,
     pub app_dir: String,
     pub glass_backdrop: Tex,
@@ -136,29 +137,36 @@ fn rgba_of(loaded: *mut SDL_Surface) -> Option<Decoded> {
 
 impl Draw {
     pub fn new(screen_w: i32, screen_h: i32, app_dir: &str, look: Look) -> Draw {
+        let began = std::time::Instant::now();
+        let gfx = Gfx::new(screen_w, screen_h);
+        let p = Programs {
+            copy: Program::new("copy", shaders::COPY_FRAGMENT),
+            blur: Program::new("blur", shaders::BLUR_FRAGMENT),
+            backdrop: Program::new("backdrop", shaders::BACKDROP_FRAGMENT),
+            lens: Program::new("lens", shaders::LENS_FRAGMENT),
+            gloss: Program::new("gloss", shaders::GLOSS_FRAGMENT),
+            bar_middle: Program::new("bar middle", shaders::BAR_MIDDLE_FRAGMENT),
+            bar_rim: Program::new("bar rim", shaders::BAR_RIM_FRAGMENT),
+            shine: Program::new("shine", shaders::SHINE_FRAGMENT),
+            tile: Program::new("tile", shaders::TILE_FRAGMENT),
+            picture: Program::new("picture", shaders::PICTURE_FRAGMENT),
+            glass: Program::new("glass", shaders::GLASS_FRAGMENT),
+            ink: Program::new("ink", shaders::INK_FRAGMENT),
+            dim: Program::new("dim", shaders::DIM_FRAGMENT),
+            fill: Program::new("fill", shaders::FILL_FRAGMENT),
+            spin: Program::new("spin", shaders::SPIN_FRAGMENT),
+        };
+        let compiled = began.elapsed().as_millis();
+        let fonts = Fonts::new(app_dir);
+        crate::note!("draw: shaders {} ms, fonts {} ms", compiled, began.elapsed().as_millis() - compiled);
         Draw {
-            gfx: Gfx::new(screen_w, screen_h),
-            p: Programs {
-                copy: Program::new("copy", shaders::COPY_FRAGMENT),
-                blur: Program::new("blur", shaders::BLUR_FRAGMENT),
-                backdrop: Program::new("backdrop", shaders::BACKDROP_FRAGMENT),
-                lens: Program::new("lens", shaders::LENS_FRAGMENT),
-                gloss: Program::new("gloss", shaders::GLOSS_FRAGMENT),
-                bar_middle: Program::new("bar middle", shaders::BAR_MIDDLE_FRAGMENT),
-                bar_rim: Program::new("bar rim", shaders::BAR_RIM_FRAGMENT),
-                shine: Program::new("shine", shaders::SHINE_FRAGMENT),
-                tile: Program::new("tile", shaders::TILE_FRAGMENT),
-                picture: Program::new("picture", shaders::PICTURE_FRAGMENT),
-                glass: Program::new("glass", shaders::GLASS_FRAGMENT),
-                ink: Program::new("ink", shaders::INK_FRAGMENT),
-                dim: Program::new("dim", shaders::DIM_FRAGMENT),
-                fill: Program::new("fill", shaders::FILL_FRAGMENT),
-                spin: Program::new("spin", shaders::SPIN_FRAGMENT),
-            },
+            gfx,
+            p,
             pictures: Pictures::new(PICTURE_BUDGET_BYTES),
             look,
             liquid: false,
-            fonts: Fonts::new(app_dir),
+            see_through: false,
+            fonts,
             app_dir: app_dir.to_string(),
             glass_backdrop: Tex::default(),
             veil_backdrop: Tex::default(),
@@ -316,7 +324,8 @@ impl Draw {
         let p = &self.p.glass;
         p.bind(0, c"u_glass", self.glass_backdrop.tex);
         p.set4(c"u_box", g.x, g.y, g.w, g.h);
-        p.set4(c"u_look", g.radius, if self.liquid { 1.0 } else { g.blur }, g.sheen * self.look.sheen, g.rim * self.look.rim_light);
+        let blur = if self.see_through { 0.0 } else if self.liquid { 1.0 } else { g.blur };
+        p.set4(c"u_look", g.radius, blur, g.sheen * self.look.sheen, g.rim * self.look.rim_light);
         p.set3(c"u_tone", [self.look.saturate, self.look.brighten, self.look.tint]);
         p.set1(c"u_alpha", g.alpha);
         p.set1(c"u_shadow_strength", self.look.glass_shadow);

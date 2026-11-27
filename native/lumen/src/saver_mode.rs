@@ -3,19 +3,13 @@ use crate::home::Key;
 use crate::picker::Wants;
 use crate::saver::{self, Saver, Setup};
 use crate::settings::Settings;
-use crate::{note, post, root, store, ticks, weather, App, SETTINGS_FILE};
-use serde_json::Value;
+use crate::{note, post, root, side_apps, store, ticks, weather, App, SETTINGS_FILE};
 use std::sync::Arc;
 
-pub const SAVER_APP_ID: &str = "com.samrenfrew.lumen.native.saver";
-const SAVER_PROGRAM: &str = "lumen-saver";
 const SHOT_PHOTO: &str = "../../app/public/wallpapers/default-2.jpg";
 
 pub fn runs_alone(args: &[String]) -> bool {
-    let program = args.first().and_then(|a| a.rsplit('/').next()).unwrap_or("");
-    let asked = args.get(1).is_some_and(|a| a == "--saver");
-    let launched_as = args.get(1).and_then(|a| serde_json::from_str::<Value>(a).ok()).is_some_and(|l| l["appId"].as_str() == Some(SAVER_APP_ID));
-    program == SAVER_PROGRAM || asked || launched_as
+    side_apps::mode_of(args) == Some(side_apps::Mode::Saver)
 }
 
 fn wants(settings: &Settings) -> Wants {
@@ -173,8 +167,9 @@ mod tests {
 
     #[test]
     fn the_same_program_starts_as_the_screensaver_when_packaged_or_launched_as_it() {
-        assert!(runs_alone(&args(&["/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native.saver/lumen-saver", "{}"])));
-        assert!(runs_alone(&args(&["./lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native.saver","parameters":{}}"#])));
+        assert!(runs_alone(&args(&["/media/developer/apps/usr/palm/applications/com.samrenfrew.lumen.native.overlay/lumen-overlay", "{}"])));
+        assert!(runs_alone(&args(&["./lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native.overlay","parameters":{"mode":"saver"}}"#])));
+        assert!(runs_alone(&args(&["/usr/palm/applications/com.webos.app.screensaver/lumen-overlay", r#"{"appId":"com.webos.app.screensaver","parameters":{}}"#])));
         assert!(runs_alone(&args(&["lumen", "--saver"])));
         assert!(!runs_alone(&args(&["/x/lumen", r#"{"event":"launch","appId":"com.samrenfrew.lumen.native","parameters":{"view":"ambient"}}"#])));
         assert!(!runs_alone(&args(&["lumen", "--shot", "a.png", "saver"])));

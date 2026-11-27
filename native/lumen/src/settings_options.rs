@@ -18,12 +18,16 @@ pub const INPUTS: &str = crate::home::TOP_ITEMS[2].2;
 const LUMEN_IDS: [&str; 3] = ["com.samrenfrew.lumen", "com.samrenfrew.lumen.dev", "com.samrenfrew.lumen.native"];
 const NEEDS_SCRIPTS: &str = "Install the TV scripts first, in Settings > System > TV scripts. ";
 const IMMICH_SOURCES: [(&str, &str); 5] = [("immich:recent", "Recent"), ("immich:recent-people", "Recent, with people"), ("immich:memories", "On this day"), ("immich:favorites", "Favourites"), ("immich:all", "All photos")];
-const SIDE_DESCRIPTIONS: [&str; 3] = [
-    "A channel guide over Live TV: LIST opens Now and Next, GUIDE the full guide. Off removes it from the TV.",
-    "Sound, picture and backlight over any app, on the gear button. In Lumen the gear opens Control Center. Off removes it, and the gear is LG's again.",
-    "Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off removes it, and the screensaver opens Lumen as before.",
+const SIDE_DESCRIPTIONS: [&str; 1] = [
+    "One app for the Guide over Live TV, Quick Settings on the gear, your screensaver photos over the app you are in, and the Dock on Home. Switch each on or off below. Off removes it from the TV.",
 ];
-pub const SIDE_OPTIONS: [&str; 3] = ["side-guide", "side-quick", "side-saver"];
+const OVERLAY_ROWS: [(&str, &str, &str); 4] = [
+    ("overlay-guide", "Guide over Live TV", "LIST opens Now and Next over Live TV, GUIDE the full guide. Off leaves LIST to the TV, and GUIDE opens Lumen's Guide."),
+    ("overlay-quick", "Quick Settings on the gear", "Sound, picture and backlight over any app, on the gear button. In Lumen the gear opens Control Center. Off gives the gear back to LG."),
+    ("overlay-saver", "Screensaver over apps", "Your screensaver photos over the app you are watching, so after a key the app is where you left it. Off opens Lumen's own screensaver instead."),
+    ("overlay-dock", "Dock over apps", "Home over an app brings up Lumen's dock over it: OK opens an app, Down or a second Home opens Lumen. Off makes Home open Lumen at once."),
+];
+pub const SIDE_OPTIONS: [&str; 1] = ["side-overlay"];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Group {
@@ -395,6 +399,19 @@ fn side_rows(r: &mut Rows, facts: &Facts) {
         };
         r.action(option, Group::SideApps, side_title(id), SIDE_DESCRIPTIONS[at].into(), value);
     }
+    if side.is_some_and(|s| s.installed(crate::root::SIDE_APPS[0]).is_some()) {
+        for (option, title, description) in OVERLAY_ROWS {
+            let feature = &option["overlay-".len()..];
+            let value = match facts.tv {
+                _ if facts.busy == option => "Working".to_string(),
+                None => "Checking".into(),
+                Some(tv) if !tv.scripts_ready() => "Needs TV scripts".into(),
+                Some(tv) => on_off(!tv.overlay_off.iter().any(|f| f == feature)),
+            };
+            r.action(option, Group::SideApps, title, description.into(), value);
+        }
+        r.counted("dock-hide", Group::SideApps, "Dock hides after", "How long the Dock stays over an app with no key pressed. Back always hides it at once.", words(&["Never", "10 seconds", "30 seconds", "1 minute"]), &[0.0, 10.0, 30.0, 60.0], "dockHideSeconds", 30.0);
+    }
     if let Some(side) = side.filter(|s| crate::root::SIDE_APPS.iter().any(|id| s.installed(id).is_some())) {
         let n = side.behind().len();
         let value = if facts.busy == "side-update" {
@@ -481,6 +498,7 @@ pub fn chosen(opt: &Opt, index: usize, config: &Value, cities: &[City]) -> Resul
         "first-row" => one("firstRow", whole(&value)),
         "wp-auto" => one("wpAutoMinutes", value),
         "idle-screensaver" => one("idleSeconds", whole(&value)),
+        "dock-hide" => one("dockHideSeconds", whole(&value)),
         "ambient-seconds" => one("ambientSeconds", whole(&value)),
         "immich-recent-days" => one("immichRecentDays", whole(&value)),
         "brightness-day" => one("blDay", whole(&value)),

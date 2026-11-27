@@ -37,6 +37,7 @@ pub const GL_FRAGMENT_SHADER: GLenum = 0x8B30;
 pub const GL_VERTEX_SHADER: GLenum = 0x8B31;
 pub const GL_COMPILE_STATUS: GLenum = 0x8B81;
 pub const GL_LINK_STATUS: GLenum = 0x8B82;
+pub const GL_PROGRAM_BINARY_LENGTH: GLenum = 0x8741;
 pub const GL_FRAMEBUFFER: GLenum = 0x8D40;
 pub const GL_COLOR_ATTACHMENT0: GLenum = 0x8CE0;
 pub const GL_FRAMEBUFFER_COMPLETE: GLenum = 0x8CD5;
@@ -57,6 +58,7 @@ extern "C" {
     pub fn glClearColor(r: GLfloat, g: GLfloat, b: GLfloat, a: GLfloat);
     pub fn glCompileShader(shader: GLuint);
     pub fn glCreateProgram() -> GLuint;
+    pub fn glDeleteProgram(program: GLuint);
     pub fn glCreateShader(kind: GLenum) -> GLuint;
     pub fn glDeleteFramebuffers(n: GLsizei, framebuffers: *const GLuint);
     pub fn glDeleteTextures(n: GLsizei, textures: *const GLuint);
@@ -268,6 +270,7 @@ pub union SDL_Event {
 
 #[link(name = "SDL2")]
 extern "C" {
+    pub fn SDL_GL_GetProcAddress(proc_name: *const c_char) -> *mut c_void;
     pub fn SDL_ConvertSurfaceFormat(surface: *mut SDL_Surface, format: u32, flags: u32) -> *mut SDL_Surface;
     pub fn SDL_CreateRGBSurfaceWithFormat(flags: u32, w: c_int, h: c_int, depth: c_int, format: u32) -> *mut SDL_Surface;
     pub fn SDL_CreateWindow(title: *const c_char, x: c_int, y: c_int, w: c_int, h: c_int, flags: u32) -> *mut SDL_Window;

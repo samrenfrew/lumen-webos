@@ -71,8 +71,69 @@ fn new_texture(w: i32, h: i32, pixels: *const c_void) -> GLuint {
     tex
 }
 
+type ProgramBinary = unsafe extern "C" fn(GLuint, GLenum, *const c_void, GLsizei);
+type GetProgramBinary = unsafe extern "C" fn(GLuint, GLsizei, *mut GLsizei, *mut GLenum, *mut c_void);
+
+fn gl_proc<T>(names: &[&CStr]) -> Option<T> {
+    names.iter().find_map(|name| {
+        let found = unsafe { SDL_GL_GetProcAddress(name.as_ptr()) };
+        (!found.is_null()).then(|| unsafe { std::mem::transmute_copy::<*mut c_void, T>(&found) })
+    })
+}
+
+pub fn shader_key(renderer: &str, parts: &[&str]) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    renderer.hash(&mut hasher);
+    parts.hash(&mut hasher);
+    format!("shader-{:016x}.bin", hasher.finish())
+}
+
+fn from_kept(file: &str) -> Option<GLuint> {
+    let load: ProgramBinary = gl_proc(&[c"glProgramBinary", c"glProgramBinaryOES"])?;
+    let bytes = std::fs::read(crate::store::path(file)).ok().filter(|b| b.len() > 4)?;
+    let format = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    unsafe {
+        let id = glCreateProgram();
+        load(id, format, bytes[4..].as_ptr().cast(), (bytes.len() - 4) as GLsizei);
+        let mut ok = 0;
+        glGetProgramiv(id, GL_LINK_STATUS, &mut ok);
+        if ok == 0 {
+            glDeleteProgram(id);
+            return None;
+        }
+        Some(id)
+    }
+}
+
+fn keep_binary(id: GLuint, file: &str) {
+    let Some(read) = gl_proc::<GetProgramBinary>(&[c"glGetProgramBinary", c"glGetProgramBinaryOES"]) else { return };
+    unsafe {
+        let mut length = 0;
+        glGetProgramiv(id, GL_PROGRAM_BINARY_LENGTH, &mut length);
+        if length <= 0 {
+            return;
+        }
+        let (mut written, mut format) = (0, 0);
+        let mut bytes = vec![0u8; 4 + length as usize];
+        read(id, length, &mut written, &mut format, bytes[4..].as_mut_ptr().cast());
+        if written <= 0 {
+            return;
+        }
+        bytes[..4].copy_from_slice(&format.to_le_bytes());
+        bytes.truncate(4 + written as usize);
+        crate::store::write(file, &bytes);
+    }
+}
+
 impl Program {
     pub fn new(name: &str, fragment: &str) -> Program {
+        let renderer = unsafe { glGetString(GL_RENDERER) };
+        let renderer = if renderer.is_null() { String::new() } else { unsafe { CStr::from_ptr(renderer.cast()) }.to_string_lossy().into_owned() };
+        let file = shader_key(&renderer, &[VERTEX, FRAGMENT_HEAD, fragment]);
+        if let Some(id) = from_kept(&file) {
+            return Program { id, known: RefCell::new(Vec::new()) };
+        }
         unsafe {
             let id = glCreateProgram();
             glAttachShader(id, compile(GL_VERTEX_SHADER, name, &[VERTEX]));
@@ -83,6 +144,8 @@ impl Program {
             glGetProgramiv(id, GL_LINK_STATUS, &mut ok);
             if ok == 0 {
                 note!("program {}: {}", name, info_log(glGetProgramInfoLog, id));
+            } else {
+                keep_binary(id, &file);
             }
             Program { id, known: RefCell::new(Vec::new()) }
         }
@@ -221,5 +284,19 @@ impl Gfx {
             }
             shot
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kept_shader_is_found_again_only_for_the_same_source_on_the_same_chip() {
+        let key = shader_key("PowerVR B-Series BXE-4-32", &["vertex", "fragment"]);
+        assert_eq!(key, shader_key("PowerVR B-Series BXE-4-32", &["vertex", "fragment"]));
+        assert_ne!(key, shader_key("PowerVR B-Series BXE-4-32", &["vertex", "fragment changed"]));
+        assert_ne!(key, shader_key("llvmpipe", &["vertex", "fragment"]));
+        assert!(key.starts_with("shader-") && key.ends_with(".bin"));
     }
 }
