@@ -266,7 +266,7 @@ pub struct Home {
     veil: Tex,
     blurs_made_with: [i32; 5],
     bar_made_with: f32,
-    plates_made_with: [f32; 10],
+    plates_made_with: [f32; 13],
     shift: Anim,
     sleep: Anim,
     sleep_clock: (f32, f32),
@@ -508,7 +508,7 @@ impl Home {
             veil: Tex::default(),
             blurs_made_with: [0; 5],
             bar_made_with: 0.0,
-            plates_made_with: [0.0; 10],
+            plates_made_with: [0.0; 13],
             shift: Anim::still(0.0),
             sleep: Anim::still(0.0),
             sleep_clock: (0.0, 0.0),
@@ -1362,9 +1362,9 @@ impl Home {
         resting
     }
 
-    fn plate_look(d: &Draw) -> [f32; 10] {
+    fn plate_look(d: &Draw) -> [f32; 13] {
         let l = &d.look;
-        [l.bezel, l.edge_shape, l.specular, l.light_angle, l.colour_rims, l.rim_light, l.sheen, l.glow, l.side_width, l.side_bend]
+        [l.bezel, l.edge_shape, l.specular, l.light_angle, l.colour_rims, l.rim_light, l.sheen, l.glow, l.side_width, l.side_bend, l.dock_colour_rims, l.dock_glow, l.dock_glow_reach]
     }
 
     fn bar_plates(&mut self, d: &mut Draw) -> (Tex, Tex) {
@@ -1383,8 +1383,10 @@ impl Home {
             program.set1(c"u_edge_shape", d.look.edge_shape);
             program.set2(c"u_side", d.look.side_width, d.look.side_bend);
             let [lx, ly] = d.light();
-            program.set4(c"u_light", lx, ly, d.look.specular, d.look.colour_rims);
-            program.set3(c"u_finish", [d.look.rim_light, d.look.sheen, d.look.glow]);
+            let (rims, glow, reach) = if self.dock { (d.look.dock_colour_rims, d.look.dock_glow, d.look.dock_glow_reach) } else { (d.look.colour_rims, d.look.glow, 14.0) };
+            program.set4(c"u_light", lx, ly, d.look.specular, rims);
+            program.set3(c"u_finish", [d.look.rim_light, d.look.sheen, glow]);
+            program.set1(c"u_glow_reach", reach);
             d.gfx.quad(program, 0.0, 0.0, w, h);
         }
         self.bar_made_with = d.look.bezel * d.look.side_width.max(1.0);

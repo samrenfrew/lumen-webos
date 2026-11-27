@@ -74,6 +74,9 @@ look! {
     sheen = 1.0, 0.0, 3.0;
     frost = 0.0, 0.0, 1.0;
     glow = 0.5, 0.0, 8.0;
+    dock_colour_rims = 1.2, 0.0, 3.0;
+    dock_glow = 2.5, 0.0, 8.0;
+    dock_glow_reach = 28.0, 4.0, 120.0;
     side_width = 1.0, 0.2, 2.0;
     side_bend = 1.0, 0.0, 1.0;
     peel_down_ms = 40.0, 0.0, 400.0;

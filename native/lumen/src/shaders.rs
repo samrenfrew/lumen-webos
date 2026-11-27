@@ -85,6 +85,7 @@ pub const GLOSS_FRAGMENT: &str = r#"uniform vec4 u_bar;
 uniform float u_radius;
 uniform vec4 u_light;
 uniform vec3 u_finish;
+uniform float u_glow_reach;
 vec4 over(vec4 under, vec3 c, float a) { return vec4(under.rgb * (1.0 - a) + c * a, under.a * (1.0 - a) + a); }
 void main() {
   vec2 hs = u_bar.zw * 0.5;
@@ -103,7 +104,7 @@ void main() {
   g = over(g, vec3(0.43, 0.78, 1.0), clamp(band * 0.5 * tl * u_light.w, 0.0, 1.0));
   g = over(g, vec3(1.0, 0.47, 0.75), clamp(band * 0.28 * br * u_light.w, 0.0, 1.0));
   g = over(g, vec3(1.0), clamp(line * (0.55 * tl + 0.2 * br) * u_finish.x, 0.0, 1.0));
-  g = over(g, vec3(1.0), clamp(0.05 * u_finish.z * smoothstep(-14.0, 0.0, d), 0.0, 1.0));
+  g = over(g, vec3(1.0), clamp(0.05 * u_finish.z * smoothstep(-u_glow_reach, 0.0, d), 0.0, 1.0));
   float spark = pow(max(facing, 0.0), 6.0) * (smoothstep(-4.0, -0.5, d) + 0.35 * smoothstep(-16.0, 0.0, d)) + 0.5 * pow(max(-facing, 0.0), 6.0) * smoothstep(-4.0, -0.5, d);
   g = over(g, vec3(1.0), clamp(u_light.z * spark, 0.0, 1.0));
   gl_FragColor = g;
