@@ -123,13 +123,17 @@ vec3 behind(vec2 uv) {
 }
 uniform float u_frost;
 uniform vec3 u_mag;
-vec3 glazed(vec3 col, vec2 q) {
+uniform float u_clear;
+vec4 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  float a = 1.0;
+  if (u_clear > 0.0) { col = vec3(0.0); a = u_tone.z; }
   col = col * (1.0 - u_frost) + u_frost;
+  a = a + (1.0 - a) * u_frost;
   vec4 g = texture2D(u_gloss, q);
-  return col * (1.0 - g.a) + g.rgb;
+  return vec4(col * (1.0 - g.a) + g.rgb, a * (1.0 - g.a) + g.a);
 }
-void main() { gl_FragColor = vec4(glazed(behind(v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0)), (v_px - u_plate.xy) / u_plate.zw), 1.0); }
+void main() { gl_FragColor = glazed(behind(v_uv + (u_mag.xy - v_px) * u_mag.z / vec2(1920.0, 1080.0)), (v_px - u_plate.xy) / u_plate.zw); }
 "#;
 
 pub const BAR_RIM_FRAGMENT: &str = r#"uniform sampler2D u_glass;
@@ -145,11 +149,15 @@ vec3 behind(vec2 uv) {
 }
 uniform float u_frost;
 uniform vec3 u_mag;
-vec3 glazed(vec3 col, vec2 q) {
+uniform float u_clear;
+vec4 glazed(vec3 col, vec2 q) {
   col = clamp(mix(vec3(dot(col, vec3(0.2126, 0.7152, 0.0722))), col, u_tone.x) * u_tone.y, 0.0, 1.0) * (1.0 - u_tone.z);
+  float a = 1.0;
+  if (u_clear > 0.0) { col = vec3(0.0); a = u_tone.z; }
   col = col * (1.0 - u_frost) + u_frost;
+  a = a + (1.0 - a) * u_frost;
   vec4 g = texture2D(u_gloss, q);
-  return col * (1.0 - g.a) + g.rgb;
+  return vec4(col * (1.0 - g.a) + g.rgb, a * (1.0 - g.a) + g.a);
 }
 uniform sampler2D u_lens;
 uniform vec2 u_bend;
@@ -163,7 +171,8 @@ void main() {
   if (u_bend.x == 0.0) col = behind(uv);
   else if (u_bend.y > 0.0) col = vec3(behind(uv + off * (1.0 + u_bend.y)).r, behind(uv + off).g, behind(uv + off * (1.0 - u_bend.y)).b);
   else col = behind(uv + off);
-  gl_FragColor = vec4(glazed(col, q) * lens.b, lens.b + (1.0 - lens.b) * lens.a);
+  vec4 c = glazed(col, q);
+  gl_FragColor = vec4(c.rgb * lens.b, c.a * lens.b + (1.0 - lens.b) * lens.a);
 }
 "#;
 

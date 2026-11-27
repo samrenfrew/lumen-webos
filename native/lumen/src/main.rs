@@ -316,8 +316,9 @@ impl App {
             }
         }
         self.home.reduce_motion = self.settings.reduce_motion;
-        if self.draw.liquid != self.settings.liquid_glass {
-            self.draw.liquid = self.settings.liquid_glass;
+        let liquid = self.settings.liquid_glass && self.side != Some(side_apps::Side::Dock);
+        if self.draw.liquid != liquid {
+            self.draw.liquid = liquid;
             self.home.look_changed(&mut self.draw);
         }
         self.home.hide_names = self.settings.hide_names;

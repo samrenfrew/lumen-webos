@@ -1451,6 +1451,7 @@ impl Home {
         program.set4(c"u_plate", plate.0, plate.1, plate.2, plate.3);
         program.set3(c"u_tone", [d.look.saturate, d.look.brighten, d.look.tint]);
         program.set1(c"u_frost", d.look.frost);
+        program.set1(c"u_clear", if self.dock { 1.0 } else { 0.0 });
         program.set3(c"u_mag", [BAR_X + BAR_W / 2.0, plate.1 + plate.3 / 2.0, d.magnify()]);
     }
 
@@ -1460,7 +1461,13 @@ impl Home {
         let inset = self.bar_made_with.max(22.0) + 1.0;
         let (ix, iy, iw, ih) = (BAR_X + inset, bar_y + inset, BAR_W - 2.0 * inset, BAR_H - 2.0 * inset);
 
-        unsafe { glDisable(GL_BLEND) }
+        unsafe {
+            if self.dock {
+                glEnable(GL_BLEND);
+            } else {
+                glDisable(GL_BLEND);
+            }
+        }
         self.bar_uniforms(d, &d.p.bar_middle, gloss, (px, py, pw, ph), veiled);
         d.gfx.quad(&d.p.bar_middle, ix, iy, iw, ih);
 
