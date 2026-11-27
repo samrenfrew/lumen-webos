@@ -4,7 +4,6 @@ use crate::picker::Wants;
 use crate::saver::{self, Saver, Setup};
 use crate::settings::Settings;
 use crate::{note, post, root, side_apps, store, ticks, weather, App, SETTINGS_FILE};
-use serde_json::Value;
 use std::sync::Arc;
 
 pub const SAVER_APP_ID: &str = "com.samrenfrew.lumen.native.saver";
