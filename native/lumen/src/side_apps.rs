@@ -85,6 +85,15 @@ pub fn side_of(args: &[String]) -> Option<Side> {
     }
 }
 
+pub fn switches_to(now: Side, parameters: &Value) -> Option<Side> {
+    let asked = match parameters["mode"].as_str()? {
+        "guide" => Side::Guide,
+        "quick" => Side::Quick,
+        _ => return None,
+    };
+    (asked != now).then_some(asked)
+}
+
 pub fn asked_to_stay_hidden(launch: &Value) -> bool {
     launch["hidden"].as_bool() == Some(true) || launch["parameters"]["hidden"].as_bool() == Some(true)
 }
@@ -131,10 +140,16 @@ impl App {
             self.running = false;
             return;
         }
+        self.open_side(side, &launch["parameters"]);
+    }
+
+    fn open_side(&mut self, side: Side, parameters: &Value) {
+        self.side = Some(side);
+        self.over_live_tv = side == Side::Guide;
         match side {
             Side::Guide => {
                 self.live.load_kept();
-                self.open_guide(launch["parameters"]["view"].as_str() == Some("full"));
+                self.open_guide(parameters["view"].as_str() == Some("full"));
             }
             Side::Quick => {
                 let glass = QUICK_GLASS_RGB.iter().chain(&[255]).copied().cycle().take(4 * 4 * 4).collect::<Vec<u8>>();
@@ -143,6 +158,16 @@ impl App {
             }
         }
         self.redraw = true;
+    }
+
+    fn switch_side(&mut self, to: Side, parameters: &Value) {
+        note!("relaunch {}: switching from {} to {}", parameters, self.side.map_or("", Side::app_id), to.app_id());
+        if self.guide.take().is_some() {
+            self.live.guide_opened(false, &self.settings, crate::clock::unix_now());
+        }
+        self.panel = None;
+        self.quit_at = None;
+        self.open_side(to, parameters);
     }
 
     pub(crate) fn close_side(&mut self) {
@@ -161,6 +186,9 @@ impl App {
     pub(crate) fn side_relaunched(&mut self, parameters: &Value) {
         if asked_to_stay_hidden(parameters) {
             return note!("relaunch {}: hidden start while up, left as it is", parameters);
+        }
+        if let Some(to) = self.side.and_then(|now| switches_to(now, parameters)) {
+            return self.switch_side(to, parameters);
         }
         note!("relaunch {}: closing, as LIST or the gear pressed again does", parameters);
         self.close_side();
@@ -209,6 +237,16 @@ mod tests {
 
     fn args(program: &str, launch: &str) -> Vec<String> {
         vec![program.to_string(), launch.to_string()]
+    }
+
+    #[test]
+    fn a_relaunch_in_the_other_mode_switches_and_the_same_mode_or_none_closes() {
+        let params = |text: &str| serde_json::from_str::<Value>(text).unwrap();
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"quick"}"#)), Some(Side::Quick));
+        assert_eq!(switches_to(Side::Quick, &params(r#"{"mode":"guide","view":"full"}"#)), Some(Side::Guide));
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"guide"}"#)), None);
+        assert_eq!(switches_to(Side::Quick, &params("{}")), None);
+        assert_eq!(switches_to(Side::Guide, &params(r#"{"mode":"saver"}"#)), None);
     }
 
     #[test]

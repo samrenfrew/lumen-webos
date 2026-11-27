@@ -74,8 +74,8 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
 
 ## Open
 
-- **(verify)** A relaunch with a new mode while open reaches the app (`handlesRelaunch` for a native app, `nativeLifeCycleInterfaceVersion`
-  2) and the switch is quick.
+- A relaunch with a new mode while open reaches the app and switches it (`side_apps::switches_to`); the same mode or none still
+  closes it, as a second LIST or gear press does. Seen by Sam 2026-11-27: Guide, then Quick Settings, swapped at once.
 - **(verify)** LG's screensaver starting while another mode is up. The screensaver should take over, and a key go back to the app.
 
 ## Later: the Dock over any app (idea, 2026-11-27)
