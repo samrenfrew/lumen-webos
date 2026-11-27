@@ -92,6 +92,7 @@ pub struct Draw {
     pub pictures: Pictures<Tex>,
     pub look: Look,
     pub liquid: bool,
+    pub see_through: bool,
     pub fonts: Fonts,
     pub app_dir: String,
     pub glass_backdrop: Tex,
@@ -164,6 +165,7 @@ impl Draw {
             pictures: Pictures::new(PICTURE_BUDGET_BYTES),
             look,
             liquid: false,
+            see_through: false,
             fonts,
             app_dir: app_dir.to_string(),
             glass_backdrop: Tex::default(),
@@ -322,7 +324,8 @@ impl Draw {
         let p = &self.p.glass;
         p.bind(0, c"u_glass", self.glass_backdrop.tex);
         p.set4(c"u_box", g.x, g.y, g.w, g.h);
-        p.set4(c"u_look", g.radius, if self.liquid { 1.0 } else { g.blur }, g.sheen * self.look.sheen, g.rim * self.look.rim_light);
+        let blur = if self.see_through { 0.0 } else if self.liquid { 1.0 } else { g.blur };
+        p.set4(c"u_look", g.radius, blur, g.sheen * self.look.sheen, g.rim * self.look.rim_light);
         p.set3(c"u_tone", [self.look.saturate, self.look.brighten, self.look.tint]);
         p.set1(c"u_alpha", g.alpha);
         p.set1(c"u_shadow_strength", self.look.glass_shadow);

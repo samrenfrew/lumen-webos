@@ -150,6 +150,7 @@ impl App {
     fn open_side(&mut self, side: Side, parameters: &Value) {
         self.side = Some(side);
         self.over_live_tv = side == Side::Guide;
+        self.draw.see_through = side == Side::Quick;
         match side {
             Side::Guide => {
                 self.live.load_kept();
