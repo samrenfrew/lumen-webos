@@ -35,6 +35,9 @@ seen unless something looks wrong.
 
 Add new items here, with the branch and what to check. Delete an item once Sam has seen it work.
 
+- [ ] Lumen Overlay's Dock, Home over the screensaver, and the overlay doing the Guide, gear and screensaver (2026-11-27, branch
+      `native`, on the TV; `docs/plans/one-overlay.md`, Verify). The old Guide, Quick Settings and Screensaver apps are uninstalled.
+
 - [ ] Native screensaver in LG's place (2026-11-24, branch `native-saver`, mounted by hand on the TV until the next reboot;
       `docs/plans/native-saver.md`). Check after each run that Hyperion still gets the live capture (the Hyperion item there).
 

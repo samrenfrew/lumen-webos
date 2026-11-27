@@ -1,6 +1,6 @@
 # One overlay app: Guide, Quick Settings, Screensaver (and later the Dock) under one id
 
-Proposed 2026-11-27, not started. Sam asked whether the side apps are still needed. Items marked **(default)** were picked by Claude.
+Proposed 2026-11-27. Steps 1 to 5 and the Dock built the same day, on branch `native`; what is left to see is under **Verify**. Sam asked whether the side apps are still needed. Items marked **(default)** were picked by Claude.
 
 ## Why there are two ids at all
 
@@ -69,16 +69,61 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
    too: the TV's own listings were still filling (995, then 470, then 1,602 programmes from the same reads). The release leaves it out until step 5. Its screensaver has no `config/` yet
    (watch.sh copies Lumen's settings only into the `.saver` folders), so it runs on default settings until step 3.
 3. `watch.sh`, `gear.sh` and `saver-mount` use `.overlay` when installed, the old ids otherwise.
+   **Built 2026-11-27, seen working on the TV by Claude:** LIST and GUIDE over Live TV are bound to the overlay with `{"mode":"guide"}`
+   (and `"view":"full"`), the gear runs `gear.sh`, which opens it with `{"mode":"quick"}`, and the screensaver over an app opens it with
+   `{"mode":"saver","from":…}`. Its `config/` is kept by watch.sh as the old `.saver` folder's was. A relaunch in saver mode while
+   another mode is up turns the app into the screensaver (seen over the Dock). `home-setup.sh saver-mount` stages the overlay
+   (`lumen-overlay`) when installed: **(verify)**, as the mount is off on this TV.
 4. Settings > Side apps: one row and the feature switches. Removes the old ids. Keep-alive list updated.
+   **Built 2026-11-27, seen working on the TV by Claude:** one row, Lumen Overlay, and below it while installed four switches: Guide
+   over Live TV, Quick Settings on the gear, Screensaver over apps, Dock over apps. Each runs `home-setup.sh overlay <feature> on|off`,
+   which writes or removes `/var/lib/homehook/overlay-<feature>-off`; watch.sh reads them when the app in front next changes (so a
+   switch made in Settings applies once you leave Lumen). Dock off and on again wrote and removed its flag. `home-setup.sh
+   retire-side`, also run by the guard at each TV scripts restart, uninstalls `.guide`, `.quick` and `.saver` once the overlay is in;
+   it ran on this TV. `KeepAlive` now lists `com.samrenfrew.lumen.native` and `.overlay` (the web Lumen's three ids, long uninstalled,
+   came out); it takes effect at the next restart.
 5. Release workflow and Channel listing. Old ids and the program name fallback go.
+   **Built 2026-11-27, not released:** `build_native.sh` packages two apps, the release publishes both and lists Lumen Overlay in the
+   Channel; the old side apps drop out of the listing at the next push to `main`. The program knows the overlay only by `lumen-overlay`
+   or its id (no mode means the screensaver, which is what LG's screensaver slot launches); `lumen-guide`, `lumen-quick` and
+   `lumen-saver` mean nothing now. `LUMEN_OVERLAY=1 npm run deploy:native` installs it with Lumen.
 
 ## Open
 
 - A relaunch with a new mode while open reaches the app and switches it (`side_apps::switches_to`); the same mode or none still
   closes it, as a second LIST or gear press does. Seen by Sam 2026-11-27: Guide, then Quick Settings, swapped at once.
-- **(verify)** LG's screensaver starting while another mode is up. The screensaver should take over, and a key go back to the app.
+- LG's screensaver starting while another mode is up: watch.sh launches the overlay in saver mode, and the app becomes the
+  screensaver (`side_apps::become_saver`). Seen by Claude over the Dock on 2026-11-27 with a launch over SSH. **(verify)** a key then
+  goes back to the app, and it happens on the TV's own timer.
 
-## Later: the Dock over any app (idea, 2026-11-27)
+## Verify (built 2026-11-27, seen by Claude only)
+
+- The Dock with the remote: Home over an app, Left and Right, OK, Down, Up, Back, a second Home, and 10 s with no key.
+- Home over the screensaver (over an app) closes it and leaves the app, rather than opening Lumen. Seen by Claude with `home.sh`.
+- Home over the Guide or Quick Settings switches to the Dock. Seen by Claude with `home.sh`.
+- Settings > Side apps: the four switches, and the gear, LIST and Home following them after you leave Lumen.
+- The Dock's bar is a plain dark tint, opaque, with the glass rims and gloss. Home's bar shows the blurred wallpaper through it; over an
+  app there is nothing to blur. Whether it should be see-through is Sam's call.
+
+## The Dock over any app (built 2026-11-27)
+
+Built as below, on branch `native`: `dock.rs`, `Home::open_as_dock` and `Home::draw_dock`, and `tools/tv/home.sh`. The Home button
+(Input Hook 773) runs `home.sh` while Lumen Overlay is installed and its Dock is on. `home.sh` closes the old Lumen Screensaver if
+it is up, passes the press to the overlay if it is up (its screensaver closes, its Dock opens Lumen, its Guide or Quick Settings
+switch to the Dock), opens Lumen when Lumen or LG Home is in front, and otherwise opens the Dock over the app, named in `"app"` so
+the Dock starts on it. Down, Up and OK on a folder or on Lumen's own tiles (Settings, Inputs) launch Lumen with
+`{"view":"dock","col":…,"exit":"down"|"up"|"open"|"bar"}`; Lumen opens with its bar focused on that column and then makes the
+move, once it has drawn its first frame, so the slide is seen (29 of 33 frames on the first try; before the wait, 2).
+
+Seen by Claude on 2026-11-27, keys sent over the dev control channel (the overlay listens on 9996, `nctl.mjs`): over YouTube the
+Dock came up on YouTube with Live TV's open dot; Right moved to Plex; Down opened Lumen on the tile under Plex in row 2; Up opened
+Lumen on Control Center; OK on Plex opened Plex; Back closed it; a second Home opened Lumen at the same tile.
+
+Cold, the Dock's first frame comes 0.9 to 1.5 s after the press (`boot native overlay dock` in the log). The overlay is not kept
+running between presses, so every Home is a cold start. Keeping it warm needs an overlay that stays open without taking the keys,
+which is not solved.
+
+### The idea, as agreed
 
 Home's dock over the app you are in, so you can switch apps without leaving it. It is a mode of the overlay app and needs it kept warm,
 since it is only worth having if it shows the moment Home is pressed.
