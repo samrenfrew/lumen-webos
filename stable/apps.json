@@ -1,9 +1,9 @@
 {
   "paging": {
     "page": 1,
-    "count": 7,
+    "count": 5,
     "maxPage": 1,
-    "itemsTotal": 7,
+    "itemsTotal": 5,
     "prevUrl": null,
     "nextUrl": null
   },
@@ -15,90 +15,44 @@
       "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.manifest.json",
       "manifest": {
         "id": "com.samrenfrew.lumen.native",
-        "version": "3.0.0",
+        "version": "3.0.1",
         "type": "native",
         "title": "Lumen Native",
         "appDescription": "Lumen, rewritten as a native app. The home screen so far.",
         "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native_3.0.0_arm.ipk",
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.1/com.samrenfrew.lumen.native_3.0.1_arm.ipk",
         "ipkHash": {
-          "sha256": "13cb457b33ca95714240c01dd7b57eaac8a56f4e4b447073f4c30b3749af4d85"
+          "sha256": "bd5a7c0aee8814119a48787ea3fc868237206f243f79fbb2ec009eacfd783ed6"
         },
-        "ipkSize": 1393712
+        "ipkSize": 1411676
       },
       "pool": "main",
       "shortDescription": "Lumen, rewritten as a native app. The home screen so far."
     },
     {
-      "id": "com.samrenfrew.lumen.native.saver",
-      "title": "Lumen Screensaver",
-      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.png",
-      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.manifest.json",
+      "id": "com.samrenfrew.lumen.native.overlay",
+      "title": "Lumen Overlay",
+      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.overlay.png",
+      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.overlay.manifest.json",
       "manifest": {
-        "id": "com.samrenfrew.lumen.native.saver",
-        "version": "3.0.0",
+        "id": "com.samrenfrew.lumen.native.overlay",
+        "version": "3.0.1",
         "type": "native",
-        "title": "Lumen Screensaver",
-        "appDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it.",
-        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.saver.png",
+        "title": "Lumen Overlay",
+        "appDescription": "The Guide, Quick Settings and the screensaver over the app you are watching, from Lumen Native.",
+        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.overlay.png",
         "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
         "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.saver_3.0.0_arm.ipk",
+        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.1/com.samrenfrew.lumen.native.overlay_3.0.1_arm.ipk",
         "ipkHash": {
-          "sha256": "88c6af248d5ea69c46d26bb55f2db58bdd3e7786c6fedd1148ebdfc81a2bde4c"
+          "sha256": "ea26881f17264f75f6c027d29054baf8e8b1003079864e358e995a87a78a5a52"
         },
-        "ipkSize": 1175858
+        "ipkSize": 1307038
       },
       "pool": "main",
-      "shortDescription": "Your photos over the app you are watching, from Lumen Native. Any key goes back to the app where you left it."
-    },
-    {
-      "id": "com.samrenfrew.lumen.native.guide",
-      "title": "Lumen Guide",
-      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.png",
-      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.manifest.json",
-      "manifest": {
-        "id": "com.samrenfrew.lumen.native.guide",
-        "version": "3.0.0",
-        "type": "native",
-        "title": "Lumen Guide",
-        "appDescription": "A narrow channel guide over Live TV, from Lumen Native. LIST opens it, GUIDE opens the Full guide.",
-        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.guide.png",
-        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.guide_3.0.0_arm.ipk",
-        "ipkHash": {
-          "sha256": "744e522bfc71d7fb0d787207461a0f0d283836ce9636b84530ae8d11b3831bc9"
-        },
-        "ipkSize": 827788
-      },
-      "pool": "main",
-      "shortDescription": "A narrow channel guide over Live TV, from Lumen Native. LIST opens it, GUIDE opens the Full guide."
-    },
-    {
-      "id": "com.samrenfrew.lumen.native.quick",
-      "title": "Lumen Quick Settings",
-      "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.png",
-      "manifestUrl": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.manifest.json",
-      "manifest": {
-        "id": "com.samrenfrew.lumen.native.quick",
-        "version": "3.0.0",
-        "type": "native",
-        "title": "Lumen Quick Settings",
-        "appDescription": "Sound, picture and backlight over any app, from Lumen Native. The gear button opens it.",
-        "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.quick.png",
-        "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
-        "rootRequired": true,
-        "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native.quick_3.0.0_arm.ipk",
-        "ipkHash": {
-          "sha256": "a25102b19d5a2ae081f753c2b0be75571519e528db4a9a4e1f43aff2bd2b379d"
-        },
-        "ipkSize": 827794
-      },
-      "pool": "main",
-      "shortDescription": "Sound, picture and backlight over any app, from Lumen Native. The gear button opens it."
+      "shortDescription": "The Guide, Quick Settings and the screensaver over the app you are watching, from Lumen Native."
     },
     {
       "id": "com.samrenfrew.lumen",

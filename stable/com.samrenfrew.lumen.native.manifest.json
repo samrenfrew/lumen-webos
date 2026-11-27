@@ -1,15 +1,15 @@
 {
   "id": "com.samrenfrew.lumen.native",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "type": "native",
   "title": "Lumen Native",
   "appDescription": "Lumen, rewritten as a native app. The home screen so far.",
   "iconUri": "https://raw.githubusercontent.com/samrenfrew/lumen-webos/hbc-repo/stable/com.samrenfrew.lumen.native.png",
   "sourceUrl": "https://github.com/samrenfrew/lumen-webos",
   "rootRequired": true,
-  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.0/com.samrenfrew.lumen.native_3.0.0_arm.ipk",
+  "ipkUrl": "https://github.com/samrenfrew/lumen-webos/releases/download/v3.0.1/com.samrenfrew.lumen.native_3.0.1_arm.ipk",
   "ipkHash": {
-    "sha256": "13cb457b33ca95714240c01dd7b57eaac8a56f4e4b447073f4c30b3749af4d85"
+    "sha256": "bd5a7c0aee8814119a48787ea3fc868237206f243f79fbb2ec009eacfd783ed6"
   },
-  "ipkSize": 1393712
+  "ipkSize": 1411676
 }
