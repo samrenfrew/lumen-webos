@@ -9,6 +9,8 @@ use serde_json::Value;
 pub const QUICK_APP_ID: &str = "com.samrenfrew.lumen.native.quick";
 const GUIDE_PROGRAM: &str = "lumen-guide";
 const QUICK_PROGRAM: &str = "lumen-quick";
+pub const OVERLAY_APP_ID: &str = "com.samrenfrew.lumen.native.overlay";
+const OVERLAY_PROGRAM: &str = "lumen-overlay";
 pub const IDLE_CLOSE_MS: u32 = 30_000;
 pub const CLOSE_AFTER_MS: u32 = 400;
 const QUICK_GLASS_RGB: [u8; 3] = [40, 44, 58];
@@ -56,7 +58,7 @@ pub fn mode_of(args: &[String]) -> Option<Mode> {
     asked.or(match (program, launched_as) {
         (GUIDE_PROGRAM, _) | (_, Some(guide::GUIDE_APP_ID)) => Some(Mode::Guide),
         (QUICK_PROGRAM, _) | (_, Some(QUICK_APP_ID)) => Some(Mode::Quick),
-        (saver_mode::SAVER_PROGRAM, _) | (_, Some(saver_mode::SAVER_APP_ID)) => Some(Mode::Saver),
+        (saver_mode::SAVER_PROGRAM | OVERLAY_PROGRAM, _) | (_, Some(saver_mode::SAVER_APP_ID | OVERLAY_APP_ID)) => Some(Mode::Saver),
         _ if first == "--saver" => Some(Mode::Saver),
         _ => None,
     })
@@ -234,6 +236,12 @@ mod tests {
         assert_eq!(bus_name(&args("lumen-quick", "{}")), QUICK_APP_ID);
         assert_eq!(bus_name(&args("lumen", "--saver")), saver_mode::SAVER_APP_ID);
         assert_eq!(bus_name(&args("lumen", "--shot")), crate::APP_ID);
+    }
+
+    #[test]
+    fn the_overlay_app_with_no_mode_is_the_screensaver() {
+        assert_eq!(mode_of(&args("lumen-overlay", "{}")), Some(Mode::Saver));
+        assert_eq!(mode_of(&args("lumen", r#"{"appId":"com.samrenfrew.lumen.native.overlay","parameters":{}}"#)), Some(Mode::Saver));
     }
 
     #[test]

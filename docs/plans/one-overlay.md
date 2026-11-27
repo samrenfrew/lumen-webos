@@ -40,7 +40,7 @@ Today the one program is packaged four times (`tools/build_native.sh`): `com.sam
 ## Settings > Side apps
 
 - One row, "Lumen Overlay", installs, updates or removes the one app.
-- Below it, a switch per feature: Guide over Live TV, Quick Settings on the gear, Screensaver over apps, later the Dock. These only
+- Below it, a switch per feature, so each is easy to turn on and off **(Sam)**: Guide over Live TV, Quick Settings on the gear, Screensaver over apps, later the Dock. These only
   write the flags `watch.sh` reads; nothing is installed or removed.
 - The old `.guide`, `.quick` and `.saver` ids are removed by Lumen once the overlay is installed, the same way as the Old Lumen row
   (`home-setup.sh retire-web`).
@@ -61,6 +61,11 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
    **(verify)** In LG's screensaver slot (`saver-mount`, off on this TV now) the screensaver now joins the bus as LG's screensaver
    id instead of `.saver`. That should be the right name there, but has not run.
 2. Package `.overlay` beside the old three in `build_native.sh` and `deploy_native.sh`. Try each mode over SSH with Sam watching.
+   **Built 2026-11-27, each mode seen starting on the TV by Claude, not yet by Sam:** `appinfo-overlay.json`, program
+   `lumen-overlay`, with the screensaver's assets. `LUMEN_OVERLAY=1 npm run deploy:native` installs it. Launched over home with
+   `{"mode":"guide"}`, `{"mode":"guide","view":"full"}`, `{"mode":"quick"}` and `{}` (the screensaver), each joined the bus, drew
+   in 0.6 to 0.9 s and closed on `closeByAppId`. The release leaves it out until step 5. Its screensaver has no `config/` yet
+   (watch.sh copies Lumen's settings only into the `.saver` folders), so it runs on default settings until step 3.
 3. `watch.sh`, `gear.sh` and `saver-mount` use `.overlay` when installed, the old ids otherwise.
 4. Settings > Side apps: one row and the feature switches. Removes the old ids. Keep-alive list updated.
 5. Release workflow and Channel listing. Old ids and the program name fallback go.

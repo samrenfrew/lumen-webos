@@ -74,7 +74,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          IPKS=$(ls release/com.samrenfrew.lumen.native*_"$VERSION"_arm.ipk)
+          IPKS=$(ls release/com.samrenfrew.lumen.native*_"$VERSION"_arm.ipk | grep -v native.overlay_)
           {
             printf 'Built from %s.\n\nInstall: from the Homebrew Channel (see the README), or drop each .ipk onto Dev Manager, or `ares-install --device lgtv <file>`. The side apps can also be turned on in Lumen Native, Settings > Side apps.\n\n' "$GITHUB_SHA"
             for f in $IPKS; do printf 'SHA-256 of %s: `%s`\n\n' "$(basename "$f")" "$(sha256sum "$f" | cut -d' ' -f1)"; done

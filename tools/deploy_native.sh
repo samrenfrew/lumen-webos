@@ -5,6 +5,7 @@
 # When the web Lumen or its Guide or Quick Settings is still on the TV, it is uninstalled (home-setup.sh retire-web), with the
 # app's own home-setup.sh copied in first so the boot guard can finish it after a restart.
 # LUMEN_SIDE=1 also installs Lumen Guide and Lumen Quick Settings (com.samrenfrew.lumen.native.guide and .quick).
+# LUMEN_OVERLAY=1 also installs Lumen Overlay (com.samrenfrew.lumen.native.overlay, docs/plans/one-overlay.md).
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 . "$ROOT/tools/env.sh"
@@ -14,6 +15,7 @@ BUILT=$(LUMEN_BUILD_DIR="$OUT" sh "$ROOT/tools/build_native.sh")
 IPKS=$(echo "$BUILT" | head -1)
 [ "$LUMEN_SAVER" = 1 ] && IPKS="$IPKS $(echo "$BUILT" | sed -n 2p)"
 [ "$LUMEN_SIDE" = 1 ] && IPKS="$IPKS $(echo "$BUILT" | sed -n 3,4p | tr '\n' ' ')"
+[ "$LUMEN_OVERLAY" = 1 ] && IPKS="$IPKS $(echo "$BUILT" | sed -n 5p)"
 
 for IPK in $IPKS; do
   REMOTE_IPK="/tmp/$(basename "$IPK")"

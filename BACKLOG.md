@@ -40,3 +40,8 @@
 **Origin:** 2026-11-25. Switching on opened LG's Apps store on "This page is not available. A2.46.SA" because the web Lumen was uninstalled while bootd still named it until the next restart.
 **Idea:** When Lumen Native ships in the Channel, people coming from the web Lumen need the same clean switch `npm run deploy:native` now does with `home-setup.sh retire-web`. Settings could offer it once the TV scripts are installed.
 **Context for next agent:** `retire-web` and its guard step are in `tools/tv/home-setup.sh`. The native app runs home-setup actions through `HOME_ACTIONS` in `native/lumen/src/root.rs`; add a `retireWeb` entry there.
+
+## The TV's own screen when a Lumen app fails to open
+**Origin:** 2026-11-27, Sam, while planning the single overlay app (`docs/plans/one-overlay.md`).
+**Idea:** The TV scripts check that what they launched actually came up, and show the TV's default when it did not: LG Home if Lumen fails to start on Home or at power-on, LG's own Guide, gear menu or screensaver if a side app fails.
+**Context for next agent:** The launches are in `tools/tv/watch.sh` (Home, LIST and GUIDE binds, the screensaver hand-over), `tools/tv/gear.sh` and the boot guard in `tools/tv/home-setup.sh`. `getForegroundAppInfo` and `running` (luna applicationManager) show whether an app is up; a native app logs "first frame shown" to `/tmp/lumen-native-<uid>/log`. Some fallback already exists: watch.sh does nothing for a side app that is not installed. A crash after install is the gap.

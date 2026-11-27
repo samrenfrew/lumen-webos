@@ -1,0 +1,18 @@
+{
+  "id": "com.samrenfrew.lumen.native.overlay",
+  "version": "3.0.0",
+  "vendor": "samrenfrew",
+  "type": "native",
+  "main": "lumen-overlay",
+  "title": "Lumen Overlay",
+  "appDescription": "The Guide, Quick Settings and the screensaver over the app you are watching, from Lumen Native.",
+  "icon": "icon.png",
+  "largeIcon": "largeIcon.png",
+  "iconColor": "#050505",
+  "visible": false,
+  "transparent": true,
+  "noSplashOnLaunch": true,
+  "spinnerOnLaunch": false,
+  "nativeLifeCycleInterfaceVersion": 2,
+  "requiredMemory": 60
+}

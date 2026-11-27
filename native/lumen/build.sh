@@ -5,7 +5,7 @@ SDK=${WEBOS_SDK:-$HOME/toolchains/arm-webos-linux-gnueabi_sdk-buildroot}
 TARGET=armv7-unknown-linux-gnueabi
 PKG=$HERE/build/pkg
 SAVER_PKG=$HERE/build/pkg-saver
-rm -rf "$PKG" "$SAVER_PKG" "$HERE/build/pkg-guide" "$HERE/build/pkg-quick" && mkdir -p "$PKG" "$SAVER_PKG"
+rm -rf "$PKG" "$SAVER_PKG" "$HERE/build/pkg-guide" "$HERE/build/pkg-quick" "$HERE/build/pkg-overlay" && mkdir -p "$PKG" "$SAVER_PKG"
 export CC_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-gcc"
 export AR_armv7_unknown_linux_gnueabi="$SDK/bin/arm-webos-linux-gnueabi-ar"
 export CARGO_TARGET_ARMV7_UNKNOWN_LINUX_GNUEABI_LINKER="$SDK/bin/arm-webos-linux-gnueabi-gcc"
@@ -33,4 +33,10 @@ for SIDE in guide quick; do
   cp "$HERE/../../app/public-$SIDE/icon.png" "$HERE/../../app/public-$SIDE/largeIcon.png" "$SIDE_PKG/"
   sh "$HERE/assets.sh" "$SIDE_PKG" side
 done
-echo "Built: $PKG $SAVER_PKG $HERE/build/pkg-guide $HERE/build/pkg-quick"
+OVERLAY_PKG=$HERE/build/pkg-overlay
+mkdir -p "$OVERLAY_PKG"
+cp "$PKG/lumen" "$OVERLAY_PKG/lumen-overlay"
+cp "$HERE/appinfo-overlay.json" "$OVERLAY_PKG/appinfo.json"
+cp "$PKG/icon.png" "$PKG/largeIcon.png" "$OVERLAY_PKG/"
+sh "$HERE/assets.sh" "$OVERLAY_PKG" saver
+echo "Built: $PKG $SAVER_PKG $HERE/build/pkg-guide $HERE/build/pkg-quick $OVERLAY_PKG"
