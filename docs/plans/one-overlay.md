@@ -53,8 +53,13 @@ listing. The overlay carries Lumen Native's version, as the side apps do now.
 ## Steps (each leaves the TV working)
 
 1. Mode from the launch parameter, with the program name still read as a fallback. Tests for the parsing.
-   **Built 2026-11-27, tested on the desktop, not on the TV:** `side_apps::mode_of`. A `mode` in the parameters wins over the program
-   name and app id; home's own id ignores it. Nothing launches with `mode` yet, so the TV behaves as before.
+   **Built 2026-11-27, seen working on the TV by Claude:** `side_apps::mode_of`. A `mode` in the parameters wins over the program
+   name and app id; home's own id ignores it. Nothing launches with `mode` yet, so the TV behaves as before. On the TV, the Guide's
+   id launched with `{"mode":"quick"}` drew Quick Settings in 555 ms and closed itself after 30 s; a plain Guide launch still opens
+   the Guide. The first try showed the app must join the bus as the id the TV launched, not its mode's id (the TV refused it with
+   "Invalid permissions"), so `side_apps::bus_name` takes the launched id.
+   **(verify)** In LG's screensaver slot (`saver-mount`, off on this TV now) the screensaver now joins the bus as LG's screensaver
+   id instead of `.saver`. That should be the right name there, but has not run.
 2. Package `.overlay` beside the old three in `build_native.sh` and `deploy_native.sh`. Try each mode over SSH with Sam watching.
 3. `watch.sh`, `gear.sh` and `saver-mount` use `.overlay` when installed, the old ids otherwise.
 4. Settings > Side apps: one row and the feature switches. Removes the old ids. Keep-alive list updated.

@@ -62,6 +62,19 @@ pub fn mode_of(args: &[String]) -> Option<Mode> {
     })
 }
 
+pub fn bus_name(args: &[String]) -> String {
+    if let Some(id) = args.get(1).and_then(|a| crate::launched_as(a)) {
+        return id;
+    }
+    match mode_of(args) {
+        Some(Mode::Guide) => guide::GUIDE_APP_ID,
+        Some(Mode::Quick) => QUICK_APP_ID,
+        Some(Mode::Saver) => saver_mode::SAVER_APP_ID,
+        None => crate::APP_ID,
+    }
+    .to_string()
+}
+
 pub fn side_of(args: &[String]) -> Option<Side> {
     match mode_of(args)? {
         Mode::Guide => Some(Side::Guide),
@@ -213,6 +226,14 @@ mod tests {
         assert_eq!(mode_of(&overlay("saver")), Some(Mode::Saver));
         assert_eq!(mode_of(&args("lumen-guide", r#"{"parameters":{"mode":"quick"}}"#)), Some(Mode::Quick));
         assert_eq!(mode_of(&args("lumen-guide", r#"{"parameters":{"mode":"nonsense"}}"#)), Some(Mode::Guide));
+    }
+
+    #[test]
+    fn it_joins_the_bus_as_the_app_the_tv_launched_whatever_its_mode() {
+        assert_eq!(bus_name(&args("lumen-guide", r#"{"appId":"com.samrenfrew.lumen.native.guide","parameters":{"mode":"quick"}}"#)), "com.samrenfrew.lumen.native.guide");
+        assert_eq!(bus_name(&args("lumen-quick", "{}")), QUICK_APP_ID);
+        assert_eq!(bus_name(&args("lumen", "--saver")), saver_mode::SAVER_APP_ID);
+        assert_eq!(bus_name(&args("lumen", "--shot")), crate::APP_ID);
     }
 
     #[test]

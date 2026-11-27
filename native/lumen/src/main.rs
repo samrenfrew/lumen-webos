@@ -1289,12 +1289,7 @@ fn run() -> i32 {
         if overlay {
             SDL_SetHint(c"SDL_WEBOS_ACCESS_POLICY_KEYS_EXIT".as_ptr(), c"true".as_ptr());
         }
-        let bus_name = match (alone, side) {
-            (true, _) => saver_mode::SAVER_APP_ID,
-            (false, Some(side)) => side.app_id(),
-            (false, None) => APP_ID,
-        };
-        if bus::start(bus_name) {
+        if bus::start(&side_apps::bus_name(&args)) {
             bus::subscribe(REGISTER, json!({}), heard_from_the_app_manager);
         }
         if SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0 {
